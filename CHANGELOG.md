@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.55
+
+### Added
+- Streaming Bedrock responses. The conversation agent now uses `invoke_model_with_response_stream` and pipes text deltas straight into `chat_log.async_add_delta_content_stream`, so Home Assistant streams speech to TTS as the model generates it instead of waiting for the full response. Noticeable latency win on any terminal turn longer than a sentence.
+- `BedrockClient.async_generate_stream` yields normalized `text_delta` / `tool_use_start` / `tool_use_delta` / `message_end` events. Tool-use turns still buffer the full JSON args before executing, so tool-calling semantics are unchanged.
+- Usage sensors update from streamed responses too (counters read from the `message_delta` usage block).
+
+### Changed
+- Internal: shared request-body construction between streaming and non-streaming paths via `_build_request`. `async_generate` is retained as a non-streaming fallback.
+
+### Requirements
+- Home Assistant 2025.2 or newer (for `chat_log.async_add_delta_content_stream`). The production HA used in development (2026.4.x) is well past this.
+
 ## 1.0.54
 
 ### Added

@@ -150,50 +150,40 @@ class BedrockClient:
         """Convert Home Assistant conversation to Bedrock message format."""
         return build_bedrock_messages(conversation_content)
 
-    async def async_generate(
+    def _build_request(
         self,
         conversation_content: list[conversation.Content],
         llm_api: llm.APIInstance | None,
-        agent_id: str,
-        options: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Generate a response from Bedrock."""
-        # Ensure client is initialized before use
-        await self._ensure_client()
-        
+        options: dict[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
+        """Assemble the Bedrock request body shared by streaming + non-streaming paths."""
         model_id = options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
         # HA's NumberSelector always returns floats even when step=1; Bedrock's
         # Anthropic schema requires max_tokens to be an int.
         max_tokens = int(options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS))
         temperature = float(options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE))
 
-        # Extract system prompt
         system_prompt = None
         for content in conversation_content:
             if isinstance(content, conversation.SystemContent):
                 system_prompt = content.content
                 break
-        
-        _LOGGER.info("System prompt: %d characters", len(system_prompt) if system_prompt else 0)
-        
-        # Build messages
+
         messages = self._build_bedrock_messages(conversation_content)
-        _LOGGER.info("Built %d message(s) for Bedrock", len(messages))
-        
-        # Build request using Anthropic Messages API format (snake_case)
-        request_body = {
+        _LOGGER.info(
+            "Bedrock request: system=%d chars, messages=%d",
+            len(system_prompt) if system_prompt else 0,
+            len(messages),
+        )
+
+        request_body: dict[str, Any] = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "messages": messages
+            "messages": messages,
         }
-        
-        # Prompt caching (Anthropic Messages on Bedrock): wrap the system prompt
-        # as a list of content blocks with cache_control="ephemeral" on the
-        # last block, and tag the last tool in the tool list too. Cached
-        # prefixes cost 90% less on hit; the static system prompt + tool
-        # schema rarely change between turns so this wins both on refresh
-        # flows and on long conversations.
+
+        # Prompt caching: tag the system prompt and last tool with cache_control.
         if system_prompt:
             request_body["system"] = [
                 {
@@ -208,6 +198,21 @@ class BedrockClient:
             tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
             request_body["tools"] = tools
             _LOGGER.info("Added %d tool(s) to request (last one cache-tagged)", len(tools))
+
+        return model_id, request_body
+
+    async def async_generate(
+        self,
+        conversation_content: list[conversation.Content],
+        llm_api: llm.APIInstance | None,
+        agent_id: str,
+        options: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Generate a response from Bedrock."""
+        # Ensure client is initialized before use
+        await self._ensure_client()
+
+        model_id, request_body = self._build_request(conversation_content, llm_api, options)
         
         try:
             _LOGGER.info("Calling Bedrock model: %s", model_id)
@@ -293,4 +298,112 @@ class BedrockClient:
             raise HomeAssistantError(f"Bedrock API error: {err}") from err
         except Exception as err:
             _LOGGER.exception("Unexpected error calling Bedrock")
+            raise HomeAssistantError(f"Unexpected error: {err}") from err
+
+    async def async_generate_stream(
+        self,
+        conversation_content: list[conversation.Content],
+        llm_api: llm.APIInstance | None,
+        options: dict[str, Any],
+    ):
+        """Yield normalized events from ``invoke_model_with_response_stream``.
+
+        Events (as ``(kind, payload)`` tuples):
+
+        - ``("text_delta", str)``            — incremental text to stream to the user
+        - ``("tool_use_start", {"index", "id", "name"})``
+        - ``("tool_use_delta", {"index", "partial_json"})``  — input_json_delta chunks
+        - ``("message_end", {"stop_reason", "usage": {...}})``
+
+        On error raises ``HomeAssistantError``; iteration stops after
+        ``message_end``. Callers can assemble the tool_use blocks by
+        concatenating the partial_json strings for each index, then
+        ``json.loads``-ing at ``message_end``.
+        """
+        await self._ensure_client()
+        model_id, request_body = self._build_request(conversation_content, llm_api, options)
+
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        SENTINEL = object()
+
+        def _pump() -> None:
+            """Drain Bedrock's EventStream (blocking) into the async queue."""
+            try:
+                response = self._bedrock_runtime.invoke_model_with_response_stream(
+                    modelId=model_id, body=json.dumps(request_body)
+                )
+                for event in response.get("body"):
+                    chunk = event.get("chunk")
+                    if not chunk or "bytes" not in chunk:
+                        continue
+                    try:
+                        payload = json.loads(chunk["bytes"].decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+                        loop.call_soon_threadsafe(queue.put_nowait, ("error", err))
+                        return
+                    loop.call_soon_threadsafe(queue.put_nowait, ("raw", payload))
+            except Exception as err:  # noqa: BLE001 — propagate via the queue
+                loop.call_soon_threadsafe(queue.put_nowait, ("error", err))
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, SENTINEL)
+
+        pump_task = loop.run_in_executor(None, _pump)
+
+        try:
+            # Each content_block in the stream has an index. We track per-index
+            # state so the caller can reassemble tool_use blocks from the
+            # partial_json deltas. Text blocks emit ("text_delta", str).
+            while True:
+                item = await queue.get()
+                if item is SENTINEL:
+                    break
+                kind, payload = item
+                if kind == "error":
+                    raise HomeAssistantError(f"Bedrock stream error: {payload}")
+
+                event_type = payload.get("type")
+                if event_type == "content_block_start":
+                    block = payload.get("content_block") or {}
+                    if block.get("type") == "tool_use":
+                        yield (
+                            "tool_use_start",
+                            {
+                                "index": payload.get("index", 0),
+                                "id": block.get("id"),
+                                "name": block.get("name"),
+                            },
+                        )
+                elif event_type == "content_block_delta":
+                    delta = payload.get("delta") or {}
+                    dt = delta.get("type")
+                    if dt == "text_delta":
+                        text = delta.get("text") or ""
+                        if text:
+                            yield ("text_delta", text)
+                    elif dt == "input_json_delta":
+                        yield (
+                            "tool_use_delta",
+                            {
+                                "index": payload.get("index", 0),
+                                "partial_json": delta.get("partial_json", ""),
+                            },
+                        )
+                elif event_type == "message_delta":
+                    delta = payload.get("delta") or {}
+                    usage = payload.get("usage") or {}
+                    if "stop_reason" in delta:
+                        # message_delta carries stop_reason + usage on
+                        # termination; the subsequent message_stop is empty.
+                        # Record usage into the tracker here so the sensors
+                        # update even when streaming.
+                        tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+                        if tracker is not None:
+                            tracker.record(model_id, usage)
+                        yield (
+                            "message_end",
+                            {"stop_reason": delta.get("stop_reason"), "usage": usage},
+                        )
+        finally:
+            await pump_task
             raise HomeAssistantError(f"Unexpected error: {err}") from err

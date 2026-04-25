@@ -33,7 +33,6 @@ from .const import (
 from .conversation_helpers import (
     error_result,
     execute_tool_call,
-    parse_bedrock_response,
     speech_result,
 )
 
@@ -173,94 +172,81 @@ class BedrockConversationEntity(
             # Add user message
             message_history.append(conversation.UserContent(content=user_input.text))
             
-            # Tool calling loop
+            # Streaming tool-calling loop. Each iteration calls Bedrock with
+            # the full history, streams deltas into chat_log (HA streams those
+            # to TTS automatically), and — if the turn ended with tool_use —
+            # executes the tools and loops. Terminal turns return whatever
+            # text was streamed.
             tool_iterations = 0
             agent_id = self.entry.entry_id
-            
-            _LOGGER.info("Starting tool calling loop (max iterations: %d)", max_tool_call_iterations)
-            
+            _LOGGER.info("Starting tool-calling loop (max iterations: %d)", max_tool_call_iterations)
+
             while tool_iterations <= max_tool_call_iterations:
                 try:
-                    _LOGGER.info("Iteration %d: Calling Bedrock...", tool_iterations)
-                    
-                    response = await self.client.async_generate(
-                        message_history, llm_api, agent_id, options
+                    _LOGGER.info("Iteration %d: streaming Bedrock response...", tool_iterations)
+
+                    turn_state = await self._stream_one_bedrock_turn(
+                        chat_log=chat_log,
+                        message_history=message_history,
+                        llm_api=llm_api,
+                        options=options,
+                        agent_id=agent_id,
                     )
 
-                    parsed = parse_bedrock_response(response)
-                    _LOGGER.info(
-                        "Bedrock response - stop_reason: %s, tool_calls: %d",
-                        parsed.stop_reason, len(parsed.tool_calls),
-                    )
+                    # Fold the finalized assistant turn into message_history
+                    # so the next Bedrock request sees it in the correct
+                    # Bedrock-message shape.
+                    if turn_state.assistant_content is not None:
+                        message_history.append(turn_state.assistant_content)
 
-                    # Missing stop_reason means the response shape is unexpected
-                    # (e.g. an error payload with no content). Surface it.
-                    if parsed.stop_reason is None:
+                    if turn_state.stop_reason is None:
                         _LOGGER.error(
-                            "Bedrock response missing 'stop_reason'. Keys: %s",
-                            list(response.keys()),
+                            "Bedrock stream ended with no stop_reason (tool_calls=%d)",
+                            len(turn_state.tool_calls),
                         )
-                        if "error" in response:
-                            return error_result(
-                                user_input.conversation_id,
-                                user_input.language,
-                                f"Bedrock API error: {response.get('error')}",
-                            )
                         return error_result(
                             user_input.conversation_id,
                             user_input.language,
                             "Sorry, I received an unexpected response. Please try again.",
                         )
 
-                    # Record the assistant's turn.
-                    if parsed.response_text or parsed.tool_calls:
-                        message_history.append(
-                            conversation.AssistantContent(
-                                agent_id=agent_id,
-                                content=parsed.response_text.strip(),
-                                tool_calls=parsed.tool_calls or None,
-                            )
-                        )
-
-                    # Terminal turn — no tool loop continues.
-                    if parsed.stop_reason != "tool_use" or not parsed.tool_calls:
-                        final_text = parsed.response_text.strip()
+                    # Terminal turn — streaming already pushed text to TTS.
+                    if turn_state.stop_reason != "tool_use" or not turn_state.tool_calls:
+                        final_text = turn_state.full_text.strip()
                         _LOGGER.info(
-                            "Conversation complete. Response length: %d chars",
+                            "Conversation complete. Streamed %d chars",
                             len(final_text),
                         )
-                        control_chars = [
-                            c for c in final_text if ord(c) < 32 and c not in "\n\r\t"
-                        ]
-                        if control_chars:
-                            _LOGGER.warning(
-                                "Found control characters in response: %s",
-                                [hex(ord(c)) for c in control_chars[:10]],
-                            )
                         return speech_result(
-                            user_input.conversation_id, user_input.language, final_text
+                            user_input.conversation_id,
+                            user_input.language,
+                            final_text,
                         )
 
-                    # Run every tool in this turn and append the results to history.
-                    _LOGGER.info("Executing %d tool call(s)...", len(parsed.tool_calls))
-                    for idx, tool_call in enumerate(parsed.tool_calls):
-                        tool_use_id = parsed.tool_use_ids.get(
-                            id(tool_call), f"tool_fallback_{tool_iterations}_{idx}"
-                        )
-                        message_history.append(
-                            await execute_tool_call(
-                                llm_api, tool_call, tool_use_id, agent_id
-                            )
-                        )
-
+                    # tool_use turn — run tools, append results, loop.
                     _LOGGER.info(
-                        "Iteration %d complete (%d tool result(s) appended)",
-                        tool_iterations, len(parsed.tool_calls),
+                        "Executing %d tool call(s) from streamed turn",
+                        len(turn_state.tool_calls),
                     )
+                    for idx, tool_call in enumerate(turn_state.tool_calls):
+                        tool_use_id = turn_state.tool_use_ids.get(
+                            id(tool_call),
+                            f"tool_fallback_{tool_iterations}_{idx}",
+                        )
+                        tool_result_content = await execute_tool_call(
+                            llm_api, tool_call, tool_use_id, agent_id
+                        )
+                        message_history.append(tool_result_content)
+                        # Mirror the result into chat_log so the next
+                        # stream starts from a complete log state.
+                        await chat_log.async_add_assistant_content_without_tools(
+                            tool_result_content
+                        )
+
                     tool_iterations += 1
 
                 except HomeAssistantError as err:
-                    _LOGGER.error("Error calling Bedrock: %s", err, exc_info=True)
+                    _LOGGER.error("Error during Bedrock stream: %s", err, exc_info=True)
                     return error_result(
                         user_input.conversation_id,
                         user_input.language,
@@ -277,6 +263,120 @@ class BedrockConversationEntity(
                 user_input.language,
                 "I'm sorry, I couldn't complete that request after multiple attempts.",
             )
+
+    async def _stream_one_bedrock_turn(
+        self,
+        *,
+        chat_log: conversation.ChatLog,
+        message_history,
+        llm_api,
+        options,
+        agent_id: str,
+    ):
+        """Stream one Bedrock turn into ``chat_log`` and return final state.
+
+        Returns a small object with:
+            stop_reason: str | None
+            full_text: str
+            tool_calls: list[llm.ToolInput]
+            tool_use_ids: dict[int(tool_call), str]  — Bedrock tool_use_id by id()
+            assistant_content: conversation.AssistantContent | None
+        """
+        import json as json_mod
+        from types import SimpleNamespace
+
+        # Per-index buffers for incremental tool_use blocks from the stream.
+        pending_tool_use: dict[int, dict] = {}
+        pending_tool_use_json: dict[int, list[str]] = {}
+        full_text: list[str] = []
+        stop_reason: str | None = None
+
+        bedrock_events = self.client.async_generate_stream(
+            message_history, llm_api, options
+        )
+
+        async def delta_stream():
+            """Translate Bedrock stream events into chat_log deltas."""
+            nonlocal stop_reason
+            # Yield the role starter so chat_log opens a new assistant entry.
+            yield {"role": "assistant"}
+
+            try:
+                async for kind, payload in bedrock_events:
+                    if kind == "text_delta":
+                        full_text.append(payload)
+                        yield {"content": payload}
+                    elif kind == "tool_use_start":
+                        idx = payload["index"]
+                        pending_tool_use[idx] = {
+                            "id": payload.get("id"),
+                            "name": payload.get("name"),
+                        }
+                        pending_tool_use_json[idx] = []
+                    elif kind == "tool_use_delta":
+                        idx = payload["index"]
+                        pending_tool_use_json.setdefault(idx, []).append(
+                            payload.get("partial_json", "")
+                        )
+                    elif kind == "message_end":
+                        stop_reason = payload.get("stop_reason")
+                        # Assemble tool_calls now that input JSON is complete.
+                        tool_inputs: list[llm.ToolInput] = []
+                        # Iterate indexes in order so two calls to the same tool
+                        # keep the order Bedrock sent them.
+                        for idx in sorted(pending_tool_use):
+                            meta = pending_tool_use[idx]
+                            raw_json = "".join(pending_tool_use_json.get(idx, []))
+                            try:
+                                args = json_mod.loads(raw_json) if raw_json else {}
+                            except json_mod.JSONDecodeError:
+                                _LOGGER.warning(
+                                    "Tool %s: could not parse streamed JSON args %r",
+                                    meta.get("name"), raw_json,
+                                )
+                                args = {}
+                            tool_input = llm.ToolInput(
+                                tool_name=meta.get("name"),
+                                tool_args=args,
+                            )
+                            tool_inputs.append(tool_input)
+                        if tool_inputs:
+                            yield {"tool_calls": tool_inputs}
+                        break
+            except HomeAssistantError:
+                raise
+
+        # chat_log.async_add_delta_content_stream consumes the delta async
+        # iterable and yields the finalized AssistantContent/ToolResultContent
+        # records that landed in the log. We only expect one AssistantContent
+        # per turn.
+        assistant_content: conversation.AssistantContent | None = None
+        async for finalized in chat_log.async_add_delta_content_stream(
+            agent_id, delta_stream()
+        ):
+            if isinstance(finalized, conversation.AssistantContent):
+                assistant_content = finalized
+
+        # Rebuild tool_use_ids by pairing our streamed index → Bedrock id
+        # against the finalized tool_calls list. Order is preserved above so
+        # zipping is safe.
+        tool_use_ids: dict[int, str] = {}
+        tool_calls: list[llm.ToolInput] = []
+        if assistant_content and assistant_content.tool_calls:
+            tool_calls = list(assistant_content.tool_calls)
+            ordered_indexes = sorted(pending_tool_use)
+            for tool_call, stream_idx in zip(tool_calls, ordered_indexes):
+                bedrock_id = pending_tool_use[stream_idx].get("id")
+                if bedrock_id:
+                    tool_use_ids[id(tool_call)] = bedrock_id
+
+        return SimpleNamespace(
+            stop_reason=stop_reason,
+            full_text="".join(full_text),
+            tool_calls=tool_calls,
+            tool_use_ids=tool_use_ids,
+            assistant_content=assistant_content,
+        )
 
     async def async_reload(self, language: str | None = None) -> None:
         """Clear cached intents for a language."""
