@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.53
+
+### Added
+- Prompt caching for Bedrock Claude. The system prompt and tool schema are now tagged with `cache_control: ephemeral` on every request, so repeated turns in a conversation (and the re-rendered device list when `refresh_prompt_per_turn` is on) hit Anthropic's prompt cache. Cache hits cost 90% less than a fresh read. Cache read/write token counts are logged per response so you can verify hit rate via HA's debug logs.
+
 ## 1.0.52
 
 ### Changed

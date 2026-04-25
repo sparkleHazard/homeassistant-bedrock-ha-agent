@@ -188,15 +188,26 @@ class BedrockClient:
             "messages": messages
         }
         
-        # System prompt should be a string, not a list
+        # Prompt caching (Anthropic Messages on Bedrock): wrap the system prompt
+        # as a list of content blocks with cache_control="ephemeral" on the
+        # last block, and tag the last tool in the tool list too. Cached
+        # prefixes cost 90% less on hit; the static system prompt + tool
+        # schema rarely change between turns so this wins both on refresh
+        # flows and on long conversations.
         if system_prompt:
-            request_body["system"] = system_prompt
-        
-        # Add tools if available
+            request_body["system"] = [
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ]
+
         tools = self._format_tools_for_bedrock(llm_api)
         if tools:
+            tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
             request_body["tools"] = tools
-            _LOGGER.info("Added %d tool(s) to request", len(tools))
+            _LOGGER.info("Added %d tool(s) to request (last one cache-tagged)", len(tools))
         
         try:
             _LOGGER.info("Calling Bedrock model: %s", model_id)
@@ -253,13 +264,22 @@ class BedrockClient:
             # Log the full response for debugging
             # Note: Bedrock uses snake_case (stop_reason), not camelCase (stopReason)
             stop_reason = response_body.get('stop_reason')
-            _LOGGER.info("Received response from Bedrock (stop_reason: %s)", stop_reason)
-            
+            usage = response_body.get("usage", {}) or {}
+            _LOGGER.info(
+                "Received response from Bedrock "
+                "(stop_reason: %s, input=%s, output=%s, cache_read=%s, cache_write=%s)",
+                stop_reason,
+                usage.get("input_tokens"),
+                usage.get("output_tokens"),
+                usage.get("cache_read_input_tokens"),
+                usage.get("cache_creation_input_tokens"),
+            )
+
             # Log warning if stop_reason is missing
             if stop_reason is None:
                 _LOGGER.warning("Bedrock response missing 'stop_reason' field. Full response keys: %s", list(response_body.keys()))
                 _LOGGER.debug("Full response body: %s", response_body)
-            
+
             return response_body
             
         except ClientError as err:
