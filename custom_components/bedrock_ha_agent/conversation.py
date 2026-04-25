@@ -113,7 +113,7 @@ class BedrockConversationEntity(
         self.hass = hass
         self.entry = entry
         self.history = {}
-        self.client: BedrockClient = entry.runtime_data["client"]
+        self.client: BedrockClient = entry.runtime_data.bedrock_client
         self._attr_unique_id = entry.entry_id
         self._attr_device_info = None
         

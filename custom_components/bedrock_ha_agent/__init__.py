@@ -217,14 +217,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry
 
-    # Initialize runtime_data with BedrockRuntimeData dataclass
+    # Initialize runtime_data with BedrockRuntimeData dataclass. bedrock_client
+    # + usage are both typed fields on the dataclass; no dynamic attrs.
     client = BedrockClient(hass, entry)
-    runtime_data = BedrockRuntimeData(bedrock_client=client)
-    entry.runtime_data = runtime_data
-
-    # Legacy dict fields for backward compatibility
-    entry.runtime_data.client = client  # type: ignore[attr-defined]
-    entry.runtime_data.usage = UsageTracker()  # type: ignore[attr-defined]
+    entry.runtime_data = BedrockRuntimeData(
+        bedrock_client=client,
+        usage=UsageTracker(),
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -277,7 +276,7 @@ async def _async_register_vision_service(hass: HomeAssistant) -> None:
                 "config_entry_id to pick one"
             )
 
-        client = entry.runtime_data["client"]
+        client = entry.runtime_data.bedrock_client
         options = {**entry.data, **entry.options}
         text = await client.async_generate_vision(message, entity_ids, options)
         return {"response": text}

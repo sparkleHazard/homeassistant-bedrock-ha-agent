@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .bedrock_client import BedrockClient
     from .config_tools.pending import PendingChange
     from .config_tools.undo import UndoStack
+    from .usage_tracker import UsageTracker
 
 
 @dataclass
@@ -22,6 +23,7 @@ class BedrockRuntimeData:
     last_model_warned_for: str | None = None
     lovelace_mode: str | None = None
     bedrock_client: "BedrockClient | None" = None
+    usage: "UsageTracker | None" = None
 
 
 def _get_runtime_data(hass: "HomeAssistant", entry_id: str) -> BedrockRuntimeData:

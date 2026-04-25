@@ -67,7 +67,7 @@
         "data": {
           "model_id": "Bedrock Model ID",
           "selected_language": "Language",
-          "prompt": "System prompt template. Edit the text freely; two placeholders are substituted automatically: <current_date> inserts the current date and time, <devices> inserts the list of exposed entities with their state. Leaving them in is recommended; remove them to opt out of that context.",
+          "prompt": "System prompt template. Edit the text freely; two placeholders are substituted automatically: &lt;current_date&gt; inserts the current date and time, &lt;devices&gt; inserts the list of exposed entities with their state. Leaving them in is recommended; remove them to opt out of that context.",
           "max_tokens": "Maximum tokens in response",
           "temperature": "Temperature (randomness)",
           "tts_voice_id": "Polly voice (fetched live via polly:DescribeVoices)",

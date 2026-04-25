@@ -1,6 +1,6 @@
 """Track Bedrock token usage + estimated cost per config entry.
 
-One ``UsageTracker`` lives on ``entry.runtime_data["usage"]`` and is updated
+One ``UsageTracker`` lives on ``entry.runtime_data.usage`` and is updated
 from ``BedrockClient.async_generate`` after every response. The ``sensor``
 platform reads its counters.
 

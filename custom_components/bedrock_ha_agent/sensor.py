@@ -7,7 +7,7 @@ Surfaces five sensors per config entry:
   - estimated cost USD (today)
   - estimated cost USD (total since reload)
 
-Counters live on ``entry.runtime_data["usage"]`` (a ``UsageTracker``) and
+Counters live on ``entry.runtime_data.usage`` (a ``UsageTracker``) and
 update whenever ``bedrock_client.async_generate`` records a response. The
 sensors subscribe to the tracker so state refreshes are push, not polled.
 """
@@ -107,7 +107,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Bedrock usage sensors from a config entry."""
-    tracker: UsageTracker | None = (entry.runtime_data or {}).get("usage")
+    runtime_data = getattr(entry, "runtime_data", None)
+    tracker: UsageTracker | None = runtime_data.usage if runtime_data else None
     if tracker is None:
         return
     async_add_entities(

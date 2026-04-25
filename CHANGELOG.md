@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.1 — Entity registration + translation fix
+
+### Fixed
+- Integration now correctly registers its conversation agent + usage sensors
+  at setup. In 1.1.0 the Phase-3 `BedrockRuntimeData` dataclass migration was
+  incomplete: three read sites still used the old dict syntax
+  (`entry.runtime_data["client"]` / `.get("usage")`) while the writer had
+  already moved to attribute assignment. Result: sensor.py raised on `.get()`
+  and the conversation agent raised on `["client"]`, so both platforms
+  silently failed to add entities — only Polly TTS + Transcribe STT
+  (which don't read `runtime_data`) appeared in HA. All four platforms now
+  register as intended. Fix converges reads + writes on attribute access and
+  adds `usage: UsageTracker | None` as a typed field on the dataclass.
+- Translation error `UNCLOSED_TAG` resolved. The options-flow tooltip for the
+  system-prompt template referenced the `<current_date>` and `<devices>`
+  Jinja-style placeholders with literal angle brackets, which HA's
+  translation renderer parsed as unclosed HTML tags. Bracketed tokens now
+  use HTML-entity escapes (`&lt;current_date&gt;` / `&lt;devices&gt;`) so
+  the renderer treats them as literal text.
+
 ## 1.1.0 — Config editing (opt-in)
 
 ### Breaking
