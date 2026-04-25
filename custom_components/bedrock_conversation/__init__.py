@@ -2,7 +2,8 @@
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 import voluptuous as vol
 import logging
@@ -184,8 +185,65 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    # Register the ask_with_image service once per HA (not per entry). If
+    # another entry already set it up, don't re-register.
+    if not hass.services.has_service(DOMAIN, "ask_with_image"):
+        await _async_register_vision_service(hass)
+
     _LOGGER.info("Bedrock setup: integration setup complete")
     return True
+
+
+async def _async_register_vision_service(hass: HomeAssistant) -> None:
+    """Register the ``bedrock_conversation.ask_with_image`` service."""
+    schema = vol.Schema(
+        {
+            vol.Required("message"): str,
+            vol.Required("camera_entity_id"): vol.Any(
+                str, vol.All([str], vol.Length(min=1))
+            ),
+            vol.Optional("config_entry_id"): str,
+        }
+    )
+
+    async def _handle(call) -> dict:
+        message: str = call.data["message"]
+        raw = call.data["camera_entity_id"]
+        entity_ids: list[str] = [raw] if isinstance(raw, str) else list(raw)
+
+        # Pick a config entry: explicit > single entry > fail if ambiguous.
+        entries = list(hass.data.get(DOMAIN, {}).values())
+        if not entries:
+            raise HomeAssistantError("No Bedrock Conversation config entry set up")
+        explicit_id = call.data.get("config_entry_id")
+        if explicit_id:
+            matched = [e for e in entries if e.entry_id == explicit_id]
+            if not matched:
+                raise HomeAssistantError(
+                    f"No Bedrock Conversation entry with id {explicit_id}"
+                )
+            entry = matched[0]
+        elif len(entries) == 1:
+            entry = entries[0]
+        else:
+            raise HomeAssistantError(
+                "Multiple Bedrock Conversation entries configured; pass "
+                "config_entry_id to pick one"
+            )
+
+        client = entry.runtime_data["client"]
+        options = {**entry.data, **entry.options}
+        text = await client.async_generate_vision(message, entity_ids, options)
+        return {"response": text}
+
+    hass.services.async_register(
+        DOMAIN,
+        "ask_with_image",
+        _handle,
+        schema=schema,
+        supports_response=SupportsResponse.ONLY,
+    )
+    _LOGGER.info("Bedrock setup: registered ask_with_image service")
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

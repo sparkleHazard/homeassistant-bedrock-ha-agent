@@ -62,6 +62,7 @@ Attach a policy equivalent to:
       "Effect": "Allow",
       "Action": [
         "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
         "bedrock:ListFoundationModels",
         "bedrock:ListInferenceProfiles",
         "polly:SynthesizeSpeech",
@@ -119,6 +120,33 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 | Polly voice | `CONF_TTS_VOICE_ID` | `Joanna` | Amazon Polly `VoiceId`. Dropdown is populated from `polly:DescribeVoices`; custom IDs are accepted. |
 | Polly engine | `CONF_TTS_ENGINE` | `neural` | One of `standard`, `neural`, `long-form`, `generative`. Neural has the best price/quality for general use. |
 | Language | `CONF_SELECTED_LANGUAGE` | `en` | Currently only English persona/device-prompt strings ship. |
+
+## Vision Input (camera snapshots)
+
+Two ways to get Claude to look at something:
+
+### 1. `bedrock_conversation.ask_with_image` service
+
+One-shot question about one or more camera snapshots. Returns the reply as a service response — no conversation history, no tools. Use this from automations.
+
+```yaml
+service: bedrock_conversation.ask_with_image
+data:
+  message: "Is the driveway empty?"
+  camera_entity_id: camera.front_driveway
+response_variable: result
+```
+
+You can also pass a list of camera entity_ids. Set `config_entry_id` if you have more than one Bedrock entry configured.
+
+### 2. Auto-attach exposed cameras (options-flow toggle)
+
+Turn on **"Attach exposed camera snapshots to each turn"** in the options. Every conversation turn then pulls a fresh snapshot from each `camera.*` entity you've exposed via **Settings → Voice assistants → Expose** and attaches it to the user's message before sending to Bedrock.
+
+Caveats:
+- Only the **first Bedrock call** per user turn attaches images — not every tool-calling iteration — to keep token cost sane.
+- Adds roughly 1.5K input tokens per image per turn.
+- Requires a vision-capable model. The default (`claude-haiku-4-5`) does **not** support images; switch to `claude-sonnet-4-5` if you want vision.
 
 ## Text-to-Speech (Amazon Polly)
 

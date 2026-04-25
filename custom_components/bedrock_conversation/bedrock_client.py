@@ -34,9 +34,11 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEVICES_PROMPT,
     PERSONA_PROMPTS,
+    model_supports_vision,
 )
 from .device_info import DeviceInfo, get_exposed_devices
 from .messages import build_bedrock_messages, format_tools_for_bedrock
+from .vision import attach_image_to_last_user_message, fetch_camera_snapshot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,13 +186,20 @@ class BedrockClient:
         """Convert Home Assistant conversation to Bedrock message format."""
         return build_bedrock_messages(conversation_content)
 
-    def _build_request(
+    async def _build_request(
         self,
         conversation_content: list[conversation.Content],
         llm_api: llm.APIInstance | None,
         options: dict[str, Any],
+        *,
+        attach_images_from_cameras: list[str] | None = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Assemble the Bedrock request body shared by streaming + non-streaming paths."""
+        """Assemble the Bedrock request body shared by streaming + non-streaming paths.
+
+        ``attach_images_from_cameras`` is an optional list of camera entity_ids
+        whose current snapshot should be attached to the last user message
+        (used by the auto-attach feature). Requires a vision-capable model.
+        """
         model_id = options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
         # HA's NumberSelector always returns floats even when step=1; Bedrock's
         # Anthropic schema requires max_tokens to be an int.
@@ -204,6 +213,30 @@ class BedrockClient:
                 break
 
         messages = self._build_bedrock_messages(conversation_content)
+
+        # Auto-attach camera snapshots to the last user message.
+        if attach_images_from_cameras:
+            if not model_supports_vision(model_id):
+                _LOGGER.warning(
+                    "auto_attach_cameras is on but model %s is not vision-capable; "
+                    "dropping snapshots for this turn",
+                    model_id,
+                )
+            else:
+                for entity_id in attach_images_from_cameras:
+                    try:
+                        image_bytes, content_type = await fetch_camera_snapshot(
+                            self.hass, entity_id
+                        )
+                    except HomeAssistantError as err:
+                        _LOGGER.warning(
+                            "Skipping snapshot from %s: %s", entity_id, err
+                        )
+                        continue
+                    messages = attach_image_to_last_user_message(
+                        messages, image_bytes, content_type
+                    )
+
         _LOGGER.info(
             "Bedrock request: system=%d chars, messages=%d",
             len(system_prompt) if system_prompt else 0,
@@ -240,13 +273,18 @@ class BedrockClient:
         conversation_content: list[conversation.Content],
         llm_api: llm.APIInstance | None,
         agent_id: str,
-        options: dict[str, Any]
+        options: dict[str, Any],
+        *,
+        attach_images_from_cameras: list[str] | None = None,
     ) -> dict[str, Any]:
         """Generate a response from Bedrock."""
         # Ensure client is initialized before use
         await self._ensure_client()
 
-        model_id, request_body = self._build_request(conversation_content, llm_api, options)
+        model_id, request_body = await self._build_request(
+            conversation_content, llm_api, options,
+            attach_images_from_cameras=attach_images_from_cameras,
+        )
         
         try:
             _LOGGER.info("Calling Bedrock model: %s", model_id)
@@ -344,6 +382,80 @@ class BedrockClient:
                 tracker.record_error(str(err))
             raise HomeAssistantError(f"Unexpected error: {err}") from err
 
+    async def async_generate_vision(
+        self,
+        message: str,
+        camera_entity_ids: list[str],
+        options: dict[str, Any],
+    ) -> str:
+        """One-shot Bedrock vision call: fetch snapshot(s), ask a question, return text.
+
+        Refuses if the configured model doesn't support images. No
+        conversation history, no tools — just the raw text + image(s).
+        """
+        await self._ensure_client()
+        model_id = options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
+        if not model_supports_vision(model_id):
+            raise HomeAssistantError(
+                f"Model {model_id} does not support images. Pick a "
+                f"vision-capable Claude Sonnet model."
+            )
+
+        if not camera_entity_ids:
+            raise HomeAssistantError("ask_with_image requires at least one camera entity")
+
+        messages: list[dict[str, Any]] = [
+            {"role": "user", "content": [{"type": "text", "text": message}]}
+        ]
+        for entity_id in camera_entity_ids:
+            image_bytes, content_type = await fetch_camera_snapshot(self.hass, entity_id)
+            messages = attach_image_to_last_user_message(messages, image_bytes, content_type)
+
+        request_body: dict[str, Any] = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": int(options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)),
+            "temperature": float(options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)),
+            "messages": messages,
+        }
+
+        def invoke_and_read() -> dict[str, Any]:
+            response = self._bedrock_runtime.invoke_model(
+                modelId=model_id, body=json.dumps(request_body)
+            )
+            body_stream = response["body"]
+            chunks: list[bytes] = []
+            while True:
+                chunk = body_stream.read(8192)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            return json.loads(b"".join(chunks).decode("utf-8"))
+
+        try:
+            async with asyncio.timeout(30.0):
+                response_body = await self._retry_blocking(invoke_and_read)
+        except asyncio.TimeoutError:
+            raise HomeAssistantError("Bedrock vision request timed out after 30 seconds")
+        except ClientError as err:
+            friendly = _friendly_error_message(err)
+            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            if tracker is not None:
+                tracker.record_error(friendly)
+            raise HomeAssistantError(friendly) from err
+
+        # Record usage so vision calls show up in the cost sensors too.
+        usage = response_body.get("usage", {}) or {}
+        tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+        if tracker is not None:
+            tracker.record(model_id, usage)
+
+        # Extract the text reply from content blocks.
+        text_parts: list[str] = []
+        for block in response_body.get("content", []) or []:
+            if block.get("type") == "text":
+                text_parts.append(block.get("text", ""))
+        return "".join(text_parts).strip()
+
     async def _retry_blocking(self, fn, *args):
         """Call a blocking ``fn`` via the executor with retry on transient errors.
 
@@ -376,6 +488,8 @@ class BedrockClient:
         conversation_content: list[conversation.Content],
         llm_api: llm.APIInstance | None,
         options: dict[str, Any],
+        *,
+        attach_images_from_cameras: list[str] | None = None,
     ):
         """Yield normalized events from ``invoke_model_with_response_stream``.
 
@@ -392,7 +506,10 @@ class BedrockClient:
         ``json.loads``-ing at ``message_end``.
         """
         await self._ensure_client()
-        model_id, request_body = self._build_request(conversation_content, llm_api, options)
+        model_id, request_body = await self._build_request(
+            conversation_content, llm_api, options,
+            attach_images_from_cameras=attach_images_from_cameras,
+        )
 
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()

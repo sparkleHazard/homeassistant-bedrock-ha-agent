@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.58
+
+### Added
+- **Vision input**. Claude can now look at Home Assistant camera snapshots. Two entry points:
+  - New service `bedrock_conversation.ask_with_image`: takes `message` + `camera_entity_id` (string or list) and returns the reply as a service response. Best for automations — no conversation history, no tools, just image + question.
+  - New options-flow toggle `Attach exposed camera snapshots to each turn`. When on, every conversation turn pulls fresh snapshots from all cameras you've exposed to conversation and attaches them to the user message. Only the first Bedrock call per turn attaches images (not every tool-calling iteration) to bound token cost.
+- Model-capability gate: both paths refuse (or warn-and-drop) when the selected model isn't vision-capable. Current default (Haiku 4.5) does **not** support images; switch to Sonnet 4.5 to use vision. Claude 3/3.5 Sonnet, 3 Opus, 3 Haiku are also recognized as vision-capable (see `VISION_CAPABLE_MODELS`).
+- Vision calls update the existing cost sensors normally (≈1.5K input tokens per image on Sonnet 4.5).
+
+### Notes
+- README IAM policy now includes `bedrock:InvokeModelWithResponseStream` for completeness (it was effectively required since 1.0.55; scoping may differ if you had a custom IAM policy).
+
 ## 1.0.57
 
 ### Added

@@ -22,6 +22,25 @@ CONF_MAX_TOOL_CALL_ITERATIONS: Final = "max_tool_call_iterations"
 CONF_EXTRA_ATTRIBUTES_TO_EXPOSE: Final = "extra_attributes_to_expose"
 CONF_LLM_HASS_API: Final = "llm_hass_api"
 CONF_SELECTED_LANGUAGE: Final = "selected_language"
+CONF_AUTO_ATTACH_CAMERAS: Final = "auto_attach_cameras"
+DEFAULT_AUTO_ATTACH_CAMERAS: Final = False
+
+# Vision-capable Anthropic model substrings. Add to this list when new
+# Claude models on Bedrock get image support.
+VISION_CAPABLE_MODELS: Final = (
+    "claude-sonnet-4-5",
+    "claude-3-5-sonnet",
+    "claude-3-opus",
+    "claude-3-sonnet",
+    "claude-3-haiku",  # Claude 3 Haiku supports images; 4.x Haiku does not.
+)
+
+
+def model_supports_vision(model_id: str | None) -> bool:
+    """Return True if the given Bedrock model id advertises image input."""
+    if not model_id:
+        return False
+    return any(substr in model_id for substr in VISION_CAPABLE_MODELS)
 
 # Text-to-speech (Amazon Polly)
 CONF_TTS_VOICE_ID: Final = "tts_voice_id"

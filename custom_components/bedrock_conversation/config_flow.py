@@ -50,6 +50,8 @@ from .const import (
     FALLBACK_TTS_VOICES,
     TTS_ENGINES,
     HOME_LLM_API_ID,
+    CONF_AUTO_ATTACH_CAMERAS,
+    DEFAULT_AUTO_ATTACH_CAMERAS,
     get_model_max_tokens,
 )
 
@@ -473,6 +475,12 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
+            vol.Optional(
+                CONF_AUTO_ATTACH_CAMERAS,
+                default=self.config_entry.options.get(
+                    CONF_AUTO_ATTACH_CAMERAS, DEFAULT_AUTO_ATTACH_CAMERAS
+                ),
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_LLM_HASS_API,
                 default=self.config_entry.options.get(CONF_LLM_HASS_API, HOME_LLM_API_ID)

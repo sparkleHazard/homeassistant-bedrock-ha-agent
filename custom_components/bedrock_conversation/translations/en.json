@@ -43,6 +43,7 @@
           "remember_conversation": "Remember conversation history",
           "remember_num_interactions": "Number of interactions to remember",
           "max_tool_call_iterations": "Maximum tool call iterations",
+          "auto_attach_cameras": "Attach snapshots from exposed cameras to every conversation turn (requires a vision-capable model; adds ~1.5K input tokens per image per turn)",
           "llm_hass_api": "Home Assistant LLM API for device control"
         }
       }

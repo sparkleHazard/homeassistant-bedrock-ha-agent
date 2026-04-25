@@ -17,12 +17,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .bedrock_client import BedrockClient
 from .const import (
+    CONF_AUTO_ATTACH_CAMERAS,
     CONF_LLM_HASS_API,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
     CONF_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
+    DEFAULT_AUTO_ATTACH_CAMERAS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     DEFAULT_PROMPT,
     DEFAULT_REFRESH_SYSTEM_PROMPT,
@@ -30,6 +32,7 @@ from .const import (
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DOMAIN,
 )
+from .vision import exposed_camera_entity_ids
 from .conversation_helpers import error_result, speech_result
 
 _LOGGER = logging.getLogger(__name__)
@@ -177,6 +180,16 @@ class BedrockConversationEntity(
             agent_id = self.entry.entry_id
             _LOGGER.info("Starting tool-calling loop (max iterations: %d)", max_tool_call_iterations)
 
+            # Resolve cameras to auto-attach (first iteration only).
+            auto_attach_cameras: list[str] = []
+            if options.get(CONF_AUTO_ATTACH_CAMERAS, DEFAULT_AUTO_ATTACH_CAMERAS):
+                auto_attach_cameras = exposed_camera_entity_ids(self.hass)
+                if auto_attach_cameras:
+                    _LOGGER.info(
+                        "Auto-attaching %d camera snapshot(s): %s",
+                        len(auto_attach_cameras), auto_attach_cameras,
+                    )
+
             while tool_iterations <= max_tool_call_iterations:
                 try:
                     _LOGGER.info("Iteration %d: streaming Bedrock response...", tool_iterations)
@@ -187,6 +200,9 @@ class BedrockConversationEntity(
                         llm_api=llm_api,
                         options=options,
                         agent_id=agent_id,
+                        attach_images_from_cameras=(
+                            auto_attach_cameras if tool_iterations == 0 else None
+                        ),
                     )
 
                     # chat_log's delta stream already:
@@ -262,6 +278,7 @@ class BedrockConversationEntity(
         llm_api,
         options,
         agent_id: str,
+        attach_images_from_cameras: list[str] | None = None,
     ):
         """Stream one Bedrock turn into ``chat_log`` and return final state.
 
@@ -282,7 +299,8 @@ class BedrockConversationEntity(
         stop_reason: str | None = None
 
         bedrock_events = self.client.async_generate_stream(
-            message_history, llm_api, options
+            message_history, llm_api, options,
+            attach_images_from_cameras=attach_images_from_cameras,
         )
 
         async def delta_stream():

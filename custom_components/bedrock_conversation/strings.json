@@ -45,6 +45,7 @@
           "remember_conversation": "Remember conversation",
           "remember_num_interactions": "Number of interactions to remember",
           "max_tool_call_iterations": "Max tool call iterations",
+          "auto_attach_cameras": "Attach exposed camera snapshots to each turn",
           "llm_hass_api": "Home Assistant LLM API"
         }
       }
