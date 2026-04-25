@@ -51,8 +51,7 @@ def test_scene_module_shape():
     expected = {
         "list_scenes",
         "get_scene",
-        "create_scene",
-        "update_scene",
+        "create_or_update_scene",
         "delete_scene",
         "reload_scenes",
     }

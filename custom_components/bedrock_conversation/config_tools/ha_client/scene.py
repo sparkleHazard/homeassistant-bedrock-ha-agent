@@ -7,28 +7,28 @@ if TYPE_CHECKING:
 
 
 async def list_scenes(hass: "HomeAssistant") -> list[dict]:
-    """Return the list of UI-managed scenes."""
-    raise NotImplementedError
+    """Return the list of UI-managed scenes.
+
+    Uses the same data source as the /api/config/scene/config endpoint.
+    """
+    raise NotImplementedError("TODO: HA 2026.2 storage path")
 
 
 async def get_scene(hass: "HomeAssistant", object_id: str) -> dict | None:
     """Return the stored config for a given scene object_id, or None if absent."""
-    raise NotImplementedError
+    raise NotImplementedError("TODO: HA 2026.2 storage path")
 
 
-async def create_scene(hass: "HomeAssistant", config: dict) -> str:
-    """Create a scene; return the resulting object_id."""
-    raise NotImplementedError
-
-
-async def update_scene(hass: "HomeAssistant", object_id: str, config: dict) -> None:
-    """Update a scene config."""
-    raise NotImplementedError
+async def create_or_update_scene(
+    hass: "HomeAssistant", object_id: str, config: dict
+) -> None:
+    """POST a scene config; creates if absent, updates in place if present."""
+    raise NotImplementedError("TODO: HA 2026.2 storage path")
 
 
 async def delete_scene(hass: "HomeAssistant", object_id: str) -> None:
     """DELETE a scene config. Raises KeyError if absent."""
-    raise NotImplementedError
+    raise NotImplementedError("TODO: HA 2026.2 storage path")
 
 
 async def reload_scenes(hass: "HomeAssistant") -> None:

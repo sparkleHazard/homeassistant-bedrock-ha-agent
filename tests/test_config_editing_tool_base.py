@@ -178,16 +178,29 @@ def test_register_config_tools_flag_off_returns_empty(hass: FakeHass) -> None:
     assert tools == []
 
 
-def test_register_config_tools_flag_on_empty_when_phase2_not_landed(
+def test_register_config_tools_flag_on_returns_phase2_tools(
     hass: FakeHass,
 ) -> None:
-    """Test that register_config_tools returns empty list when Phase 2 not present."""
+    """Test that register_config_tools returns the Phase 2 tool instances when the flag is on.
+
+    Once Phase 2 subclasses (automation/script/scene/helper/lovelace/registry) are
+    installed alongside this base module, the factory MUST discover and return them
+    via `get_tools(hass, entry)` on each surface module. A flag-on call returning an
+    empty list would indicate a regression in the discovery loop — see
+    `register_config_tools` in `config_tools/__init__.py`.
+    """
     entry = hass.config_entries.add_entry(
         "test_entry", options={CONF_ENABLE_CONFIG_EDITING: True}
     )
     tools = register_config_tools(hass, entry)
-    # Phase 2 modules don't exist yet, so this should return empty list without crashing
-    assert tools == []
+    # With all six Phase-2 modules present, we expect a non-empty list. Don't pin the
+    # exact count here — that's a brittle coupling to the tool count in each module.
+    # Instead, assert the basic shape: non-empty, and each item is callable via the
+    # llm.Tool interface (has a .name and .async_call).
+    assert tools, "expected at least one config-editing tool when the flag is on"
+    for tool in tools:
+        assert hasattr(tool, "name") and isinstance(tool.name, str) and tool.name
+        assert hasattr(tool, "async_call") and callable(tool.async_call)
 
 
 def test_config_editing_tool_external_is_false() -> None:

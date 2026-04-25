@@ -74,7 +74,23 @@ async def get_dashboard_mode(hass: "HomeAssistant", url_path: str | None) -> str
 
 async def load_dashboard(hass: "HomeAssistant", url_path: str | None) -> dict:
     """Return the full stored config for a dashboard."""
-    raise NotImplementedError
+    from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+
+    data = hass.data.get(LOVELACE_DOMAIN)
+    if data is None:
+        raise ValueError("Lovelace component not loaded")
+
+    dashboards = getattr(data, "dashboards", None)
+    if dashboards is None:
+        raise ValueError("Lovelace dashboards not available")
+
+    dashboard = dashboards.get(url_path)
+    if dashboard is None:
+        raise ValueError(f"Dashboard {url_path!r} not found")
+
+    # Use async_load to get the full config
+    config = await dashboard.async_load(force=False)
+    return config
 
 
 async def save_dashboard(
@@ -85,19 +101,59 @@ async def save_dashboard(
     Callers MUST check get_dashboard_mode() first and refuse YAML-mode via
     validation_failed before reaching this function (AC18).
     """
-    raise NotImplementedError
+    from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+
+    data = hass.data.get(LOVELACE_DOMAIN)
+    if data is None:
+        raise ValueError("Lovelace component not loaded")
+
+    dashboards = getattr(data, "dashboards", None)
+    if dashboards is None:
+        raise ValueError("Lovelace dashboards not available")
+
+    dashboard = dashboards.get(url_path)
+    if dashboard is None:
+        raise ValueError(f"Dashboard {url_path!r} not found")
+
+    # Call async_save to persist the full config
+    await dashboard.async_save(config)
 
 
 async def create_dashboard(hass: "HomeAssistant", payload: dict) -> str:
     """Create a dashboard; return its url_path."""
-    raise NotImplementedError
+    from homeassistant.components.lovelace import DOMAIN as LOVELACE_DOMAIN
+
+    data = hass.data.get(LOVELACE_DOMAIN)
+    if data is None:
+        raise ValueError("Lovelace component not loaded")
+
+    # The DashboardsCollection is registered as a listener on the lovelace data.
+    # We need to find it. In HA's __init__.py, the collection is created locally
+    # but we can access it via the storage system or by looking at the registered
+    # websocket handlers. However, the simplest approach is to directly call the
+    # collection's async_create_item method.
+    # The collection is stored in hass but not directly in hass.data[LOVELACE_DOMAIN].
+    # We need to use the websocket command infrastructure or replicate the logic.
+
+    # After reviewing the HA code, the DashboardsCollection is NOT stored in hass.data.
+    # It's created in async_setup and used via websocket handlers. We cannot access it
+    # directly without significant refactoring.
+
+    # For now, mark as NotImplementedError with a TODO.
+    raise NotImplementedError(
+        "TODO: HA 2026.2 storage API - DashboardsCollection not directly accessible"
+    )
 
 
 async def update_dashboard(hass: "HomeAssistant", url_path: str, payload: dict) -> None:
     """Update a dashboard."""
-    raise NotImplementedError
+    raise NotImplementedError(
+        "TODO: HA 2026.2 storage API - DashboardsCollection not directly accessible"
+    )
 
 
 async def delete_dashboard(hass: "HomeAssistant", url_path: str) -> None:
     """Delete a dashboard."""
-    raise NotImplementedError
+    raise NotImplementedError(
+        "TODO: HA 2026.2 storage API - DashboardsCollection not directly accessible"
+    )
