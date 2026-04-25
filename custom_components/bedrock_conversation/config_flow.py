@@ -164,15 +164,11 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
         """Get the options flow for this handler."""
-        return BedrockConversationOptionsFlow(config_entry)
+        return BedrockConversationOptionsFlow()
 
 
 class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for AWS Bedrock Conversation."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -195,14 +191,20 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
         if not llm_api_ids:
             llm_api_ids = [HOME_LLM_API_ID]
         
+        current_model = self.config_entry.options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
+        model_options = list(AVAILABLE_MODELS)
+        if current_model not in model_options:
+            model_options.append(current_model)
+
         options_schema = vol.Schema({
             vol.Optional(
                 CONF_MODEL_ID,
-                default=self.config_entry.options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
+                default=current_model
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=AVAILABLE_MODELS,
+                    options=model_options,
                     mode=selector.SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
                 )
             ),
             vol.Optional(

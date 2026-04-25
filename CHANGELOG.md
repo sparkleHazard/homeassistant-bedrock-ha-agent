@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.37
+
+### Fixed
+- Options flow crashed with `AttributeError: property 'config_entry' of 'BedrockConversationOptionsFlow' object has no setter` in recent Home Assistant versions. The `OptionsFlow` base class now exposes `config_entry` as a read-only property and subclasses must not assign to it in `__init__`. Removed the override; the config entry is still available via `self.config_entry`.
+- Model-id selector now tolerates a stored value that is no longer in `AVAILABLE_MODELS` (e.g. after removing legacy Claude 3.5 ids). The current value is appended to the dropdown options and `custom_value=True` is enabled so opening the options flow no longer fails for upgraded installs.
+
 ## Unreleased
 
 ### Changed
