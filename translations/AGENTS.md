@@ -4,7 +4,7 @@
 # translations
 
 ## Purpose
-Service-description translations — the human-readable `name` and `description` strings Home Assistant shows in Developer Tools → Services and in the YAML editor for any services this integration might register. Distinct from the UI config-flow translations, which live at `custom_components/bedrock_conversation/translations/`.
+Service-description translations — the human-readable `name` and `description` strings Home Assistant shows in Developer Tools → Services and in the YAML editor for any services this integration might register. Distinct from the UI config-flow translations, which live at `custom_components/bedrock_ha_agent/translations/`.
 
 ## Key Files
 
@@ -16,9 +16,9 @@ Service-description translations — the human-readable `name` and `description`
 
 ### Working In This Directory
 
-- **Do not confuse this directory with `custom_components/bedrock_conversation/translations/`.** That one is config-flow UI strings (JSON) loaded by Home Assistant's integration translation system. This one is service-description metadata (YAML).
+- **Do not confuse this directory with `custom_components/bedrock_ha_agent/translations/`.** That one is config-flow UI strings (JSON) loaded by Home Assistant's integration translation system. This one is service-description metadata (YAML).
 - **File format is YAML here, JSON there.** Don't switch formats to "unify" — each is dictated by Home Assistant's translation loader for that surface.
-- **Field names here must match the config keys in `../custom_components/bedrock_conversation/const.py`** (`aws_region`, `model_id`, etc.). If you rename a config key, update this file too.
+- **Field names here must match the config keys in `../custom_components/bedrock_ha_agent/const.py`** (`aws_region`, `model_id`, etc.). If you rename a config key, update this file too.
 - **Adding a new language**: create `<lang>.yaml` mirroring `en.yaml`'s shape.
 
 ### Testing Requirements
@@ -30,7 +30,7 @@ Service-description translations — the human-readable `name` and `description`
 ## Dependencies
 
 ### Internal
-- `../custom_components/bedrock_conversation/const.py` — `CONF_*` keys referenced here.
+- `../custom_components/bedrock_ha_agent/const.py` — `CONF_*` keys referenced here.
 
 ### External
 - Home Assistant's service-description translation loader.

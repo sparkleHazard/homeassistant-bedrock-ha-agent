@@ -118,10 +118,10 @@ def collect_non_empty_stacks(
 ) -> dict[str, UndoStack]:
     """Return only per-conversation stacks that have at least one unexpired entry.
 
-    Used by `bedrock_conversation.undo_last_config_change` service handler to
+    Used by `bedrock_ha_agent.undo_last_config_change` service handler to
     decide whether to demand a `conversation_id` parameter for disambiguation.
     """
-    from custom_components.bedrock_conversation.runtime_data import _get_runtime_data
+    from custom_components.bedrock_ha_agent.runtime_data import _get_runtime_data
 
     rd = _get_runtime_data(hass, entry_id)
     return {
@@ -140,7 +140,7 @@ def get_or_create_stack(
     ttl_seconds: int = 3600,
 ) -> UndoStack:
     """Resolve (or lazily create) the UndoStack for a given (entry, conversation)."""
-    from custom_components.bedrock_conversation.runtime_data import _get_runtime_data
+    from custom_components.bedrock_ha_agent.runtime_data import _get_runtime_data
 
     rd = _get_runtime_data(hass, entry_id)
     stack = rd.undo.get(conversation_id)

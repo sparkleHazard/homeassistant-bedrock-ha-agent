@@ -9,20 +9,20 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.bedrock_conversation.config_tools.pending import (
+from custom_components.bedrock_ha_agent.config_tools.pending import (
     ApprovalOutcome,
     PendingChangeManager,
 )
-from custom_components.bedrock_conversation.config_tools.undo import (
+from custom_components.bedrock_ha_agent.config_tools.undo import (
     UndoEntry,
     get_or_create_stack,
 )
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.const import (
     CONF_ENABLE_CONFIG_EDITING,
     CONF_MODEL_ID,
     DOMAIN,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
@@ -149,7 +149,7 @@ async def test_undo_ambiguous_when_two_undo_stacks_nonempty(
     hass: HomeAssistant, mock_entry: MockConfigEntry
 ):
     """Test AC16: undo service without conversation_id returns ambiguous error when ≥2 stacks non-empty."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
 
     await _async_register_undo_service(hass)
 
@@ -190,7 +190,7 @@ async def test_explicit_conversation_id_disambiguates(
     hass: HomeAssistant, mock_entry: MockConfigEntry
 ):
     """Test that explicit conversation_id in undo service disambiguates."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
 
     await _async_register_undo_service(hass)
 

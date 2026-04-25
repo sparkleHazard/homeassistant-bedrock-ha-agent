@@ -13,12 +13,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.const import (
     CONF_ENABLE_CONFIG_EDITING,
     CONF_MODEL_ID,
     DOMAIN,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
@@ -59,11 +59,11 @@ async def test_end_to_end_propose_approve_apply_undo(
     """
     from datetime import UTC, datetime, timedelta
 
-    from custom_components.bedrock_conversation.config_tools.pending import (
+    from custom_components.bedrock_ha_agent.config_tools.pending import (
         ApprovalOutcome,
         PendingChangeManager,
     )
-    from custom_components.bedrock_conversation.config_tools.undo import (
+    from custom_components.bedrock_ha_agent.config_tools.undo import (
         UndoEntry,
         get_or_create_stack,
     )
@@ -137,7 +137,7 @@ async def test_end_to_end_rejection_clears_pending(
     hass: HomeAssistant, mock_entry: MockConfigEntry
 ):
     """Test that rejection clears pending without applying."""
-    from custom_components.bedrock_conversation.config_tools.pending import (
+    from custom_components.bedrock_ha_agent.config_tools.pending import (
         PendingChangeManager,
     )
 

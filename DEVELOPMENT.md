@@ -6,7 +6,7 @@ Local development and release workflow for this Home Assistant custom integratio
 
 ```
 .
-├── custom_components/bedrock_conversation/  # the integration
+├── custom_components/bedrock_ha_agent/  # the integration
 │   ├── __init__.py        # setup/teardown, HassServiceTool, BedrockServicesAPI
 │   ├── bedrock_client.py  # boto3 wrapper, prompt + tool schema, invoke_model
 │   ├── conversation.py    # ConversationEntity, tool-calling loop
@@ -48,8 +48,8 @@ There is no `make help` target.
 ## Typical Workflow
 
 ```bash
-git clone https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent
-cd homeassistant-aws-bedrock-conversation-agent
+git clone https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent
+cd homeassistant-bedrock-ha-agent
 make deps           # one-time setup
 # hack on code
 make format         # keep the formatter happy
@@ -63,7 +63,7 @@ make test           # full suite before PR
 Mount or copy the integration into your HA config:
 
 ```bash
-cp -r custom_components/bedrock_conversation ~/.homeassistant/custom_components/
+cp -r custom_components/bedrock_ha_agent ~/.homeassistant/custom_components/
 # restart Home Assistant
 ```
 
@@ -74,22 +74,22 @@ Enable debug logging to observe the tool-calling loop:
 logger:
   default: info
   logs:
-    custom_components.bedrock_conversation: debug
+    custom_components.bedrock_ha_agent: debug
 ```
 
 For a quick smoke test against real Bedrock without Home Assistant, `test_bedrock.py` at the repo root issues a single Bedrock call using `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` / `MODEL_ID` env vars. It is **not** part of the automated suite.
 
 ## Release Workflow
 
-Version lives in exactly one place: `custom_components/bedrock_conversation/manifest.json`.
+Version lives in exactly one place: `custom_components/bedrock_ha_agent/manifest.json`.
 
 ```bash
 # 1. Bump version
-${EDITOR} custom_components/bedrock_conversation/manifest.json
+${EDITOR} custom_components/bedrock_ha_agent/manifest.json
 # 2. Update CHANGELOG.md under a new heading for the new version
 ${EDITOR} CHANGELOG.md
 # 3. Commit
-git add custom_components/bedrock_conversation/manifest.json CHANGELOG.md
+git add custom_components/bedrock_ha_agent/manifest.json CHANGELOG.md
 git commit -m "release: vX.Y.Z"
 # 4. Tag and publish
 make release
@@ -109,7 +109,7 @@ make release
 
 1. Add `CONF_<NAME>` and `DEFAULT_<NAME>` in `const.py`.
 2. Add the field to the options schema in `config_flow.py::BedrockConversationOptionsFlow`.
-3. Add a translated label in `strings.json` and every file under `custom_components/bedrock_conversation/translations/`.
+3. Add a translated label in `strings.json` and every file under `custom_components/bedrock_ha_agent/translations/`.
 4. Read it in the code path that consumes it (`bedrock_client.py` or `conversation.py`).
 5. Add a test asserting the default and schema presence (see `tests/test_config_flow.py` / `tests/test_init.py`).
 

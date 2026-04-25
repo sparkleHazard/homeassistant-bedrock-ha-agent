@@ -1,4 +1,4 @@
-"""Amazon Polly text-to-speech platform for the Bedrock Conversation integration."""
+"""Amazon Polly text-to-speech platform for the Bedrock Home Assistant Agent integration."""
 from __future__ import annotations
 
 import logging

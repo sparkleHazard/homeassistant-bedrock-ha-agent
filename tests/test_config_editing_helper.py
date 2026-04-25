@@ -3,14 +3,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.bedrock_conversation.config_tools.helper import (
+from custom_components.bedrock_ha_agent.config_tools.helper import (
     ConfigHelperCreate,
     ConfigHelperDelete,
     ConfigHelperEdit,
     get_tools,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
-from custom_components.bedrock_conversation.const import DOMAIN
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.const import DOMAIN
 from homeassistant.helpers import llm
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
@@ -46,7 +46,7 @@ def llm_context(mock_entry):
 def mock_helper_client():
     """Mock the ha_client.helper module."""
     with patch(
-        "custom_components.bedrock_conversation.config_tools.helper.ha_helper"
+        "custom_components.bedrock_ha_agent.config_tools.helper.ha_helper"
     ) as mock:
         mock.list_helpers = AsyncMock(return_value=[])
         mock.get_helper = AsyncMock(return_value=None)

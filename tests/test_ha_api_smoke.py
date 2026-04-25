@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.bedrock_conversation._ha_api_smoke import check_required_ha_apis
+from custom_components.bedrock_ha_agent._ha_api_smoke import check_required_ha_apis
 
 
 @pytest.mark.xfail(reason="installed HA 2025.1.4 below project floor 2025.6.0; see hacs.json", strict=False)
@@ -30,7 +30,7 @@ def test_check_required_ha_apis_returns_list():
 
 def test_check_required_ha_apis_raises_configentrynotready_when_helper_missing(monkeypatch):
     """Simulate a missing helper; setup-time smoke check raises ConfigEntryNotReady."""
-    from custom_components.bedrock_conversation._ha_api_smoke import REQUIRED_HA_ATTRS
+    from custom_components.bedrock_ha_agent._ha_api_smoke import REQUIRED_HA_ATTRS
 
     # Inject a bogus required attr
     fake_attr = (
@@ -39,7 +39,7 @@ def test_check_required_ha_apis_raises_configentrynotready_when_helper_missing(m
         "fake for test",
     )
     monkeypatch.setattr(
-        "custom_components.bedrock_conversation._ha_api_smoke.REQUIRED_HA_ATTRS",
+        "custom_components.bedrock_ha_agent._ha_api_smoke.REQUIRED_HA_ATTRS",
         REQUIRED_HA_ATTRS + [fake_attr],
     )
     failures = check_required_ha_apis()
@@ -55,8 +55,8 @@ async def test_async_setup_entry_raises_configentrynotready_on_missing_apis(hass
     from homeassistant.exceptions import ConfigEntryNotReady
     from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-    from custom_components.bedrock_conversation import async_setup_entry
-    from custom_components.bedrock_conversation.const import DOMAIN
+    from custom_components.bedrock_ha_agent import async_setup_entry
+    from custom_components.bedrock_ha_agent.const import DOMAIN
 
     # Create a mock entry
     entry = MockConfigEntry(
@@ -74,7 +74,7 @@ async def test_async_setup_entry_raises_configentrynotready_on_missing_apis(hass
 
     # Mock check_required_ha_apis to return failures
     with patch(
-        "custom_components.bedrock_conversation.check_required_ha_apis",
+        "custom_components.bedrock_ha_agent.check_required_ha_apis",
         return_value=["homeassistant.helpers.llm.FakeAPI — not found (introduced in HA 9999.1; test)"],
     ):
         with pytest.raises(ConfigEntryNotReady) as exc_info:

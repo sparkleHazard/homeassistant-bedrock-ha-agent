@@ -2,7 +2,7 @@
 import pytest
 from homeassistant.helpers import entity_registry as er
 
-from custom_components.bedrock_conversation.config_tools.ha_client import registry
+from custom_components.bedrock_ha_agent.config_tools.ha_client import registry
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 

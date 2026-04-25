@@ -2,8 +2,8 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from homeassistant.core import HomeAssistant
-from custom_components.bedrock_conversation.bedrock_client import BedrockClient
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.bedrock_client import BedrockClient
+from custom_components.bedrock_ha_agent.const import (
     DEFAULT_PROMPT,
     CONF_AWS_ACCESS_KEY_ID,
     CONF_AWS_SECRET_ACCESS_KEY,
@@ -24,7 +24,7 @@ async def test_system_prompt_includes_device_info(hass: HomeAssistant):
     mock_entry.options = {}
     
     # Mock boto3 session and client
-    with patch("custom_components.bedrock_conversation.bedrock_client.boto3.Session") as mock_session:
+    with patch("custom_components.bedrock_ha_agent.bedrock_client.boto3.Session") as mock_session:
         mock_bedrock = MagicMock()
         mock_session.return_value.client.return_value = mock_bedrock
         
@@ -33,7 +33,7 @@ async def test_system_prompt_includes_device_info(hass: HomeAssistant):
         
         # Mock exposed entities
         with patch.object(client, "_get_exposed_entities") as mock_get_entities:
-            from custom_components.bedrock_conversation.bedrock_client import DeviceInfo
+            from custom_components.bedrock_ha_agent.bedrock_client import DeviceInfo
             
             mock_get_entities.return_value = [
                 DeviceInfo(

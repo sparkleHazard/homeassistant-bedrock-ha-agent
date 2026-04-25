@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.bedrock_conversation.config_tools.diff import (
+from custom_components.bedrock_ha_agent.config_tools.diff import (
     _assert_tts_safe,
     is_tts_safe,
     render_spoken_summary,

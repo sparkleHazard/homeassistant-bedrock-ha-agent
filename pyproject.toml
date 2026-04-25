@@ -3,11 +3,11 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "homeassistant_bedrock_conversation"
-version = "1.0.8"
-description = "AWS Bedrock Conversation Agent for Home Assistant"
+name = "homeassistant_bedrock_ha_agent"
+version = "1.1.0"
+description = "Bedrock Home Assistant Agent — Claude-powered conversation + config editing for Home Assistant"
 readme = "README.md"
-authors = [{name = "Cronus", email = "cronus@stolenshoe.com"}]
+authors = [{name = "sparkleHazard", email = "sparklehazard@protonmail.com"}]
 license = {text = "MIT"}
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -25,7 +25,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/cronus42/homeassistant-aws-bedrock-conversation-agent"
+Homepage = "https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent"
 
 [tool.setuptools.packages.find]
 where = ["."]

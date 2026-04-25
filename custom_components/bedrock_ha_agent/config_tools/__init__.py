@@ -9,12 +9,12 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from homeassistant.helpers import llm
 
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.const import (
     CONF_CONFIG_APPROVAL_TTL_SECONDS,
     CONF_ENABLE_CONFIG_EDITING,
     DEFAULT_CONFIG_APPROVAL_TTL_SECONDS,
 )
-from custom_components.bedrock_conversation.config_tools.pending import (
+from custom_components.bedrock_ha_agent.config_tools.pending import (
     PendingChangeManager,
 )
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
-    from custom_components.bedrock_conversation.config_tools.validation import (
+    from custom_components.bedrock_ha_agent.config_tools.validation import (
         ValidationResult,
     )
 
@@ -253,12 +253,12 @@ class ConfigEditingTool(llm.Tool):
     def _resolve_entry(
         hass: HomeAssistant, llm_context: llm.LLMContext
     ) -> ConfigEntry | None:
-        """Resolve the owning bedrock_conversation ConfigEntry at call time.
+        """Resolve the owning bedrock_ha_agent ConfigEntry at call time.
 
         1. Try llm_context.device_id → device_registry → config_entries intersection.
-        2. Fallback: first loaded bedrock_conversation entry.
+        2. Fallback: first loaded bedrock_ha_agent entry.
         """
-        from custom_components.bedrock_conversation.const import DOMAIN
+        from custom_components.bedrock_ha_agent.const import DOMAIN
         from homeassistant.config_entries import ConfigEntryState
         from homeassistant.helpers import device_registry as dr
 
@@ -281,7 +281,7 @@ class ConfigEditingTool(llm.Tool):
         if len(bedrock_entries) > 1:
             _LOGGER.warning(
                 "llm_context.device_id did not resolve; falling back to first loaded "
-                "bedrock_conversation entry (%s)",
+                "bedrock_ha_agent entry (%s)",
                 bedrock_entries[0].entry_id,
             )
         return bedrock_entries[0]
@@ -317,7 +317,7 @@ def register_config_tools(hass: HomeAssistant, entry: ConfigEntry) -> list[llm.T
     tools: list[llm.Tool] = []
     try:
         # Phase 2 will fill these in.
-        from custom_components.bedrock_conversation.config_tools import (
+        from custom_components.bedrock_ha_agent.config_tools import (
             automation as _automation,
             helper as _helper,
             lovelace as _lovelace,

@@ -6,9 +6,9 @@ import json
 from homeassistant.components import conversation
 from homeassistant.helpers import llm
 
-from custom_components.bedrock_conversation.conversation import BedrockConversationEntity
-from custom_components.bedrock_conversation.bedrock_client import BedrockClient
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.conversation import BedrockConversationEntity
+from custom_components.bedrock_ha_agent.bedrock_client import BedrockClient
+from custom_components.bedrock_ha_agent.const import (
     DOMAIN,
     CONF_LLM_HASS_API,
     CONF_MAX_TOOL_CALL_ITERATIONS,
@@ -51,7 +51,7 @@ def mock_config_entry():
 @pytest.fixture
 def mock_bedrock_client(mock_hass, mock_config_entry):
     """Create a mock Bedrock client."""
-    with patch("custom_components.bedrock_conversation.bedrock_client.boto3"):
+    with patch("custom_components.bedrock_ha_agent.bedrock_client.boto3"):
         client = BedrockClient(mock_hass, mock_config_entry)
         return client
 

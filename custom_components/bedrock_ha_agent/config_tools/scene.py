@@ -11,16 +11,16 @@ from typing import TYPE_CHECKING
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
 
-from custom_components.bedrock_conversation.config_tools import (
+from custom_components.bedrock_ha_agent.config_tools import (
     ConfigEditingTool,
     RestoreFn,
 )
-from custom_components.bedrock_conversation.config_tools.diff import (
+from custom_components.bedrock_ha_agent.config_tools.diff import (
     render_spoken_summary,
     render_unified_diff,
 )
-from custom_components.bedrock_conversation.config_tools.ha_client import scene
-from custom_components.bedrock_conversation.config_tools.validation import (
+from custom_components.bedrock_ha_agent.config_tools.ha_client import scene
+from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationResult,
     validate_entities_exist,
     validate_scene,
@@ -155,7 +155,7 @@ class ConfigSceneEdit(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate schema + entity existence + scene exists."""
         if pre_state is None:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
             )
 
@@ -168,7 +168,7 @@ class ConfigSceneEdit(ConfigEditingTool):
                 ]
             )
         if proposed is None:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
             )
 
@@ -256,7 +256,7 @@ class ConfigSceneDelete(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate that the scene exists."""
         if pre_state is None:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
             )
 

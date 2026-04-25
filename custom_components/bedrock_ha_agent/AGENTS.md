@@ -1,10 +1,10 @@
 <!-- Parent: ../AGENTS.md -->
 <!-- Generated: 2026-04-25 | Updated: 2026-04-25 -->
 
-# bedrock_conversation
+# bedrock_ha_agent
 
 ## Purpose
-The AWS Bedrock conversation integration for Home Assistant. Registers a `ConversationEntity` that converts user utterances into Bedrock `InvokeModel` calls, executes tool-use blocks against Home Assistant services, and returns the model's final reply as an `IntentResponse`. Domain: `bedrock_conversation`. LLM API id: `bedrock_conversation_services`.
+The AWS Bedrock conversation integration for Home Assistant. Registers a `ConversationEntity` that converts user utterances into Bedrock `InvokeModel` calls, executes tool-use blocks against Home Assistant services, and returns the model's final reply as an `IntentResponse`. Domain: `bedrock_ha_agent`. LLM API id: `bedrock_ha_agent_services`.
 
 ## Key Files
 

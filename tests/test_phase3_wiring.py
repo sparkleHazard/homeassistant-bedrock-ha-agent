@@ -11,25 +11,25 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.bedrock_conversation import BedrockServicesAPI
-from custom_components.bedrock_conversation.config_tools import register_config_tools
-from custom_components.bedrock_conversation.config_tools.pending import (
+from custom_components.bedrock_ha_agent import BedrockServicesAPI
+from custom_components.bedrock_ha_agent.config_tools import register_config_tools
+from custom_components.bedrock_ha_agent.config_tools.pending import (
     ApprovalOutcome,
     PendingChange,
     PendingChangeManager,
 )
-from custom_components.bedrock_conversation.config_tools.undo import UndoEntry, UndoStack
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.config_tools.undo import UndoEntry, UndoStack
+from custom_components.bedrock_ha_agent.const import (
     CONF_ENABLE_CONFIG_EDITING,
     CONF_MODEL_ID,
     DOMAIN,
     HOME_LLM_API_ID,
 )
-from custom_components.bedrock_conversation.conversation import (
+from custom_components.bedrock_ha_agent.conversation import (
     _check_past_tense_vs_pending,
     _split_proposal_for_stream,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
@@ -78,7 +78,7 @@ async def test_register_config_tools_wires_into_api_instance(
 
     # Mock register_config_tools to return at least one tool
     with patch(
-        "custom_components.bedrock_conversation.config_tools.register_config_tools"
+        "custom_components.bedrock_ha_agent.config_tools.register_config_tools"
     ) as mock_register:
         mock_tool = Mock(spec=llm.Tool)
         mock_tool.name = "ConfigAutomationCreate"
@@ -157,7 +157,7 @@ async def test_interceptor_undo_pops_restore_and_runs_restore_fn(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """Test that undo interceptor pops from stack and runs restore_fn."""
-    from custom_components.bedrock_conversation.config_tools.undo import (
+    from custom_components.bedrock_ha_agent.config_tools.undo import (
         get_or_create_stack,
     )
 
@@ -363,7 +363,7 @@ def test_split_proposal_for_stream_non_pending_passthrough():
 @pytest.mark.asyncio
 async def test_options_flow_has_new_fields(hass: HomeAssistant, mock_entry: ConfigEntry):
     """Test that options flow schema includes all four new config-editing fields."""
-    from custom_components.bedrock_conversation.config_flow import (
+    from custom_components.bedrock_ha_agent.config_flow import (
         BedrockConversationOptionsFlow,
     )
 
@@ -372,10 +372,10 @@ async def test_options_flow_has_new_fields(hass: HomeAssistant, mock_entry: Conf
 
     # Mock fetch functions and config_entry property
     with patch(
-        "custom_components.bedrock_conversation.config_flow.fetch_claude_inference_profiles",
+        "custom_components.bedrock_ha_agent.config_flow.fetch_claude_inference_profiles",
         return_value=["us.anthropic.claude-sonnet-4-5-20250929-v1:0"],
     ), patch(
-        "custom_components.bedrock_conversation.config_flow.fetch_polly_voices",
+        "custom_components.bedrock_ha_agent.config_flow.fetch_polly_voices",
         return_value=["Joanna"],
     ), patch.object(
         type(flow), "config_entry", new_callable=PropertyMock, return_value=mock_entry
@@ -398,7 +398,7 @@ async def test_update_listener_haiku_flag_on_fires_notification(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """Test AC11: Haiku warning fires once on flag-on transition."""
-    from custom_components.bedrock_conversation import _async_update_listener
+    from custom_components.bedrock_ha_agent import _async_update_listener
 
     # Set Haiku model and enable config editing
     set_entry_options(
@@ -433,7 +433,7 @@ async def test_haiku_warning_not_duplicated_on_same_options_save(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """AC11 negative case: Haiku warning does NOT fire again on same options save."""
-    from custom_components.bedrock_conversation import _async_update_listener
+    from custom_components.bedrock_ha_agent import _async_update_listener
 
     # Set Haiku model and enable config editing
     set_entry_options(
@@ -467,7 +467,7 @@ async def test_update_listener_sonnet_no_notification(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """Test that Sonnet model does NOT trigger Haiku warning."""
-    from custom_components.bedrock_conversation import _async_update_listener
+    from custom_components.bedrock_ha_agent import _async_update_listener
 
     set_entry_options(
         hass,
@@ -493,8 +493,8 @@ async def test_update_listener_sonnet_no_notification(
 @pytest.mark.asyncio
 async def test_undo_service_single_stack_pops(hass: HomeAssistant, mock_entry: ConfigEntry):
     """Test AC5: undo service with single non-empty stack pops successfully."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
-    from custom_components.bedrock_conversation.config_tools.undo import (
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
+    from custom_components.bedrock_ha_agent.config_tools.undo import (
         get_or_create_stack,
     )
 
@@ -537,7 +537,7 @@ async def test_undo_service_empty_returns_nothing_to_undo(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """Test that undo service with empty stacks returns nothing-to-undo message."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
 
     await _async_register_undo_service(hass)
 
@@ -558,8 +558,8 @@ async def test_undo_service_ambiguous_two_nonempty_stacks(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """Test AC16: undo service with ≥2 non-empty stacks returns ambiguity error."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
-    from custom_components.bedrock_conversation.config_tools.undo import (
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
+    from custom_components.bedrock_ha_agent.config_tools.undo import (
         get_or_create_stack,
     )
 
@@ -601,8 +601,8 @@ async def test_undo_service_with_explicit_conversation_id(
     hass: HomeAssistant, mock_entry: ConfigEntry
 ):
     """Test that explicit conversation_id disambiguates."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
-    from custom_components.bedrock_conversation.config_tools.undo import (
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
+    from custom_components.bedrock_ha_agent.config_tools.undo import (
         get_or_create_stack,
     )
 
@@ -646,11 +646,11 @@ async def test_ha_api_smoke_check_called_on_setup_raises_configentrynotready_on_
     """Test that async_setup_entry raises ConfigEntryNotReady on missing HA API."""
     from homeassistant.exceptions import ConfigEntryNotReady
 
-    from custom_components.bedrock_conversation import async_setup_entry
+    from custom_components.bedrock_ha_agent import async_setup_entry
 
     # Mock check_required_ha_apis to return failures
     with patch(
-        "custom_components.bedrock_conversation.check_required_ha_apis",
+        "custom_components.bedrock_ha_agent.check_required_ha_apis",
         return_value=["homeassistant.helpers.llm.API — not found"],
     ):
         with pytest.raises(ConfigEntryNotReady) as exc_info:

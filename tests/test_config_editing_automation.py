@@ -5,14 +5,14 @@ from homeassistant.helpers import llm
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
-from custom_components.bedrock_conversation.config_tools.automation import (
+from custom_components.bedrock_ha_agent.config_tools.automation import (
     ConfigAutomationCreate,
     ConfigAutomationEdit,
     ConfigAutomationDelete,
     get_tools,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
-from custom_components.bedrock_conversation.const import DOMAIN
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.const import DOMAIN
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def llm_context(mock_entry):
 @pytest.fixture
 def mock_ha_automation():
     """Mock all ha_client.automation functions."""
-    with patch("custom_components.bedrock_conversation.config_tools.automation.ha_automation") as mock:
+    with patch("custom_components.bedrock_ha_agent.config_tools.automation.ha_automation") as mock:
         mock.create_or_update_automation = AsyncMock()
         mock.delete_automation = AsyncMock()
         mock.reload_automations = AsyncMock()

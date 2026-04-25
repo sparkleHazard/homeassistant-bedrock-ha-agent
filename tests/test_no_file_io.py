@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 
 
-INTEGRATION_ROOT = Path("custom_components/bedrock_conversation")
+INTEGRATION_ROOT = Path("custom_components/bedrock_ha_agent")
 
 # Files explicitly allowed to do file I/O, with justification.
 ALLOWLISTED_FILES: dict[str, str] = {

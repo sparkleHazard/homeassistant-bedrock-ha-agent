@@ -4,7 +4,7 @@
 # tests
 
 ## Purpose
-Automated pytest suite for the `bedrock_conversation` integration. Uses `pytest-homeassistant-custom-component` to simulate the Home Assistant runtime and mocks `boto3` so tests never touch real AWS. Invoked via `make test` (full coverage) or `make test-simple` (curated subset).
+Automated pytest suite for the `bedrock_ha_agent` integration. Uses `pytest-homeassistant-custom-component` to simulate the Home Assistant runtime and mocks `boto3` so tests never touch real AWS. Invoked via `make test` (full coverage) or `make test-simple` (curated subset).
 
 ## Key Files
 
@@ -25,7 +25,7 @@ Automated pytest suite for the `bedrock_conversation` integration. Uses `pytest-
 
 - **Never make real AWS calls.** Every `boto3.client(...)` must be patched. The `hass` fixture in `conftest.py` is deliberately a MagicMock — tests here do not spin up a real HA instance.
 - **The custom `hass` fixture overrides the autouse one.** If you add a test that needs the real async HA fixture from `pytest-homeassistant-custom-component`, override `hass` locally in that test module or use a differently-named fixture — don't delete `conftest.py`'s version.
-- **Coverage target is `custom_components.bedrock_conversation`.** Tests that import from other paths won't contribute to coverage and won't gate `make release`.
+- **Coverage target is `custom_components.bedrock_ha_agent`.** Tests that import from other paths won't contribute to coverage and won't gate `make release`.
 - **`make test-simple` is the curated fast subset** (`test_bedrock_client.py`, `test_config_flow.py`, `test_init.py`, `test_utils.py`). `make release` uses this — it's the release gate. Broader tests (`test_tool_calling.py`, `test_system_prompt.py`, `test_device_context.py`) run under `make test` but not `make release`. Be aware which bucket your test lands in.
 - **When adding a config key**: add a test in `test_init.py` or `test_config_flow.py` confirming the default and the options-flow schema entry.
 - **When changing the tool-call loop**: update or extend `test_tool_calling.py` — that file is the regression net for the most stateful piece of code in the integration.
@@ -42,7 +42,7 @@ Automated pytest suite for the `bedrock_conversation` integration. Uses `pytest-
 ## Dependencies
 
 ### Internal
-- `custom_components.bedrock_conversation.*` — the code under test.
+- `custom_components.bedrock_ha_agent.*` — the code under test.
 
 ### External
 - `pytest`

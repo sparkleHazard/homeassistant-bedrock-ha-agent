@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from custom_components.bedrock_conversation.config_tools.ha_client import lovelace
+from custom_components.bedrock_ha_agent.config_tools.ha_client import lovelace
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 

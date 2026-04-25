@@ -1,4 +1,4 @@
-# AWS Bedrock Conversation for Home Assistant
+# Bedrock Home Assistant Agent for Home Assistant
 
 A Home Assistant **custom integration** that uses AWS Bedrock (Anthropic Claude) as a conversation agent with native tool-calling for device control.
 
@@ -21,7 +21,7 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 
 Both the initial setup flow and the options flow populate their model dropdown by calling `bedrock:ListInferenceProfiles`, filtered to Anthropic entries in `ACTIVE` status. Whatever Claude inference profiles your AWS account/region has access to will appear automatically — the user picks one, there is no silent default.
 
-If that API call fails (missing IAM permission, network error, etc.), the dropdown falls back to the built-in `AVAILABLE_MODELS` list in [`const.py`](custom_components/bedrock_conversation/const.py). Custom model IDs can also be typed manually — the dropdown accepts free-form values.
+If that API call fails (missing IAM permission, network error, etc.), the dropdown falls back to the built-in `AVAILABLE_MODELS` list in [`const.py`](custom_components/bedrock_ha_agent/const.py). Custom model IDs can also be typed manually — the dropdown accepts free-form values.
 
 ## Requirements
 
@@ -35,13 +35,13 @@ If that API call fails (missing IAM permission, network error, etc.), the dropdo
 ### HACS (recommended)
 
 1. Open **HACS → Integrations**.
-2. Menu (⋮) → **Custom repositories** → add `https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent` as category **Integration**.
-3. Search for **AWS Bedrock Conversation** and install it.
+2. Menu (⋮) → **Custom repositories** → add `https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent` as category **Integration**.
+3. Search for **Bedrock Home Assistant Agent** and install it.
 4. Restart Home Assistant.
 
 ### Manual
 
-1. Copy `custom_components/bedrock_conversation/` into your Home Assistant `config/custom_components/` directory.
+1. Copy `custom_components/bedrock_ha_agent/` into your Home Assistant `config/custom_components/` directory.
 2. Restart Home Assistant.
 
 ## AWS Setup
@@ -85,7 +85,7 @@ Create an access key for this user and keep the secret somewhere safe.
 
 ## Configure the Integration
 
-1. **Settings → Devices & Services → Add Integration** → search "AWS Bedrock Conversation".
+1. **Settings → Devices & Services → Add Integration** → search "Bedrock Home Assistant Agent".
 2. **Step 1 — credentials.** Enter AWS region (e.g. `us-west-2`), access key id, secret access key, and optionally a session token. Submitting runs a live `ListFoundationModels` call to verify credentials.
 3. **Step 2 — model.** Pick the Claude inference profile you want to use. The dropdown is populated by `ListInferenceProfiles` for your account/region; if the call fails it falls back to a built-in list, and you can also type a custom id.
 
@@ -99,11 +99,11 @@ Only exposed entities appear in the system prompt.
 
 ### 4. Create a voice assistant
 
-**Settings → Voice assistants → Add Assistant**, set the **Conversation agent** to *AWS Bedrock Conversation*, and configure STT/TTS as desired.
+**Settings → Voice assistants → Add Assistant**, set the **Conversation agent** to *Bedrock Home Assistant Agent*, and configure STT/TTS as desired.
 
 ## Configuration Options
 
-After setup, use **Devices & Services → AWS Bedrock Conversation → Configure** to adjust:
+After setup, use **Devices & Services → Bedrock Home Assistant Agent → Configure** to adjust:
 
 | Option | Constant | Default | Notes |
 |--------|----------|---------|-------|
@@ -119,7 +119,7 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 | Expose areas only | `CONF_EXPOSE_AREAS_ONLY` | `[]` (all) | Optional list of area ids. When set, the device list in the system prompt only includes entities in those areas. Big token win on large homes. |
 | Device list format | `CONF_DEVICE_PROMPT_MODE` | `full` | `full` (current state + attributes), `compact` (state, no attributes), `names_only` (entity + area, no state). `names_only` drops an 8 KB / 270-device list to roughly 2 KB. |
 | Max tokens in device list | `CONF_MAX_PROMPT_TOKENS` | `0` (uncapped) | Soft cap on the rendered device list size. If exceeded, extra devices are omitted and the model is told how many were dropped. |
-| Home Assistant LLM API | `CONF_LLM_HASS_API` | `bedrock_conversation_services` | Which LLM API exposes tools to the model. |
+| Home Assistant LLM API | `CONF_LLM_HASS_API` | `bedrock_ha_agent_services` | Which LLM API exposes tools to the model. |
 | Polly voice | `CONF_TTS_VOICE_ID` | `Joanna` | Amazon Polly `VoiceId`. Dropdown is populated from `polly:DescribeVoices`; custom IDs are accepted. |
 | Polly engine | `CONF_TTS_ENGINE` | `neural` | One of `standard`, `neural`, `long-form`, `generative`. Neural has the best price/quality for general use. |
 | Language | `CONF_SELECTED_LANGUAGE` | `en` | Currently only English persona/device-prompt strings ship. |
@@ -128,12 +128,12 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 
 Two ways to get Claude to look at something:
 
-### 1. `bedrock_conversation.ask_with_image` service
+### 1. `bedrock_ha_agent.ask_with_image` service
 
 One-shot question about one or more camera snapshots. Returns the reply as a service response — no conversation history, no tools. Use this from automations.
 
 ```yaml
-service: bedrock_conversation.ask_with_image
+service: bedrock_ha_agent.ask_with_image
 data:
   message: "Is the driveway empty?"
   camera_entity_id: camera.front_driveway
@@ -194,7 +194,7 @@ Pricing uses a built-in per-model rate card (see `usage_tracker.py::_PRICING`). 
 4. The result is fed back to Claude.
 5. Claude returns a natural-language confirmation, which becomes the intent response.
 
-The allowlists live in [`const.py`](custom_components/bedrock_conversation/const.py) and cover lights, switches, fans, climates, covers, media players, locks, scripts, scenes, inputs, and timers.
+The allowlists live in [`const.py`](custom_components/bedrock_ha_agent/const.py) and cover lights, switches, fans, climates, covers, media players, locks, scripts, scenes, inputs, and timers.
 
 ## Troubleshooting
 
@@ -216,7 +216,7 @@ Turn on debug logging:
 logger:
   default: info
   logs:
-    custom_components.bedrock_conversation: debug
+    custom_components.bedrock_ha_agent: debug
 ```
 
 Restart Home Assistant, reproduce the issue, then inspect `home-assistant.log`. Look for:

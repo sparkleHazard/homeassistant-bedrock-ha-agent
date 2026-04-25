@@ -5,7 +5,7 @@ import pytest
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.bedrock_conversation.config_tools.scene import (
+from custom_components.bedrock_ha_agent.config_tools.scene import (
     ConfigSceneCreate,
     ConfigSceneDelete,
     ConfigSceneEdit,
@@ -19,8 +19,8 @@ pytest_plugins = ["pytest_homeassistant_custom_component"]
 async def mock_entry(hass):
     """Create a real ConfigEntry for testing."""
     from homeassistant.config_entries import ConfigEntryState
-    from custom_components.bedrock_conversation.const import DOMAIN
-    from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+    from custom_components.bedrock_ha_agent.const import DOMAIN
+    from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
     entry = hass.config_entries.async_entries(DOMAIN)
     if entry:
@@ -56,7 +56,7 @@ def mock_llm_context():
 def mock_scene_client():
     """Mock scene client functions."""
     with patch(
-        "custom_components.bedrock_conversation.config_tools.scene.scene"
+        "custom_components.bedrock_ha_agent.config_tools.scene.scene"
     ) as mock:
         mock.get_scene = AsyncMock(return_value=None)
         mock.create_or_update_scene = AsyncMock()
@@ -96,7 +96,7 @@ async def test_scene_create_golden_path(hass, mock_entry, mock_llm_context, mock
     assert "proposal_id" in result
 
     # Step 2: Retrieve the pending change and apply it
-    from custom_components.bedrock_conversation.config_tools.pending import (
+    from custom_components.bedrock_ha_agent.config_tools.pending import (
         PendingChangeManager,
     )
 

@@ -4,7 +4,7 @@ from homeassistant.helpers import llm
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
-from custom_components.bedrock_conversation.config_tools.registry import (
+from custom_components.bedrock_ha_agent.config_tools.registry import (
     ConfigAreaCreate,
     ConfigAreaRename,
     ConfigAreaDelete,
@@ -15,8 +15,8 @@ from custom_components.bedrock_conversation.config_tools.registry import (
     ConfigEntityAssignArea,
     get_tools,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
-from custom_components.bedrock_conversation.const import DOMAIN
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.const import DOMAIN
 
 
 @pytest.fixture

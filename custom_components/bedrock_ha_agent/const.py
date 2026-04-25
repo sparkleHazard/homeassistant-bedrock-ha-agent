@@ -1,7 +1,7 @@
-"Constants for the AWS Bedrock Conversation integration."
+"Constants for the Bedrock Home Assistant Agent integration."
 from typing import Final
 
-DOMAIN: Final = "bedrock_conversation"
+DOMAIN: Final = "bedrock_ha_agent"
 HOME_LLM_API_ID: Final = f"{DOMAIN}_services"
 
 # AWS Configuration

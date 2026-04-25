@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "AWS Bedrock Configuration",
+        "title": "Bedrock Home Assistant Agent — Credentials",
         "description": "Configure your AWS Bedrock connection",
         "data": {
           "aws_region": "AWS Region",
@@ -26,13 +26,13 @@
       "unknown": "Unknown error occurred"
     },
     "abort": {
-      "already_configured": "AWS Bedrock is already configured"
+      "already_configured": "Bedrock Home Assistant Agent is already configured"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "AWS Bedrock Options",
+        "title": "Bedrock Home Assistant Agent — Options",
         "data": {
           "model_id": "Bedrock Model ID",
           "selected_language": "Language",
@@ -66,7 +66,7 @@
   },
   "notifications": {
     "haiku_config_advisory": {
-      "title": "Bedrock Conversation: Model advisory",
+      "title": "Bedrock Home Assistant Agent: Model advisory",
       "message": "Config editing works best on Claude Sonnet 4.5 or Opus; Haiku may truncate large dashboards."
     }
   },

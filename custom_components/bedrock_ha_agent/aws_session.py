@@ -1,4 +1,4 @@
-"""Shared AWS session/client factory for the bedrock_conversation integration.
+"""Shared AWS session/client factory for the bedrock_ha_agent integration.
 
 The config-flow, Bedrock client, and Polly TTS all need to build a ``boto3``
 session from the same credential fields. Centralising that here keeps the

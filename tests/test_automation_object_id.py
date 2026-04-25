@@ -4,7 +4,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, Mock
 import pytest
 
-from custom_components.bedrock_conversation.config_tools.automation import ConfigAutomationCreate
+from custom_components.bedrock_ha_agent.config_tools.automation import ConfigAutomationCreate
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def tool_input():
 @pytest.mark.asyncio
 async def test_create_collision_appends_suffix(mock_hass, tool, tool_input):
     """Test that object_id collision appends numeric suffix (M2 fix)."""
-    from custom_components.bedrock_conversation.config_tools.ha_client import automation as ha_automation
+    from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
 
     # Mock existing automation with object_id="morning_routine"
     existing_automation = {"alias": "Morning Routine", "trigger": [], "action": []}
@@ -61,7 +61,7 @@ async def test_create_collision_appends_suffix(mock_hass, tool, tool_input):
 @pytest.mark.asyncio
 async def test_create_sanitizes_object_id(mock_hass, tool):
     """Test that invalid object_id is sanitized (M2 fix)."""
-    from custom_components.bedrock_conversation.config_tools.ha_client import automation as ha_automation
+    from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
 
     # Mock no existing automations
     ha_automation.get_automation = AsyncMock(return_value=None)
@@ -90,7 +90,7 @@ async def test_create_sanitizes_object_id(mock_hass, tool):
 @pytest.mark.asyncio
 async def test_summary_includes_object_id(mock_hass, tool):
     """Test that proposed_summary includes object_id (M2 fix)."""
-    from custom_components.bedrock_conversation.config_tools.ha_client import automation as ha_automation
+    from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
 
     # Mock no existing automations
     ha_automation.get_automation = AsyncMock(return_value=None)

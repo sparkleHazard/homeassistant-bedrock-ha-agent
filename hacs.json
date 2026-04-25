@@ -1,5 +1,5 @@
 {
-  "name": "AWS Bedrock Conversation",
+  "name": "Bedrock Home Assistant Agent",
   "content_in_root": false,
   "render_readme": true,
   "domains": ["conversation"],

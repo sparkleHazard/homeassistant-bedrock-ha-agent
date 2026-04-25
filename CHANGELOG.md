@@ -17,12 +17,12 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 - Opt-in conversational config editing for automations, scripts, scenes,
   helpers, Lovelace dashboards & cards, areas, labels, and entity registry
   fields. Disabled by default. Enable via Settings → Devices & Services →
-  Bedrock Conversation → Configure → "Enable config editing."
+  Bedrock Home Assistant Agent → Configure → "Enable config editing."
 - Per-conversation pending-approval flow: Claude proposes a change; you
   confirm with "yes"/"apply"/"do it"; the change applies. Cancel with "no"/
   "cancel"/"revert that" before applying.
 - Per-conversation undo stack (20 deep, 1 hour TTL). Say "undo that" or call
-  the new `bedrock_conversation.undo_last_config_change` service. Multiple
+  the new `bedrock_ha_agent.undo_last_config_change` service. Multiple
   concurrent voice satellites on one Bedrock entry do NOT share undo history.
 - YAML-mode Lovelace dashboards are detected and refused with a clear error
   ("this dashboard is managed via configuration.yaml; edit the file manually").
@@ -71,7 +71,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 
 ### Added
 - **Vision input**. Claude can now look at Home Assistant camera snapshots. Two entry points:
-  - New service `bedrock_conversation.ask_with_image`: takes `message` + `camera_entity_id` (string or list) and returns the reply as a service response. Best for automations — no conversation history, no tools, just image + question.
+  - New service `bedrock_ha_agent.ask_with_image`: takes `message` + `camera_entity_id` (string or list) and returns the reply as a service response. Best for automations — no conversation history, no tools, just image + question.
   - New options-flow toggle `Attach exposed camera snapshots to each turn`. When on, every conversation turn pulls fresh snapshots from all cameras you've exposed to conversation and attaches them to the user message. Only the first Bedrock call per turn attaches images (not every tool-calling iteration) to bound token cost.
 - Model-capability gate: both paths refuse (or warn-and-drop) when the selected model isn't vision-capable. Current default (Haiku 4.5) does **not** support images; switch to Sonnet 4.5 to use vision. Claude 3/3.5 Sonnet, 3 Opus, 3 Haiku are also recognized as vision-capable (see `VISION_CAPABLE_MODELS`).
 - Vision calls update the existing cost sensors normally (≈1.5K input tokens per image on Sonnet 4.5).
@@ -250,4 +250,4 @@ git log --oneline v1.0.35..v1.0.36
 ```
 
 or view the release on GitHub at
-`https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent/releases`.
+`https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent/releases`.

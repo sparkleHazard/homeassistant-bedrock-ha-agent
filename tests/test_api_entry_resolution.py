@@ -9,8 +9,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.bedrock_conversation.config_tools import ConfigEditingTool
-from custom_components.bedrock_conversation.const import DOMAIN
+from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool
+from custom_components.bedrock_ha_agent.const import DOMAIN
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 

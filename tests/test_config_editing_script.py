@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.helpers import llm
 
-from custom_components.bedrock_conversation.config_tools.script import (
+from custom_components.bedrock_ha_agent.config_tools.script import (
     ConfigScriptCreate,
     ConfigScriptDelete,
     ConfigScriptEdit,
@@ -37,7 +37,7 @@ def mock_entry():
 def llm_context():
     """Create a mock LLM context."""
     return llm.LLMContext(
-        platform="bedrock_conversation",
+        platform="bedrock_ha_agent",
         context=None,
         language="en",
         assistant="conversation",
@@ -52,14 +52,14 @@ async def test_script_create_golden_path(mock_hass, llm_context):
 
     # Mock ha_client functions
     with patch(
-        "custom_components.bedrock_conversation.config_tools.script.ha_script.get_script",
+        "custom_components.bedrock_ha_agent.config_tools.script.ha_script.get_script",
         new_callable=AsyncMock,
         return_value=None,
     ) as mock_get, patch(
-        "custom_components.bedrock_conversation.config_tools.script.ha_script.create_or_update_script",
+        "custom_components.bedrock_ha_agent.config_tools.script.ha_script.create_or_update_script",
         new_callable=AsyncMock,
     ) as mock_create, patch(
-        "custom_components.bedrock_conversation.config_tools.script.ha_script.reload_scripts",
+        "custom_components.bedrock_ha_agent.config_tools.script.ha_script.reload_scripts",
         new_callable=AsyncMock,
     ) as mock_reload:
 
@@ -83,7 +83,7 @@ async def test_script_create_golden_path(mock_hass, llm_context):
 
         # Validate
         with patch(
-            "custom_components.bedrock_conversation.config_tools.validation.validate_entities_exist",
+            "custom_components.bedrock_ha_agent.config_tools.validation.validate_entities_exist",
             return_value=MagicMock(ok=True),
         ):
             result = await tool.validate(mock_hass, proposed, pre_state)
@@ -127,7 +127,7 @@ async def test_script_edit_diff_shows_both_sides(mock_hass, llm_context):
     }
 
     with patch(
-        "custom_components.bedrock_conversation.config_tools.script.ha_script.get_script",
+        "custom_components.bedrock_ha_agent.config_tools.script.ha_script.get_script",
         new_callable=AsyncMock,
         return_value=existing_script,
     ):
@@ -156,7 +156,7 @@ async def test_script_delete_unknown_object_id(mock_hass, llm_context):
     tool = ConfigScriptDelete()
 
     with patch(
-        "custom_components.bedrock_conversation.config_tools.script.ha_script.get_script",
+        "custom_components.bedrock_ha_agent.config_tools.script.ha_script.get_script",
         new_callable=AsyncMock,
         return_value=None,
     ):
@@ -182,7 +182,7 @@ async def test_script_sequence_with_unknown_entity_fails(mock_hass, llm_context)
     tool = ConfigScriptCreate()
 
     with patch(
-        "custom_components.bedrock_conversation.config_tools.script.ha_script.get_script",
+        "custom_components.bedrock_ha_agent.config_tools.script.ha_script.get_script",
         new_callable=AsyncMock,
         return_value=None,
     ):
@@ -202,12 +202,12 @@ async def test_script_sequence_with_unknown_entity_fails(mock_hass, llm_context)
 
         # Mock both schema validation (pass) and entity validation (fail)
         with patch(
-            "custom_components.bedrock_conversation.config_tools.script.validate_script",
+            "custom_components.bedrock_ha_agent.config_tools.script.validate_script",
             return_value=MagicMock(ok=True),
         ), patch(
-            "custom_components.bedrock_conversation.config_tools.script.validate_entities_exist"
+            "custom_components.bedrock_ha_agent.config_tools.script.validate_entities_exist"
         ) as mock_validate:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
                 ValidationResult,
             )

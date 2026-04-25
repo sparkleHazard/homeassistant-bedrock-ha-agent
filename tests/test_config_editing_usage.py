@@ -10,13 +10,13 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.const import (
     CONF_ENABLE_CONFIG_EDITING,
     CONF_MODEL_ID,
     DOMAIN,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
-from custom_components.bedrock_conversation.usage_tracker import UsageTracker
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.usage_tracker import UsageTracker
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
@@ -66,10 +66,10 @@ async def test_config_edit_apply_increments_token_sensors(
 
     Total: 2 Bedrock calls = 2 UsageTracker.record() calls.
     """
-    from custom_components.bedrock_conversation.config_tools.automation import (
+    from custom_components.bedrock_ha_agent.config_tools.automation import (
         ConfigAutomationCreate,
     )
-    from custom_components.bedrock_conversation.config_tools.pending import (
+    from custom_components.bedrock_ha_agent.config_tools.pending import (
         PendingChangeManager,
     )
 
@@ -93,7 +93,7 @@ async def test_config_edit_apply_increments_token_sensors(
 
     # Mock ha_automation functions
     with patch(
-        "custom_components.bedrock_conversation.config_tools.automation.ha_automation"
+        "custom_components.bedrock_ha_agent.config_tools.automation.ha_automation"
     ) as mock_ha:
         mock_ha.create_or_update_automation = AsyncMock()
         mock_ha.reload_automations = AsyncMock()
@@ -169,7 +169,7 @@ async def test_config_edit_daily_rollover_not_broken(
 
     # Manually trigger rollover by advancing date
     with patch(
-        "custom_components.bedrock_conversation.usage_tracker.datetime"
+        "custom_components.bedrock_ha_agent.usage_tracker.datetime"
     ) as mock_dt:
         mock_dt.now.return_value = datetime(
             future_day.year, future_day.month, future_day.day, 0, 1, tzinfo=UTC

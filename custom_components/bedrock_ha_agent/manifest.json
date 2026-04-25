@@ -1,9 +1,9 @@
 {
-  "domain": "bedrock_conversation",
-  "name": "AWS Bedrock Conversation",
+  "domain": "bedrock_ha_agent",
+  "name": "Bedrock Home Assistant Agent",
   "version": "1.1.0",
   "codeowners": [
-    "cronus@stolenshoe.com"
+    "@sparkleHazard"
   ],
   "config_flow": true,
   "dependencies": [
@@ -14,7 +14,7 @@
     "assist_pipeline",
     "intent"
   ],
-  "documentation": "https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent/blob/main/README.md",
+  "documentation": "https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent/blob/main/README.md",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "requirements": [

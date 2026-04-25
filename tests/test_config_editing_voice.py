@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.bedrock_conversation.conversation import (
+from custom_components.bedrock_ha_agent.conversation import (
     _split_proposal_for_stream,
 )
 

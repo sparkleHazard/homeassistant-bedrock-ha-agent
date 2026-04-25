@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from custom_components.bedrock_conversation.config_tools.undo import (
+from custom_components.bedrock_ha_agent.config_tools.undo import (
     UndoEntry,
     UndoStack,
     collect_non_empty_stacks,
     get_or_create_stack,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
 
 class FakeEntry:

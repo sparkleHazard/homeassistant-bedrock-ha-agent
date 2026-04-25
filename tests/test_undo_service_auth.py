@@ -10,7 +10,7 @@ from homeassistant.exceptions import Unauthorized
 @pytest.mark.asyncio
 async def test_undo_service_non_admin_user_rejected():
     """Test that non-admin user is rejected (H2 fix)."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
 
     # Create minimal mock hass
     mock_hass = Mock()
@@ -52,8 +52,8 @@ async def test_undo_service_non_admin_user_rejected():
 @pytest.mark.asyncio
 async def test_undo_service_admin_user_allowed():
     """Test that admin user is allowed (H2 fix)."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
-    from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
+    from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
     from homeassistant.config_entries import ConfigEntryState
 
     # Create minimal mock hass
@@ -106,8 +106,8 @@ async def test_undo_service_admin_user_allowed():
 @pytest.mark.asyncio
 async def test_undo_service_no_user_context_allowed():
     """Test that calls without user context (automation/script) are allowed (H2 fix)."""
-    from custom_components.bedrock_conversation import _async_register_undo_service
-    from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+    from custom_components.bedrock_ha_agent import _async_register_undo_service
+    from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
     from homeassistant.config_entries import ConfigEntryState
 
     # Create minimal mock hass

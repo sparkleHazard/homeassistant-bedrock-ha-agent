@@ -1,6 +1,6 @@
 <!-- Generated: 2026-04-25 | Updated: 2026-04-25 -->
 
-# homeassistant-aws-bedrock-conversation-agent
+# homeassistant-bedrock-ha-agent
 
 ## Purpose
 A Home Assistant **custom integration** that exposes AWS Bedrock foundation models (Anthropic Claude, Meta Llama, Mistral) as a conversation agent with device control through Home Assistant's LLM/tool-calling system. The integration is distributed via HACS and installed into a Home Assistant instance's `config/custom_components/` directory.
@@ -18,7 +18,7 @@ A Home Assistant **custom integration** that exposes AWS Bedrock foundation mode
 | `test_bedrock.py` | Manual smoke test that hits real AWS Bedrock using env-var credentials. Not part of the automated suite. |
 | `hacs.json` | HACS integration metadata (name, country, render_readme). |
 | `repository.json` | Repository-level metadata. |
-| `manifest.json` (in `custom_components/bedrock_conversation/`) | Single source of truth for the release version. |
+| `manifest.json` (in `custom_components/bedrock_ha_agent/`) | Single source of truth for the release version. |
 | `apparmor.txt` | AppArmor profile for add-on style deployment contexts. |
 | `README.md` | Primary user-facing documentation: install, AWS setup, config options, troubleshooting. |
 | `DEVELOPMENT.md` | Contributor guide: repo layout, Makefile targets, release workflow. |
@@ -40,7 +40,7 @@ A Home Assistant **custom integration** that exposes AWS Bedrock foundation mode
 
 ### Working In This Directory
 - **Never bypass the Makefile** when installing deps or running tests — `make test` creates `.venv/`, installs pinned requirements, and runs pytest with coverage. Running `pytest` directly from a global interpreter will miss `pytest-homeassistant-custom-component`.
-- **Version bumps happen in `custom_components/bedrock_conversation/manifest.json` only.** `make version` and `make release` read from that file; there is no other version string.
+- **Version bumps happen in `custom_components/bedrock_ha_agent/manifest.json` only.** `make version` and `make release` read from that file; there is no other version string.
 - `make release` refuses to run with a dirty working tree or a pre-existing tag. Resolve those before invoking it; do not `--force` tags.
 - **AGENTS.md files are the canonical architecture reference.** The root `AGENTS.md` plus each subdirectory's `AGENTS.md` describe the design. `README.md` at the root is the end-user doc; keep implementation detail out of it and put it here instead.
 - `test_bedrock.py` at the root hits real AWS — do not invoke it in CI or without credentials intentionally provided.

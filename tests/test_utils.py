@@ -1,5 +1,5 @@
 """Test the utils module."""
-from custom_components.bedrock_conversation.utils import closest_color
+from custom_components.bedrock_ha_agent.utils import closest_color
 
 
 def test_closest_color():

@@ -4,9 +4,9 @@ from __future__ import annotations
 from unittest.mock import Mock
 import pytest
 
-from custom_components.bedrock_conversation.conversation import _check_past_tense_vs_pending
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
-from custom_components.bedrock_conversation.config_tools.pending import PendingChange
+from custom_components.bedrock_ha_agent.conversation import _check_past_tense_vs_pending
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.config_tools.pending import PendingChange
 from datetime import UTC, datetime, timedelta
 
 
@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 def mock_hass():
     """Create a mock Home Assistant instance."""
     hass = Mock()
-    hass.data = {"bedrock_conversation": {}}
+    hass.data = {"bedrock_ha_agent": {}}
     return hass
 
 

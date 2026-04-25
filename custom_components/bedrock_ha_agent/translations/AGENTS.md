@@ -18,7 +18,7 @@ Localized strings for the integration's config flow and options flow UI. Home As
 - **Keep keys in sync with `../strings.json`.** If you add a new config field, error, or options step, add a matching key to `strings.json` **and** to every translation file here. Home Assistant will log missing-key warnings otherwise.
 - **Do not translate keys, only values.** The JSON key structure must match `strings.json` byte-for-byte.
 - **Adding a new language** means creating `<lang>.json` here with the same structure as `en.json`. The language code must match Home Assistant's locale identifiers (e.g., `de`, `fr`, `es`, `nl`).
-- **Two unrelated translation directories exist in this repo**: this one (`custom_components/bedrock_conversation/translations/`) is the HA-loaded UI translations. The sibling `translations/` at the repo root is a service-description YAML — do not conflate them.
+- **Two unrelated translation directories exist in this repo**: this one (`custom_components/bedrock_ha_agent/translations/`) is the HA-loaded UI translations. The sibling `translations/` at the repo root is a service-description YAML — do not conflate them.
 
 ### Testing Requirements
 - No automated translation tests. Manual verification: install the integration, switch HA's UI to the target language, and confirm the config/options flow labels render correctly.

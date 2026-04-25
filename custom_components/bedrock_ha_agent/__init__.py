@@ -1,4 +1,4 @@
-"""AWS Bedrock Conversation integration."""
+"""Bedrock Home Assistant Agent integration."""
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform, ATTR_ENTITY_ID
@@ -196,7 +196,7 @@ class BedrockServicesAPI(llm.API):
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up AWS Bedrock Conversation from a config entry."""
+    """Set up Bedrock Home Assistant Agent from a config entry."""
     _LOGGER.info("Bedrock setup: starting integration setup")
 
     # Smoke check: verify all required HA APIs are present
@@ -241,7 +241,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_register_vision_service(hass: HomeAssistant) -> None:
-    """Register the ``bedrock_conversation.ask_with_image`` service."""
+    """Register the ``bedrock_ha_agent.ask_with_image`` service."""
     schema = vol.Schema(
         {
             vol.Required("message"): str,
@@ -260,20 +260,20 @@ async def _async_register_vision_service(hass: HomeAssistant) -> None:
         # Pick a config entry: explicit > single entry > fail if ambiguous.
         entries = list(hass.data.get(DOMAIN, {}).values())
         if not entries:
-            raise HomeAssistantError("No Bedrock Conversation config entry set up")
+            raise HomeAssistantError("No Bedrock Home Assistant Agent config entry set up")
         explicit_id = call.data.get("config_entry_id")
         if explicit_id:
             matched = [e for e in entries if e.entry_id == explicit_id]
             if not matched:
                 raise HomeAssistantError(
-                    f"No Bedrock Conversation entry with id {explicit_id}"
+                    f"No Bedrock Home Assistant Agent entry with id {explicit_id}"
                 )
             entry = matched[0]
         elif len(entries) == 1:
             entry = entries[0]
         else:
             raise HomeAssistantError(
-                "Multiple Bedrock Conversation entries configured; pass "
+                "Multiple Bedrock Home Assistant Agent entries configured; pass "
                 "config_entry_id to pick one"
             )
 
@@ -304,7 +304,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_register_undo_service(hass: HomeAssistant) -> None:
-    """Register the ``bedrock_conversation.undo_last_config_change`` service."""
+    """Register the ``bedrock_ha_agent.undo_last_config_change`` service."""
     from .config_tools.undo import collect_non_empty_stacks, get_or_create_stack
 
     schema = vol.Schema(
@@ -341,20 +341,20 @@ async def _async_register_undo_service(hass: HomeAssistant) -> None:
         ]
 
         if not entries:
-            raise HomeAssistantError("No Bedrock Conversation config entry set up")
+            raise HomeAssistantError("No Bedrock Home Assistant Agent config entry set up")
 
         if explicit_id:
             matched = [e for e in entries if e.entry_id == explicit_id]
             if not matched:
                 raise HomeAssistantError(
-                    f"No Bedrock Conversation entry with id {explicit_id}"
+                    f"No Bedrock Home Assistant Agent entry with id {explicit_id}"
                 )
             entry = matched[0]
         elif len(entries) == 1:
             entry = entries[0]
         else:
             raise HomeAssistantError(
-                "Multiple Bedrock Conversation entries configured; pass "
+                "Multiple Bedrock Home Assistant Agent entries configured; pass "
                 "config_entry_id to pick one"
             )
 
@@ -479,7 +479,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 "Config editing works best on Claude Sonnet 4.5 or Opus; "
                 "Haiku may truncate large dashboards."
             ),
-            title="Bedrock Conversation: Model advisory",
+            title="Bedrock Home Assistant Agent: Model advisory",
             notification_id=f"bedrock_haiku_warning_{entry.entry_id}",
         )
         _LOGGER.info(

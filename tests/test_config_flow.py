@@ -1,11 +1,11 @@
-"Test the config flow for Bedrock Conversation."
+"Test the config flow for Bedrock Home Assistant Agent."
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 from botocore.exceptions import NoCredentialsError
 
 from homeassistant.core import HomeAssistant
 
-from custom_components.bedrock_conversation.config_flow import validate_aws_credentials
+from custom_components.bedrock_ha_agent.config_flow import validate_aws_credentials
 
 
 async def test_validate_credentials_success(hass: HomeAssistant):

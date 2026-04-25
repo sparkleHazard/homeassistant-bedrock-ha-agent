@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.bedrock_conversation.config_tools.lovelace import (
+from custom_components.bedrock_ha_agent.config_tools.lovelace import (
     ConfigLovelaceCardAdd,
     ConfigLovelaceCardRemove,
     ConfigLovelaceDashboardCreate,
@@ -80,9 +80,9 @@ async def test_add_card_golden_path(mock_hass, mock_entry, mock_llm_context, sam
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.load_dashboard") as mock_load, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.save_dashboard") as mock_save:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.load_dashboard") as mock_load, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.save_dashboard") as mock_save:
 
         mock_mode.return_value = "storage"
         mock_load.return_value = sample_dashboard
@@ -136,9 +136,9 @@ async def test_add_card_yaml_mode_rejected(mock_hass, mock_entry, mock_llm_conte
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.load_dashboard") as mock_load, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.save_dashboard") as mock_save:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.load_dashboard") as mock_load, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.save_dashboard") as mock_save:
 
         mock_mode.return_value = "yaml"
         mock_load.return_value = sample_dashboard
@@ -173,8 +173,8 @@ async def test_add_card_unknown_view_rejected(mock_hass, mock_llm_context, sampl
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.load_dashboard") as mock_load:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.load_dashboard") as mock_load:
 
         mock_mode.return_value = "storage"
         mock_load.return_value = sample_dashboard
@@ -207,8 +207,8 @@ async def test_add_card_missing_type_rejected(mock_hass, mock_llm_context, sampl
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.load_dashboard") as mock_load:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.load_dashboard") as mock_load:
 
         mock_mode.return_value = "storage"
         mock_load.return_value = sample_dashboard
@@ -238,9 +238,9 @@ async def test_remove_card_golden_path(mock_hass, mock_llm_context, sample_dashb
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.load_dashboard") as mock_load, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.save_dashboard") as mock_save:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.load_dashboard") as mock_load, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.save_dashboard") as mock_save:
 
         mock_mode.return_value = "storage"
         mock_load.return_value = sample_dashboard
@@ -276,8 +276,8 @@ async def test_remove_card_index_out_of_range_rejected(mock_hass, mock_llm_conte
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.load_dashboard") as mock_load:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.get_dashboard_mode") as mock_mode, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.load_dashboard") as mock_load:
 
         mock_mode.return_value = "storage"
         mock_load.return_value = sample_dashboard
@@ -311,8 +311,8 @@ async def test_dashboard_create_golden_path(mock_hass, mock_llm_context):
         },
     )
 
-    with patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.list_dashboards") as mock_list, \
-         patch("custom_components.bedrock_conversation.config_tools.ha_client.lovelace.create_dashboard") as mock_create:
+    with patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.list_dashboards") as mock_list, \
+         patch("custom_components.bedrock_ha_agent.config_tools.ha_client.lovelace.create_dashboard") as mock_create:
 
         mock_list.return_value = []  # No existing dashboards
         mock_create.return_value = "new-dash"

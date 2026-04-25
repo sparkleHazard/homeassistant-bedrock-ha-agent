@@ -10,16 +10,16 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import llm
 
-from custom_components.bedrock_conversation.config_tools import (
+from custom_components.bedrock_ha_agent.config_tools import (
     ConfigEditingTool,
     register_config_tools,
 )
-from custom_components.bedrock_conversation.config_tools.validation import (
+from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
 )
-from custom_components.bedrock_conversation.const import CONF_ENABLE_CONFIG_EDITING
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.const import CONF_ENABLE_CONFIG_EDITING
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
 
 class FakeEntry:
@@ -28,7 +28,7 @@ class FakeEntry:
     def __init__(self, entry_id: str, options: dict | None = None) -> None:
         """Initialize fake entry."""
         self.entry_id = entry_id
-        self.domain = "bedrock_conversation"
+        self.domain = "bedrock_ha_agent"
         self.state = ConfigEntryState.LOADED
         self.options = options or {}
         self.runtime_data = BedrockRuntimeData()
@@ -88,7 +88,7 @@ def conversation_id() -> str:
 def llm_context(conversation_id: str) -> llm.LLMContext:
     """Create a fake LLM context."""
     return llm.LLMContext(
-        platform="bedrock_conversation",
+        platform="bedrock_ha_agent",
         context=None,
         language="en",
         assistant="conversation",
@@ -314,14 +314,14 @@ async def test_two_conversations_isolated_at_tool_level(
     # Since _derive_conversation_id returns None, both will use "_global"
     # We need to modify the contexts to differentiate them
     ctx1 = llm.LLMContext(
-        platform="bedrock_conversation",
+        platform="bedrock_ha_agent",
         context=None,
         language="en",
         assistant="conversation",
         device_id=None,
     )
     ctx2 = llm.LLMContext(
-        platform="bedrock_conversation",
+        platform="bedrock_ha_agent",
         context=None,
         language="en",
         assistant="conversation",
@@ -375,7 +375,7 @@ async def test_resolve_entry_via_device_registry(hass: FakeHass) -> None:
     try:
         # Create context with device_id
         llm_context = llm.LLMContext(
-            platform="bedrock_conversation",
+            platform="bedrock_ha_agent",
             context=None,
             language="en",
             assistant="conversation",
@@ -400,7 +400,7 @@ async def test_resolve_entry_fallback_first_loaded(hass: FakeHass, caplog) -> No
 
     # Create context without device_id
     llm_context = llm.LLMContext(
-        platform="bedrock_conversation",
+        platform="bedrock_ha_agent",
         context=None,
         language="en",
         assistant="conversation",

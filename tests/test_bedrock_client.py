@@ -1,5 +1,5 @@
 "Test the Bedrock client functionality."""
-from custom_components.bedrock_conversation.bedrock_client import DeviceInfo
+from custom_components.bedrock_ha_agent.bedrock_client import DeviceInfo
 
 
 def test_device_info_dataclass():

@@ -1,6 +1,6 @@
 #include <tunables/global>
 
-profile aws_bedrock_conversation flags=(attach_disconnected,mediate_deleted) {
+profile bedrock_ha_agent flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
   # Capabilities

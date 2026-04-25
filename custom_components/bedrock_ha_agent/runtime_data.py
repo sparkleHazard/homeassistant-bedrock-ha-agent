@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class BedrockRuntimeData:
-    """Runtime data for bedrock_conversation integration."""
+    """Runtime data for bedrock_ha_agent integration."""
 
     pending: dict[str, "PendingChange | None"] = field(default_factory=dict)  # keyed by conversation_id
     undo: dict[str, "UndoStack"] = field(default_factory=dict)  # keyed by conversation_id
@@ -25,14 +25,14 @@ class BedrockRuntimeData:
 
 
 def _get_runtime_data(hass: "HomeAssistant", entry_id: str) -> BedrockRuntimeData:
-    """Retrieve runtime data for a bedrock_conversation config entry."""
+    """Retrieve runtime data for a bedrock_ha_agent config entry."""
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None:
-        raise RuntimeError(f"bedrock_conversation entry not found: {entry_id}")
+        raise RuntimeError(f"bedrock_ha_agent entry not found: {entry_id}")
     rd = getattr(entry, "runtime_data", None)
     if not isinstance(rd, BedrockRuntimeData):
         raise RuntimeError(
-            f"bedrock_conversation runtime_data missing for entry {entry_id}; "
+            f"bedrock_ha_agent runtime_data missing for entry {entry_id}; "
             "Phase 3 setup may not have run"
         )
     return rd

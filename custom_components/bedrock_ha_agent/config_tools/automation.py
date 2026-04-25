@@ -17,19 +17,19 @@ from typing import TYPE_CHECKING
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
-from custom_components.bedrock_conversation.config_tools import ConfigEditingTool
-from custom_components.bedrock_conversation.config_tools.validation import (
+from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool
+from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
     extract_entity_ids_from_automation,
     validate_automation,
     validate_entities_exist,
 )
-from custom_components.bedrock_conversation.config_tools.diff import (
+from custom_components.bedrock_ha_agent.config_tools.diff import (
     render_spoken_summary,
     render_unified_diff,
 )
-from custom_components.bedrock_conversation.config_tools.ha_client import automation as ha_automation
+from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry

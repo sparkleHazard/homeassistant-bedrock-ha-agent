@@ -4,11 +4,11 @@ from unittest.mock import Mock, patch, MagicMock
 import json
 from homeassistant.core import HomeAssistant
 from homeassistant.components import conversation
-from custom_components.bedrock_conversation.bedrock_client import (
+from custom_components.bedrock_ha_agent.bedrock_client import (
     BedrockClient, 
     DeviceInfo
 )
-from custom_components.bedrock_conversation.const import (
+from custom_components.bedrock_ha_agent.const import (
     DEFAULT_PROMPT,
     CONF_AWS_ACCESS_KEY_ID,
     CONF_AWS_SECRET_ACCESS_KEY,
@@ -31,7 +31,7 @@ async def test_conversation_includes_device_list_in_system_prompt(hass: HomeAssi
         CONF_EXTRA_ATTRIBUTES_TO_EXPOSE: DEFAULT_EXTRA_ATTRIBUTES
     }
     
-    with patch("custom_components.bedrock_conversation.bedrock_client.boto3.Session"):
+    with patch("custom_components.bedrock_ha_agent.bedrock_client.boto3.Session"):
         client = BedrockClient(hass, mock_entry)
         
         with patch.object(client, "_get_exposed_entities") as mock_get_entities:

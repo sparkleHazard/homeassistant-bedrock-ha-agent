@@ -7,12 +7,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from custom_components.bedrock_conversation.config_tools.pending import (
+from custom_components.bedrock_ha_agent.config_tools.pending import (
     ApprovalOutcome,
     PendingChange,
     PendingChangeManager,
 )
-from custom_components.bedrock_conversation.runtime_data import BedrockRuntimeData
+from custom_components.bedrock_ha_agent.runtime_data import BedrockRuntimeData
 
 
 class FakeEntry:

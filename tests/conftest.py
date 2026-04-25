@@ -1,4 +1,4 @@
-"""Test fixtures for bedrock_conversation."""
+"""Test fixtures for bedrock_ha_agent."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 

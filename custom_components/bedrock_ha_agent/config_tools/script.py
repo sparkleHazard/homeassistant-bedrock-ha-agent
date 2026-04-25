@@ -7,16 +7,16 @@ from typing import TYPE_CHECKING
 import voluptuous as vol
 from homeassistant.helpers import llm
 
-from custom_components.bedrock_conversation.config_tools import (
+from custom_components.bedrock_ha_agent.config_tools import (
     ConfigEditingTool,
     RestoreFn,
 )
-from custom_components.bedrock_conversation.config_tools.diff import (
+from custom_components.bedrock_ha_agent.config_tools.diff import (
     render_spoken_summary,
     render_unified_diff,
 )
-from custom_components.bedrock_conversation.config_tools.ha_client import script as ha_script
-from custom_components.bedrock_conversation.config_tools.validation import (
+from custom_components.bedrock_ha_agent.config_tools.ha_client import script as ha_script
+from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationResult,
     extract_entity_ids_from_automation,
     validate_entities_exist,
@@ -89,7 +89,7 @@ class ConfigScriptCreate(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate the proposed script config."""
         if pre_state is not None:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
             )
 
@@ -215,7 +215,7 @@ class ConfigScriptEdit(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate the proposed edit."""
         if pre_state is None:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
             )
 
@@ -319,7 +319,7 @@ class ConfigScriptDelete(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate the delete operation."""
         if pre_state is None:
-            from custom_components.bedrock_conversation.config_tools.validation import (
+            from custom_components.bedrock_ha_agent.config_tools.validation import (
                 ValidationError,
             )
 

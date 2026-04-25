@@ -1,5 +1,5 @@
 {
-  "name": "AWS Bedrock Conversation Agent Repository",
-  "url": "https://github.com/yourusername/homeassistant-aws-bedrock-conversation-agent",
-  "maintainer": "Your Name <your.email@example.com>"
+  "name": "Bedrock Home Assistant Agent Repository",
+  "url": "https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent",
+  "maintainer": "sparkleHazard <sparklehazard@protonmail.com>"
 }

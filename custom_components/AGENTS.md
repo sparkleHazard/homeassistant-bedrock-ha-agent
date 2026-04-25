@@ -13,7 +13,7 @@ None at this level. The directory is a namespace container — Home Assistant wa
 
 | Directory | Purpose |
 |-----------|---------|
-| `bedrock_conversation/` | The AWS Bedrock conversation-agent integration (see `bedrock_conversation/AGENTS.md`). Domain: `bedrock_conversation`. |
+| `bedrock_ha_agent/` | The AWS Bedrock conversation-agent integration (see `bedrock_ha_agent/AGENTS.md`). Domain: `bedrock_ha_agent`. |
 
 ## For AI Agents
 
@@ -22,7 +22,7 @@ None at this level. The directory is a namespace container — Home Assistant wa
 - If adding a new integration in the future, create a new subdirectory with its own `manifest.json`, `__init__.py`, and `const.py` — don't share code by importing across integrations.
 
 ### Testing Requirements
-- Coverage is configured against `custom_components.bedrock_conversation` (see `Makefile`). New integrations would need their own coverage path.
+- Coverage is configured against `custom_components.bedrock_ha_agent` (see `Makefile`). New integrations would need their own coverage path.
 
 ### Common Patterns
 - Each integration sets its `DOMAIN` constant in `const.py` to match its directory name.

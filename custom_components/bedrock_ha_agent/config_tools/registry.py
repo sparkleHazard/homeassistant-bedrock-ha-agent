@@ -15,16 +15,16 @@ from typing import TYPE_CHECKING, Any
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 
-from custom_components.bedrock_conversation.config_tools import ConfigEditingTool
-from custom_components.bedrock_conversation.config_tools.validation import (
+from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool
+from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
 )
-from custom_components.bedrock_conversation.config_tools.diff import (
+from custom_components.bedrock_ha_agent.config_tools.diff import (
     render_spoken_summary,
     render_unified_diff,
 )
-from custom_components.bedrock_conversation.config_tools.ha_client import registry as ha_registry
+from custom_components.bedrock_ha_agent.config_tools.ha_client import registry as ha_registry
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry

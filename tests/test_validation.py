@@ -7,7 +7,7 @@ from homeassistant.helpers import entity_registry as er
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
-from custom_components.bedrock_conversation.config_tools.validation import (
+from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
     extract_entity_ids_from_automation,

@@ -1,4 +1,4 @@
-"""Config flow for AWS Bedrock Conversation integration."""
+"""Config flow for Bedrock Home Assistant Agent integration."""
 from __future__ import annotations
 
 import logging
@@ -206,7 +206,7 @@ async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, 
 
 
 class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for AWS Bedrock Conversation."""
+    """Handle a config flow for Bedrock Home Assistant Agent."""
 
     VERSION = 1
 
@@ -279,7 +279,7 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Step 2: pick a Bedrock model."""
         if user_input is not None:
-            title = f"AWS Bedrock ({self._credentials[CONF_AWS_REGION]})"
+            title = f"Bedrock Home Assistant Agent ({self._credentials[CONF_AWS_REGION]})"
             return self.async_create_entry(
                 title=title,
                 data=self._credentials,
@@ -322,7 +322,7 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for AWS Bedrock Conversation."""
+    """Handle options flow for Bedrock Home Assistant Agent."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

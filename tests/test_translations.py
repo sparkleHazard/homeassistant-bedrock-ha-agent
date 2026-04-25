@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 
-STRINGS_PATH = Path("custom_components/bedrock_conversation/strings.json")
-EN_PATH = Path("custom_components/bedrock_conversation/translations/en.json")
+STRINGS_PATH = Path("custom_components/bedrock_ha_agent/strings.json")
+EN_PATH = Path("custom_components/bedrock_ha_agent/translations/en.json")
 
 
 REQUIRED_OPTION_KEYS = {

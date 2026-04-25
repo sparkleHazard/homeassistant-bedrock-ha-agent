@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test script for AWS Bedrock Conversation Agent."""
+"""Test script for Bedrock Home Assistant Agent."""
 
 import os
 import sys

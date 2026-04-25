@@ -1,4 +1,4 @@
-"Utility functions for the Bedrock Conversation integration."
+"Utility functions for the Bedrock Home Assistant Agent integration."
 import webcolors
 
 def closest_color(rgb_tuple):

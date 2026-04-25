@@ -1,4 +1,4 @@
-"""Amazon Transcribe speech-to-text platform for the Bedrock Conversation integration."""
+"""Amazon Transcribe speech-to-text platform for the Bedrock Home Assistant Agent integration."""
 from __future__ import annotations
 
 import asyncio
