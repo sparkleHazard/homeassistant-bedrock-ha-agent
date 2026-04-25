@@ -4,10 +4,13 @@ The file I/O happens inside HA's automation config component, not in our code.
 We access the data via HA's config view which manages the YAML reading/writing.
 """
 from __future__ import annotations
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def list_automations(hass: "HomeAssistant") -> list[dict]:
@@ -52,6 +55,9 @@ async def create_or_update_automation(
     from homeassistant.util.file import write_utf8_file_atomic
 
     path = hass.config.path(AUTOMATION_CONFIG_PATH)
+    _LOGGER.info(
+        "create_or_update_automation: target path=%s object_id=%s", path, object_id
+    )
 
     # Read current data
     data = await hass.async_add_executor_job(load_yaml, path)
@@ -59,6 +65,7 @@ async def create_or_update_automation(
         data = []
     if not isinstance(data, list):
         data = []
+    _LOGGER.info("create_or_update_automation: loaded %d existing automations", len(data))
 
     # Find existing or append new
     updated = False
@@ -72,11 +79,18 @@ async def create_or_update_automation(
     if not updated:
         # Create new
         data.append({CONF_ID: object_id, **config})
+    _LOGGER.info(
+        "create_or_update_automation: after write data has %d automations (updated=%s)",
+        len(data), updated,
+    )
 
     # Write atomically
     def _write() -> None:
         contents = dump(data)
         write_utf8_file_atomic(path, contents)
+        _LOGGER.info(
+            "create_or_update_automation: wrote %d bytes to %s", len(contents), path
+        )
 
     await hass.async_add_executor_job(_write)
 

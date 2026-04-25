@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.6 — Diagnostic logging in the apply path
+
+### Changed
+- Added INFO-level logging at every step of `ConfigAutomationCreate.apply_change`:
+  `config_editing: applying proposal <id> tool=<name>`,
+  `create_or_update_automation: target path=<path> object_id=<id>`,
+  `create_or_update_automation: loaded N existing automations`,
+  `create_or_update_automation: after write data has N automations (updated=<bool>)`,
+  `create_or_update_automation: wrote N bytes to <path>`,
+  `config_editing: applied proposal <id> tool=<name> result=<dict>`.
+- Motivated by a silent-success bug: Claude's "Applied" reply arrived but no
+  automation entity materialized and no error logged. With these lines the
+  next reproduction pins the exact step that fails (wrong path? empty
+  load? no write?) without needing a full strace.
+- No behavior change.
+
 ## 1.1.5 — Accept flat and nested config shapes from Claude
 
 ### Fixed

@@ -232,10 +232,18 @@ class BedrockConversationEntity(
                         pending = _lookup_pending(runtime_data, user_input.conversation_id)
 
                         if pending is not None:
+                            _LOGGER.info(
+                                "config_editing: applying proposal %s tool=%s",
+                                pending.proposal_id, pending.tool_name,
+                            )
                             try:
                                 # Execute apply_fn
                                 apply_result = await pending.apply_fn(  # type: ignore[attr-defined]
                                     self.hass, pending.proposed_payload, pending.pre_state
+                                )
+                                _LOGGER.info(
+                                    "config_editing: applied proposal %s tool=%s result=%s",
+                                    pending.proposal_id, pending.tool_name, apply_result,
                                 )
 
                                 # Push undo entry
