@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.39
+
+### Changed
+- Initial setup is now a two-step flow: credentials first, then model selection. There is no silent `DEFAULT_MODEL_ID` picked for the user — the integration always starts with the model they explicitly chose, reducing surprise "invalid model" errors on first run.
+
+### Added
+- New `model` step in `strings.json` / `translations/en.json` for the model-picker form.
+
 ## 1.0.38
 
 ### Added

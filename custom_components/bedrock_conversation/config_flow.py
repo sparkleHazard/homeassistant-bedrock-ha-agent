@@ -144,14 +144,18 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    def __init__(self) -> None:
+        """Initialize config flow state."""
+        self._credentials: dict[str, Any] = {}
+        self._model_options: list[str] = []
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Handle the initial step."""
+        """Step 1: collect and validate AWS credentials."""
         errors: dict[str, str] = {}
-        
+
         if user_input is not None:
-            # Validate credentials
             validation_error = await validate_aws_credentials(
                 self.hass,
                 user_input[CONF_AWS_ACCESS_KEY_ID],
@@ -159,46 +163,88 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input.get(CONF_AWS_SESSION_TOKEN),
                 user_input.get(CONF_AWS_REGION),
             )
-            
+
             if validation_error:
                 errors.update(validation_error)
             else:
-                # Create entry
-                title = f"AWS Bedrock ({user_input.get(CONF_AWS_REGION, DEFAULT_AWS_REGION)})"
-                return self.async_create_entry(
-                    title=title,
-                    data={
-                        CONF_AWS_REGION: user_input.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
-                        CONF_AWS_ACCESS_KEY_ID: user_input[CONF_AWS_ACCESS_KEY_ID],
-                        CONF_AWS_SECRET_ACCESS_KEY: user_input[CONF_AWS_SECRET_ACCESS_KEY],
-                        CONF_AWS_SESSION_TOKEN: user_input.get(CONF_AWS_SESSION_TOKEN, ""),
-                    },
-                    options={
-                        CONF_MODEL_ID: DEFAULT_MODEL_ID,
-                        CONF_PROMPT: DEFAULT_PROMPT,
-                        CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
-                        CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
-                        CONF_TOP_P: DEFAULT_TOP_P,
-                        CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
-                        CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
-                        CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
-                        CONF_MAX_TOOL_CALL_ITERATIONS: DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-                        CONF_EXTRA_ATTRIBUTES_TO_EXPOSE: DEFAULT_EXTRA_ATTRIBUTES,
-                        CONF_LLM_HASS_API: HOME_LLM_API_ID,
-                    }
-                )
-        
+                self._credentials = {
+                    CONF_AWS_REGION: user_input.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
+                    CONF_AWS_ACCESS_KEY_ID: user_input[CONF_AWS_ACCESS_KEY_ID],
+                    CONF_AWS_SECRET_ACCESS_KEY: user_input[CONF_AWS_SECRET_ACCESS_KEY],
+                    CONF_AWS_SESSION_TOKEN: user_input.get(CONF_AWS_SESSION_TOKEN, ""),
+                }
+
+                try:
+                    self._model_options = await fetch_claude_inference_profiles(
+                        self.hass,
+                        self._credentials[CONF_AWS_REGION],
+                        self._credentials[CONF_AWS_ACCESS_KEY_ID],
+                        self._credentials[CONF_AWS_SECRET_ACCESS_KEY],
+                        self._credentials.get(CONF_AWS_SESSION_TOKEN) or None,
+                    )
+                except Exception as err:  # noqa: BLE001 — fall back to built-in list
+                    _LOGGER.warning(
+                        "Could not list Bedrock inference profiles during setup, "
+                        "falling back to built-in model list: %s",
+                        err,
+                    )
+                    self._model_options = []
+
+                if not self._model_options:
+                    self._model_options = list(AVAILABLE_MODELS)
+
+                return await self.async_step_model()
+
         data_schema = vol.Schema({
             vol.Required(CONF_AWS_REGION, default=DEFAULT_AWS_REGION): str,
             vol.Required(CONF_AWS_ACCESS_KEY_ID): str,
             vol.Required(CONF_AWS_SECRET_ACCESS_KEY): str,
             vol.Optional(CONF_AWS_SESSION_TOKEN): str,
         })
-        
+
         return self.async_show_form(
             step_id="user",
             data_schema=data_schema,
             errors=errors,
+        )
+
+    async def async_step_model(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step 2: pick a Bedrock model."""
+        if user_input is not None:
+            title = f"AWS Bedrock ({self._credentials[CONF_AWS_REGION]})"
+            return self.async_create_entry(
+                title=title,
+                data=self._credentials,
+                options={
+                    CONF_MODEL_ID: user_input[CONF_MODEL_ID],
+                    CONF_PROMPT: DEFAULT_PROMPT,
+                    CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
+                    CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+                    CONF_TOP_P: DEFAULT_TOP_P,
+                    CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
+                    CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
+                    CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
+                    CONF_MAX_TOOL_CALL_ITERATIONS: DEFAULT_MAX_TOOL_CALL_ITERATIONS,
+                    CONF_EXTRA_ATTRIBUTES_TO_EXPOSE: DEFAULT_EXTRA_ATTRIBUTES,
+                    CONF_LLM_HASS_API: HOME_LLM_API_ID,
+                },
+            )
+
+        model_schema = vol.Schema({
+            vol.Required(CONF_MODEL_ID): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=self._model_options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+        })
+
+        return self.async_show_form(
+            step_id="model",
+            data_schema=model_schema,
         )
 
     @staticmethod

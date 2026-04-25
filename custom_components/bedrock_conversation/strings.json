@@ -8,7 +8,13 @@
           "aws_region": "AWS Region",
           "aws_access_key_id": "AWS Access Key ID",
           "aws_secret_access_key": "AWS Secret Access Key",
-          "aws_session_token": "AWS Session Token (optional)",
+          "aws_session_token": "AWS Session Token (optional)"
+        }
+      },
+      "model": {
+        "title": "Select Bedrock Model",
+        "description": "Pick a Claude inference profile available in your account.",
+        "data": {
           "model_id": "Bedrock Model ID"
         }
       }

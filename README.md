@@ -15,14 +15,9 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 
 ## Supported Models
 
-The options flow populates its model dropdown by calling `bedrock:ListInferenceProfiles` at the time you open it, filtered to Anthropic entries in `ACTIVE` status. Whatever Claude inference profiles your AWS account/region has access to will appear automatically.
+Both the initial setup flow and the options flow populate their model dropdown by calling `bedrock:ListInferenceProfiles`, filtered to Anthropic entries in `ACTIVE` status. Whatever Claude inference profiles your AWS account/region has access to will appear automatically — the user picks one, there is no silent default.
 
-If that API call fails (missing IAM permission, network error, etc.), the dropdown falls back to the built-in `AVAILABLE_MODELS` list in [`const.py`](custom_components/bedrock_conversation/const.py):
-
-- `us.anthropic.claude-sonnet-4-5-20250929-v1:0` — larger, more capable
-- `us.anthropic.claude-haiku-4-5-20251001-v1:0` — default, faster and cheaper
-
-Custom model IDs can also be typed in manually — the dropdown accepts free-form values.
+If that API call fails (missing IAM permission, network error, etc.), the dropdown falls back to the built-in `AVAILABLE_MODELS` list in [`const.py`](custom_components/bedrock_conversation/const.py). Custom model IDs can also be typed manually — the dropdown accepts free-form values.
 
 ## Requirements
 
@@ -79,8 +74,8 @@ Create an access key for this user and keep the secret somewhere safe.
 ## Configure the Integration
 
 1. **Settings → Devices & Services → Add Integration** → search "AWS Bedrock Conversation".
-2. Enter AWS region (e.g. `us-west-2`), access key id, secret access key, and optionally a session token.
-3. Submit. The config flow makes a live `ListFoundationModels` call to verify credentials.
+2. **Step 1 — credentials.** Enter AWS region (e.g. `us-west-2`), access key id, secret access key, and optionally a session token. Submitting runs a live `ListFoundationModels` call to verify credentials.
+3. **Step 2 — model.** Pick the Claude inference profile you want to use. The dropdown is populated by `ListInferenceProfiles` for your account/region; if the call fails it falls back to a built-in list, and you can also type a custom id.
 
 ### 3. Expose devices
 
@@ -100,7 +95,7 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 
 | Option | Constant | Default | Notes |
 |--------|----------|---------|-------|
-| Model ID | `CONF_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Picked from the dynamic list fetched via `bedrock:ListInferenceProfiles`, or the built-in fallback. Custom IDs can also be typed directly. |
+| Model ID | `CONF_MODEL_ID` | (chosen during setup) | Picked from the dynamic list fetched via `bedrock:ListInferenceProfiles`, the built-in fallback, or a free-form custom ID. Required — no silent default. |
 | System prompt template | `CONF_PROMPT` | Built-in template | Supports `<persona>`, `<current_date>`, `<devices>` placeholders plus Jinja. |
 | Max tokens | `CONF_MAX_TOKENS` | 4096 | Bedrock response cap. |
 | Temperature | `CONF_TEMPERATURE` | 1.0 | Claude treats temperature and top_p as mutually exclusive; only temperature is sent for Claude. |
