@@ -34,7 +34,6 @@
           "max_tokens": "Max Tokens",
           "temperature": "Temperature",
           "top_p": "Top P",
-          "top_k": "Top K",
           "refresh_prompt_per_turn": "Refresh prompt each turn",
           "remember_conversation": "Remember conversation",
           "remember_num_interactions": "Number of interactions to remember",

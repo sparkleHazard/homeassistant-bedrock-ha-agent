@@ -1,7 +1,6 @@
 """Config flow for AWS Bedrock Conversation integration."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
@@ -16,17 +15,10 @@ from botocore.exceptions import (
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm, selector
-import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.selector import (
-    NumberSelector,
-    NumberSelectorConfig,
-    NumberSelectorMode,
-)
 
 from .const import (
     AVAILABLE_MODELS,
     CONF_AWS_ACCESS_KEY_ID,
-    CONF_AWS_DEFAULT_REGION,
     CONF_AWS_REGION,
     CONF_AWS_SECRET_ACCESS_KEY,
     CONF_AWS_SESSION_TOKEN,
@@ -40,7 +32,6 @@ from .const import (
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_TEMPERATURE,
-    CONF_TOP_K,
     CONF_TOP_P,
     DEFAULT_AWS_REGION,
     DEFAULT_EXTRA_ATTRIBUTES,
@@ -52,7 +43,6 @@ from .const import (
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_K,
     DEFAULT_TOP_P,
     DOMAIN,
     HOME_LLM_API_ID,
@@ -95,15 +85,15 @@ async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, 
             return {"base": "access_denied"}
         else:
             _LOGGER.error("Unexpected error validating AWS credentials: %s", e)
-            return {"base": "unknown_error"}
+            return {"base": "unknown"}
     except BotoCoreError as e:
         _LOGGER.debug("Caught BotoCoreError: %s", e)
         _LOGGER.error("BotoCore error validating AWS credentials: %s", e)
-        return {"base": "unknown_error"}
+        return {"base": "unknown"}
     except Exception as e:
         _LOGGER.debug("Caught unexpected Exception: %s", e)
         _LOGGER.error("Unknown error validating AWS credentials: %s", e)
-        return {"base": "unknown_error"}
+        return {"base": "unknown"}
 
 
 class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -146,7 +136,6 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
                         CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
                         CONF_TOP_P: DEFAULT_TOP_P,
-                        CONF_TOP_K: DEFAULT_TOP_K,
                         CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
                         CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
                         CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
@@ -247,14 +236,6 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0, max=1, step=0.05, mode=selector.NumberSelectorMode.SLIDER
-                )
-            ),
-            vol.Optional(
-                CONF_TOP_K,
-                default=self.config_entry.options.get(CONF_TOP_K, DEFAULT_TOP_K)
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=1, max=500, step=10, mode=selector.NumberSelectorMode.BOX
                 )
             ),
             vol.Optional(

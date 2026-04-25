@@ -8,7 +8,7 @@ from typing import Any
 from dataclasses import dataclass
 
 import boto3
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import ClientError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components import conversation
@@ -36,7 +36,6 @@ from .const import (
     CONF_MODEL_ID,
     CONF_SELECTED_LANGUAGE,
     CONF_TEMPERATURE,
-    CONF_TOP_K,
     CONF_TOP_P,
     CURRENT_DATE_PROMPT,
     DEFAULT_AWS_REGION,
@@ -45,7 +44,6 @@ from .const import (
     DEFAULT_MODEL_ID,
     DEFAULT_SELECTED_LANGUAGE,
     DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_K,
     DEFAULT_TOP_P,
     DEVICES_PROMPT,
     PERSONA_PROMPTS,
@@ -102,20 +100,19 @@ class BedrockClient:
         )
         
         bedrock_runtime = session.client('bedrock-runtime')
-        _LOGGER.info("✅ Bedrock client initialized with region %s", aws_region)
+        _LOGGER.info("Bedrock client initialized with region %s", aws_region)
         return bedrock_runtime
 
     async def _ensure_client(self) -> None:
         """Ensure the Bedrock client is initialized (lazy initialization)."""
         if self._bedrock_runtime is None:
             if self._client_lock is None:
-                import asyncio
                 self._client_lock = asyncio.Lock()
-            
+
             async with self._client_lock:
                 # Double-check after acquiring lock
                 if self._bedrock_runtime is None:
-                    _LOGGER.info("🔧 Creating Bedrock client in executor")
+                    _LOGGER.info("Creating Bedrock client in executor")
                     self._bedrock_runtime = await self.hass.async_add_executor_job(
                         self._create_bedrock_client
                     )
@@ -260,7 +257,7 @@ class BedrockClient:
         # Get exposed devices
         devices = self._get_exposed_entities()
         
-        _LOGGER.info("📋 Found %d exposed devices for system prompt", len(devices))
+        _LOGGER.info("Found %d exposed devices for system prompt", len(devices))
         
         # First, render the devices section with Jinja
         try:
@@ -269,7 +266,7 @@ class BedrockClient:
                 parse_result=False
             )
         except TemplateError as err:
-            _LOGGER.error("❌ Error rendering devices template: %s", err)
+            _LOGGER.error("Error rendering devices template: %s", err)
             raise
         
         # Now replace placeholders in the main prompt template
@@ -278,7 +275,7 @@ class BedrockClient:
         prompt = prompt.replace("<current_date>", date_prompt)
         prompt = prompt.replace("<devices>", devices_rendered)
         
-        _LOGGER.info("✅ Generated system prompt with %d characters", len(prompt))
+        _LOGGER.info("Generated system prompt with %d characters", len(prompt))
         
         return prompt
 
@@ -358,7 +355,7 @@ class BedrockClient:
             
             bedrock_tools.append(tool_def)
         
-        _LOGGER.info("🔧 Formatted %d tool(s) for Bedrock", len(bedrock_tools))
+        _LOGGER.info("Formatted %d tool(s) for Bedrock", len(bedrock_tools))
         return bedrock_tools
 
 
@@ -469,8 +466,7 @@ class BedrockClient:
         max_tokens = options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
         temperature = options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)
         top_p = options.get(CONF_TOP_P, DEFAULT_TOP_P)
-        top_k = options.get(CONF_TOP_K, DEFAULT_TOP_K)
-        
+
         # Extract system prompt
         system_prompt = None
         for content in conversation_content:
@@ -478,11 +474,11 @@ class BedrockClient:
                 system_prompt = content.content
                 break
         
-        _LOGGER.info("📄 System prompt: %d characters", len(system_prompt) if system_prompt else 0)
+        _LOGGER.info("System prompt: %d characters", len(system_prompt) if system_prompt else 0)
         
         # Build messages
         messages = self._build_bedrock_messages(conversation_content)
-        _LOGGER.info("💬 Built %d message(s) for Bedrock", len(messages))
+        _LOGGER.info("Built %d message(s) for Bedrock", len(messages))
         
         # Build request using Anthropic Messages API format (snake_case)
         request_body = {
@@ -500,15 +496,15 @@ class BedrockClient:
         tools = self._format_tools_for_bedrock(llm_api)
         if tools:
             request_body["tools"] = tools
-            _LOGGER.info("🔧 Added %d tool(s) to request", len(tools))
+            _LOGGER.info("Added %d tool(s) to request", len(tools))
         
         # Note: For Claude models, temperature and top_p are mutually exclusive.
         # We use temperature by default and do not include top_p in the request.
-        if not "anthropic.claude" in model_id:
+        if "anthropic.claude" not in model_id:
             request_body["top_p"] = top_p
         
         try:
-            _LOGGER.info("📤 Calling Bedrock model: %s", model_id)
+            _LOGGER.info("Calling Bedrock model: %s", model_id)
             
             # Define a function that does both the invoke AND the read in the executor
             def invoke_and_read():
@@ -529,11 +525,11 @@ class BedrockClient:
                     chunks.append(chunk)
                 
                 response_bytes = b''.join(chunks)
-                _LOGGER.debug("📦 Response bytes length: %d", len(response_bytes))
+                _LOGGER.debug("Response bytes length: %d", len(response_bytes))
                 
                 # Decode to UTF-8 string
                 response_text = response_bytes.decode('utf-8')
-                _LOGGER.debug("📝 Response text length: %d", len(response_text))
+                _LOGGER.debug("Response text length: %d", len(response_text))
                 
                 # Parse JSON
                 parsed_response = json.loads(response_text)
@@ -543,7 +539,7 @@ class BedrockClient:
                     first_block = parsed_response['content'][0]
                     if first_block.get('type') == 'text':
                         text_preview = first_block.get('text', '')[:200]
-                        _LOGGER.info("📄 RAW BEDROCK TEXT PREVIEW: %r", text_preview)
+                        _LOGGER.debug("Raw Bedrock text preview: %r", text_preview)
                         # Also log the character codes to check for corruption
                         char_codes = [ord(c) for c in text_preview[:50]]
                         _LOGGER.debug("Character codes: %s", char_codes)
@@ -556,24 +552,24 @@ class BedrockClient:
                     response_body = await self.hass.async_add_executor_job(invoke_and_read)
             except asyncio.TimeoutError:
                 error_msg = "Bedrock API call timed out after 30 seconds"
-                _LOGGER.error("⏱️ %s", error_msg)
+                _LOGGER.error("%s", error_msg)
                 raise HomeAssistantError(error_msg)
             
             # Log the full response for debugging
             # Note: Bedrock uses snake_case (stop_reason), not camelCase (stopReason)
             stop_reason = response_body.get('stop_reason')
-            _LOGGER.info("📥 Received response from Bedrock (stop_reason: %s)", stop_reason)
+            _LOGGER.info("Received response from Bedrock (stop_reason: %s)", stop_reason)
             
             # Log warning if stop_reason is missing
             if stop_reason is None:
-                _LOGGER.warning("⚠️ Bedrock response missing 'stop_reason' field. Full response keys: %s", list(response_body.keys()))
+                _LOGGER.warning("Bedrock response missing 'stop_reason' field. Full response keys: %s", list(response_body.keys()))
                 _LOGGER.debug("Full response body: %s", response_body)
             
             return response_body
             
         except ClientError as err:
-            _LOGGER.error("❌ AWS Bedrock error: %s", err, exc_info=True)
+            _LOGGER.error("AWS Bedrock error: %s", err, exc_info=True)
             raise HomeAssistantError(f"Bedrock API error: {err}") from err
         except Exception as err:
-            _LOGGER.exception("❌ Unexpected error calling Bedrock")
+            _LOGGER.exception("Unexpected error calling Bedrock")
             raise HomeAssistantError(f"Unexpected error: {err}") from err

@@ -8,7 +8,6 @@ HOME_LLM_API_ID: Final = f"{DOMAIN}_services"
 CONF_AWS_ACCESS_KEY_ID: Final = "aws_access_key_id"
 CONF_AWS_SECRET_ACCESS_KEY: Final = "aws_secret_access_key"
 CONF_AWS_SESSION_TOKEN: Final = "aws_session_token"
-CONF_AWS_DEFAULT_REGION: Final = "aws_default_region"
 CONF_AWS_REGION: Final = "aws_region"
 
 # Agent configuration
@@ -16,7 +15,6 @@ CONF_MODEL_ID: Final = "model"
 CONF_PROMPT: Final = "prompt"
 CONF_TEMPERATURE: Final = "temperature"
 CONF_TOP_P: Final = "top_p"
-CONF_TOP_K: Final = "top_k"
 CONF_MAX_TOKENS: Final = "max_tokens"
 CONF_REFRESH_SYSTEM_PROMPT: Final = "refresh_prompt_per_turn"
 CONF_REMEMBER_CONVERSATION: Final = "remember_conversation"
@@ -36,7 +34,6 @@ DEFAULT_PROMPT: Final = """<persona>
 DEFAULT_MAX_TOKENS: Final = 4096
 DEFAULT_TEMPERATURE: Final = 1.0
 DEFAULT_TOP_P: Final = 0.999
-DEFAULT_TOP_K: Final = 250
 DEFAULT_AWS_REGION: Final = "us-west-2"
 DEFAULT_REFRESH_SYSTEM_PROMPT: Final = True
 DEFAULT_REMEMBER_CONVERSATION: Final = True
@@ -132,6 +129,7 @@ SERVICE_TOOL_ALLOWED_SERVICES: Final = [
 
 ALLOWED_SERVICE_CALL_ARGUMENTS: Final = [
     "brightness",
+    "brightness_pct",
     "rgb_color",
     "temperature",
     "humidity",
@@ -146,6 +144,7 @@ ALLOWED_SERVICE_CALL_ARGUMENTS: Final = [
     "target_temp_high",
     "target_temp_low",
     "position",
+    "tilt_position",
     "volume_level",
     "is_volume_muted",
     "media_content_id",
