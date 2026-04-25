@@ -25,6 +25,55 @@ CONF_SELECTED_LANGUAGE: Final = "selected_language"
 CONF_AUTO_ATTACH_CAMERAS: Final = "auto_attach_cameras"
 DEFAULT_AUTO_ATTACH_CAMERAS: Final = False
 
+# --- Config editing (new; gated, default off) ---
+CONF_ENABLE_CONFIG_EDITING: Final = "enable_config_editing"
+DEFAULT_ENABLE_CONFIG_EDITING: Final = False
+
+CONF_CONFIG_UNDO_DEPTH: Final = "config_undo_depth"
+DEFAULT_CONFIG_UNDO_DEPTH: Final = 20
+CONFIG_UNDO_DEPTH_MIN: Final = 1
+CONFIG_UNDO_DEPTH_MAX: Final = 50
+
+CONF_CONFIG_UNDO_TTL_SECONDS: Final = "config_undo_ttl_seconds"
+DEFAULT_CONFIG_UNDO_TTL_SECONDS: Final = 3600
+CONFIG_UNDO_TTL_MIN: Final = 60
+CONFIG_UNDO_TTL_MAX: Final = 86400
+
+CONF_CONFIG_APPROVAL_TTL_SECONDS: Final = "config_approval_ttl_seconds"
+DEFAULT_CONFIG_APPROVAL_TTL_SECONDS: Final = 300
+CONFIG_APPROVAL_TTL_MIN: Final = 30
+CONFIG_APPROVAL_TTL_MAX: Final = 3600
+
+# Approval / undo intent vocabulary (English first; localizable later).
+# Lowercase, whitespace-stripped, trailing punctuation removed before matching.
+APPROVAL_TOKENS: Final = frozenset({
+    "yes", "yep", "yeah", "ok", "okay",
+    "apply", "confirm", "sure", "proceed",
+})
+# "do it" is a two-word phrase matched separately; see BARE_APPROVAL_UTTERANCES.
+BARE_APPROVAL_UTTERANCES: Final = frozenset({
+    "do it",
+})
+
+UNDO_TOKENS: Final = frozenset({"undo", "revert", "cancel"})
+BARE_UNDO_UTTERANCES: Final = frozenset({
+    "undo",
+    "undo that",
+    "undo last",
+    "undo the last change",
+    "revert",
+    "revert that",
+    "cancel that",
+    "cancel that change",
+})
+
+# Substrings used by the Haiku-model warning in the options update listener.
+HAIKU_MODEL_SUBSTRINGS: Final = (
+    "claude-haiku",
+    "claude-3-haiku",
+    "claude-haiku-4",
+)
+
 # Prompt-size trimming options.
 CONF_EXPOSE_AREAS_ONLY: Final = "expose_areas_only"   # list[str] of area ids; empty = no filter
 CONF_DEVICE_PROMPT_MODE: Final = "device_prompt_mode"  # full | compact | names_only

@@ -44,3 +44,10 @@ htmlcov/
 
 # Local config (for testing)
 options.json
+
+# OMC orchestration state (plans, specs, logs — not shipped in the package)
+.omc/
+
+# venv backups (kept during Python version bumps; never committed)
+.venv.bak/
+.venv.bak.*/
