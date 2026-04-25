@@ -1,5 +1,15 @@
 pytest>=7.0.0
 pytest-cov>=4.0.0
-pytest-homeassistant-custom-component>=0.13.0
-boto3>=1.28.0
-webcolors>=1.12.0
+
+# pytest-homeassistant-custom-component transitively depends on `homeassistant`,
+# but without a direct pin here CI pulls whatever version satisfies its floor —
+# which can be too old to contain `homeassistant.helpers.llm` (added in 2024.6)
+# or the chat_log helpers this integration depends on. Pin both to avoid drift.
+pytest-homeassistant-custom-component>=0.13.300
+homeassistant>=2025.6.0
+
+# Integration runtime deps — mirror manifest.json `requirements` so tests can
+# import the same package surface the real HA setup would.
+boto3>=1.35.0
+webcolors>=24.8.0
+amazon-transcribe>=0.6.2

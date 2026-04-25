@@ -13,8 +13,14 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        # HA 2025.2+ requires Python 3.13.2+. Our manifest targets 2025.6.0 via
+        # hacs.json, and the integration imports `homeassistant.helpers.llm`
+        # (landed in HA 2024.6), so we pin to Python 3.13 to match the runtime
+        # contract rather than drift on 3.11.
+        python-version: "3.13"
     - name: Install dependencies
-      run: pip install -r requirements-test.txt
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements-test.txt
     - name: Run tests
       run: pytest tests/ --cov
