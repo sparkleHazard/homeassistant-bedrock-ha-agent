@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 
@@ -36,6 +37,35 @@ _LOGGER = logging.getLogger(__name__)
 # Polly claims support for many languages; we forward whatever the pipeline
 # gives us as the voice's language without pinning ourselves to a subset.
 DEFAULT_LANGUAGE = "en-US"
+
+# Strip characters that Polly would otherwise pronounce phonetically ("smiling
+# face emoji", "red heart"…). Covers pictographic emoji, dingbats, misc
+# symbols, regional indicators (flags), variation selectors, and ZWJ.
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F680-\U0001F6FF"  # transport & map
+    "\U0001F700-\U0001F77F"  # alchemical
+    "\U0001F780-\U0001F7FF"  # geometric shapes extended
+    "\U0001F800-\U0001F8FF"  # supplemental arrows-c
+    "\U0001F900-\U0001F9FF"  # supplemental symbols & pictographs
+    "\U0001FA00-\U0001FA6F"  # chess / symbols-c
+    "\U0001FA70-\U0001FAFF"  # symbols & pictographs extended-a
+    "\U00002600-\U000026FF"  # misc symbols
+    "\U00002700-\U000027BF"  # dingbats
+    "\U0001F1E6-\U0001F1FF"  # regional indicators (flags)
+    "\U0000FE0F"             # variation selector-16 (emoji presentation)
+    "\U0000200D"             # zero-width joiner
+    "]+",
+    flags=re.UNICODE,
+)
+
+
+def strip_emoji(text: str) -> str:
+    """Return ``text`` with emoji removed and collapsed whitespace."""
+    cleaned = _EMOJI_RE.sub("", text)
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 async def async_setup_entry(
@@ -156,6 +186,12 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             CONF_TTS_ENGINE, DEFAULT_TTS_ENGINE
         )
 
+        # Polly would otherwise read emoji phonetically; strip them up front.
+        spoken = strip_emoji(message)
+        if not spoken:
+            # All-emoji message — nothing to say, but return silence gracefully.
+            return None, None
+
         def _synthesize() -> bytes:
             session = boto3.Session(
                 aws_access_key_id=merged[CONF_AWS_ACCESS_KEY_ID],
@@ -167,7 +203,7 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             response = polly.synthesize_speech(
                 Engine=engine,
                 OutputFormat="mp3",
-                Text=message,
+                Text=spoken,
                 VoiceId=voice,
             )
             with response["AudioStream"] as stream:
@@ -188,10 +224,11 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             return None, None
 
         _LOGGER.debug(
-            "Polly synthesized %d bytes (voice=%s, engine=%s, len=%d)",
+            "Polly synthesized %d bytes (voice=%s, engine=%s, raw_len=%d, spoken_len=%d)",
             len(audio),
             voice,
             engine,
             len(message),
+            len(spoken),
         )
         return "mp3", audio

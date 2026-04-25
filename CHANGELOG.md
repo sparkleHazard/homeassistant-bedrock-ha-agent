@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.45
+
+### Fixed
+- Polly read emoji phonetically ("smiling face emoji", "red heart", etc.). Strip them from the message before calling `SynthesizeSpeech`. Covers pictographic ranges, dingbats, misc symbols, regional indicators, variation selectors, and the zero-width joiner.
+
 ## 1.0.44
 
 ### Added
