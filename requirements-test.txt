@@ -8,6 +8,15 @@ pytest-cov>=4.0.0
 pytest-homeassistant-custom-component>=0.13.300
 homeassistant>=2025.6.0
 
+# `homeassistant.components.conversation` is imported by bedrock_client.py and
+# transitively by several tests. HA core's pypi package ships WITHOUT the
+# conversation component's parsing deps (you only get them by installing the
+# conversation integration's manifest-declared requirements, which pip's
+# dependency resolver doesn't see). Pin them here explicitly so CI can collect
+# tests that import conversation.
+hassil>=2.0
+home-assistant-intents>=2025.1
+
 # Integration runtime deps — mirror manifest.json `requirements` so tests can
 # import the same package surface the real HA setup would.
 boto3>=1.35.0
