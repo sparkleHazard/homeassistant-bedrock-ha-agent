@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.46
+
+### Changed
+- "Max tokens" is now a slider whose upper bound adapts to the currently selected model's output-token limit (e.g. 8 192 for Claude Haiku 4.5, 64 000 for Claude Sonnet 4.5). Limits live in `const.MODEL_TOKEN_LIMITS` keyed by model-id substring; unknown / custom models fall back to a generous default. On save, the submitted value is clamped to the picked model's limit. Note: HA doesn't re-render options schemas as you change fields — if you switch the model in the options dialog, close and reopen it to see the new slider bounds.
+
 ## 1.0.45
 
 ### Fixed

@@ -52,6 +52,7 @@ from .const import (
     FALLBACK_TTS_VOICES,
     TTS_ENGINES,
     HOME_LLM_API_ID,
+    get_model_max_tokens,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -302,6 +303,13 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
     ) -> config_entries.FlowResult:
         """Manage the options."""
         if user_input is not None:
+            # Clamp max_tokens to the chosen model's known limit.
+            picked_model = user_input.get(CONF_MODEL_ID)
+            model_limit = get_model_max_tokens(picked_model)
+            if CONF_MAX_TOKENS in user_input:
+                requested = int(user_input[CONF_MAX_TOKENS])
+                if requested > model_limit:
+                    user_input[CONF_MAX_TOKENS] = model_limit
             return self.async_create_entry(title="", data=user_input)
 
         # Get available LLM APIs
@@ -396,10 +404,18 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             ),
             vol.Optional(
                 CONF_MAX_TOKENS,
-                default=self.config_entry.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
+                default=min(
+                    self.config_entry.options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
+                    get_model_max_tokens(current_model),
+                ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
-                    min=100, max=100000, step=100, mode=selector.NumberSelectorMode.BOX
+                    min=100,
+                    max=get_model_max_tokens(current_model),
+                    # Coarse step so the slider stays usable across wildly different
+                    # maxes (8 192 for Haiku vs 64 000 for Sonnet).
+                    step=max(1, get_model_max_tokens(current_model) // 64),
+                    mode=selector.NumberSelectorMode.SLIDER,
                 )
             ),
             vol.Optional(

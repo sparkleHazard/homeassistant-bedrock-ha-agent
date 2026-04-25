@@ -187,6 +187,35 @@ AVAILABLE_MODELS: Final = [
 
 RECOMMENDED_MODELS: Final = AVAILABLE_MODELS
 
+# Per-model output-token limits. Bedrock doesn't expose these via API, so we
+# maintain a lookup table. Patterns are matched against the model id as
+# substrings, first-match wins — order most specific to most general.
+MODEL_TOKEN_LIMITS: Final[tuple[tuple[str, int], ...]] = (
+    ("claude-sonnet-4-5", 64000),
+    ("claude-haiku-4-5", 8192),
+    ("claude-3-5-sonnet", 8192),
+    ("claude-3-5-haiku", 8192),
+    ("claude-3-opus", 4096),
+    ("claude-3-sonnet", 4096),
+    ("claude-3-haiku", 4096),
+    ("anthropic.claude", 8192),
+)
+# Generous default for unknown / custom model ids so we don't artificially clamp.
+DEFAULT_MODEL_MAX_TOKENS: Final = 64000
+
+
+def get_model_max_tokens(model_id: str | None) -> int:
+    """Return the max output-token limit for ``model_id``.
+
+    Falls back to ``DEFAULT_MODEL_MAX_TOKENS`` for unknown ids.
+    """
+    if not model_id:
+        return DEFAULT_MODEL_MAX_TOKENS
+    for pattern, limit in MODEL_TOKEN_LIMITS:
+        if pattern in model_id:
+            return limit
+    return DEFAULT_MODEL_MAX_TOKENS
+
 # Default prompts
 PERSONA_PROMPTS = {
     "en": """You are a helpful Home Assistant smart home assistant. Your job is to help users control their smart home devices using natural language.
