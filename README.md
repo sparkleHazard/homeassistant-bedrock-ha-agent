@@ -8,6 +8,7 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 
 - Conversation agent backed by Claude on AWS Bedrock
 - Native tool-calling: the model calls Home Assistant services (`light.turn_on`, `climate.set_temperature`, etc.) directly
+- Text-to-speech via Amazon Polly (neural/long-form/generative engines), with the voice list fetched live from your account
 - Auto-generated system prompt with your exposed devices, areas, and states
 - Configurable conversation memory (turn history, per-turn prompt refresh)
 - All configuration via the Home Assistant UI — no YAML
@@ -59,7 +60,9 @@ Attach a policy equivalent to:
       "Action": [
         "bedrock:InvokeModel",
         "bedrock:ListFoundationModels",
-        "bedrock:ListInferenceProfiles"
+        "bedrock:ListInferenceProfiles",
+        "polly:SynthesizeSpeech",
+        "polly:DescribeVoices"
       ],
       "Resource": "*"
     }
@@ -68,6 +71,8 @@ Attach a policy equivalent to:
 ```
 
 `ListFoundationModels` is used by the config flow to validate credentials during setup. `ListInferenceProfiles` is called when opening the options flow to populate the model dropdown with the Claude inference profiles actually available in your account and region — if the call is denied, the integration falls back to a built-in list.
+
+Polly permissions are optional: if you don't use the TTS entity, you can leave `polly:*` out of the policy. When present, `DescribeVoices` populates the Polly voice dropdown and `SynthesizeSpeech` performs the actual TTS.
 
 Create an access key for this user and keep the secret somewhere safe.
 
@@ -106,7 +111,26 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 | Max tool call iterations | `CONF_MAX_TOOL_CALL_ITERATIONS` | 5 | Safety ceiling on tool-calling loop. |
 | Extra attributes to expose | `CONF_EXTRA_ATTRIBUTES_TO_EXPOSE` | brightness, rgb_color, temperature, humidity, fan_mode, hvac_mode, etc. | Which entity attributes appear in the prompt. |
 | Home Assistant LLM API | `CONF_LLM_HASS_API` | `bedrock_conversation_services` | Which LLM API exposes tools to the model. |
+| Polly voice | `CONF_TTS_VOICE_ID` | `Joanna` | Amazon Polly `VoiceId`. Dropdown is populated from `polly:DescribeVoices`; custom IDs are accepted. |
+| Polly engine | `CONF_TTS_ENGINE` | `neural` | One of `standard`, `neural`, `long-form`, `generative`. Neural has the best price/quality for general use. |
 | Language | `CONF_SELECTED_LANGUAGE` | `en` | Currently only English persona/device-prompt strings ship. |
+
+## Text-to-Speech (Amazon Polly)
+
+A Polly TTS entity is created alongside the conversation agent. Wire it up in **Settings → Voice assistants → Add Assistant**, set the **Text-to-speech** provider to *AWS Polly*, and pick a voice language in the pipeline.
+
+Voice and engine can also be overridden per-call via the `tts.speak` service `options` field, e.g.:
+
+```yaml
+service: tts.speak
+target:
+  entity_id: tts.aws_polly
+data:
+  message: "Welcome home."
+  options:
+    voice: Ruth
+    engine: generative
+```
 
 ## How Tool Calling Works
 

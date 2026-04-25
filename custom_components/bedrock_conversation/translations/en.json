@@ -38,6 +38,8 @@
           "max_tokens": "Maximum tokens in response",
           "temperature": "Temperature (randomness)",
           "top_p": "Top P (nucleus sampling)",
+          "tts_voice_id": "Polly voice (fetched live via polly:DescribeVoices)",
+          "tts_engine": "Polly engine (neural recommended)",
           "refresh_prompt_per_turn": "Refresh system prompt each turn",
           "remember_conversation": "Remember conversation history",
           "remember_num_interactions": "Number of interactions to remember",

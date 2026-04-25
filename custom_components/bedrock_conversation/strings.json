@@ -40,6 +40,8 @@
           "max_tokens": "Max Tokens",
           "temperature": "Temperature",
           "top_p": "Top P",
+          "tts_voice_id": "Polly voice",
+          "tts_engine": "Polly engine",
           "refresh_prompt_per_turn": "Refresh prompt each turn",
           "remember_conversation": "Remember conversation",
           "remember_num_interactions": "Number of interactions to remember",

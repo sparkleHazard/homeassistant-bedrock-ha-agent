@@ -24,6 +24,32 @@ CONF_EXTRA_ATTRIBUTES_TO_EXPOSE: Final = "extra_attributes_to_expose"
 CONF_LLM_HASS_API: Final = "llm_hass_api"
 CONF_SELECTED_LANGUAGE: Final = "selected_language"
 
+# Text-to-speech (Amazon Polly)
+CONF_TTS_VOICE_ID: Final = "tts_voice_id"
+CONF_TTS_ENGINE: Final = "tts_engine"
+
+DEFAULT_TTS_VOICE_ID: Final = "Joanna"
+DEFAULT_TTS_ENGINE: Final = "neural"
+TTS_ENGINES: Final = ["standard", "neural", "long-form", "generative"]
+# Fallback voice list used when polly:DescribeVoices is unavailable.
+FALLBACK_TTS_VOICES: Final = [
+    "Joanna",
+    "Matthew",
+    "Ivy",
+    "Kendra",
+    "Kimberly",
+    "Salli",
+    "Joey",
+    "Justin",
+    "Kevin",
+    "Ruth",
+    "Stephen",
+    "Amy",
+    "Emma",
+    "Brian",
+    "Arthur",
+]
+
 DEFAULT_MODEL: Final = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 DEFAULT_MODEL_ID: Final = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 DEFAULT_PROMPT: Final = """<persona>

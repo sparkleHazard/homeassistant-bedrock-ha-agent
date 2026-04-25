@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.41
+
+### Added
+- Amazon Polly text-to-speech entity. Creates a `tts.*` entity next to the conversation agent so Polly can be plugged straight into a voice-assistant pipeline. Voice list is fetched live via `polly:DescribeVoices`, with a fallback shortlist if the permission is missing. Engine picker supports `standard`, `neural`, `long-form`, and `generative`. Voice/engine can also be overridden per-call via `tts.speak` options.
+- `polly:SynthesizeSpeech` and `polly:DescribeVoices` added to the recommended IAM policy (optional — only required if you use the TTS entity).
+
 ## 1.0.40
 
 ### Fixed

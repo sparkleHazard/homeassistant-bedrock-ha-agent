@@ -33,6 +33,8 @@ from .const import (
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_TEMPERATURE,
     CONF_TOP_P,
+    CONF_TTS_ENGINE,
+    CONF_TTS_VOICE_ID,
     DEFAULT_AWS_REGION,
     DEFAULT_EXTRA_ATTRIBUTES,
     DEFAULT_MAX_TOKENS,
@@ -44,7 +46,11 @@ from .const import (
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DEFAULT_TEMPERATURE,
     DEFAULT_TOP_P,
+    DEFAULT_TTS_ENGINE,
+    DEFAULT_TTS_VOICE_ID,
     DOMAIN,
+    FALLBACK_TTS_VOICES,
+    TTS_ENGINES,
     HOME_LLM_API_ID,
 )
 
@@ -90,6 +96,38 @@ async def fetch_claude_inference_profiles(
                 profile_ids.append(profile_id)
 
         return sorted(set(profile_ids))
+
+    return await hass.async_add_executor_job(_list)
+
+
+async def fetch_polly_voices(
+    hass: HomeAssistant,
+    aws_region: str,
+    aws_access_key_id: str,
+    aws_secret_access_key: str,
+    aws_session_token: str | None = None,
+) -> list[str]:
+    """Return sorted unique Polly voice IDs available in the account/region.
+
+    Raises on API errors so callers can fall back to ``FALLBACK_TTS_VOICES``.
+    """
+
+    def _list() -> list[str]:
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token or None,
+            region_name=aws_region,
+        )
+        polly = session.client("polly")
+        voice_ids: list[str] = []
+        paginator = polly.get_paginator("describe_voices")
+        for page in paginator.paginate():
+            for voice in page.get("Voices", []):
+                voice_id = voice.get("Id")
+                if voice_id:
+                    voice_ids.append(voice_id)
+        return sorted(set(voice_ids))
 
     return await hass.async_add_executor_job(_list)
 
@@ -308,6 +346,34 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
         if current_model not in model_options:
             model_options.append(current_model)
 
+        # Polly voice list — fetch live, fall back to the built-in shortlist.
+        current_voice = self.config_entry.options.get(
+            CONF_TTS_VOICE_ID, DEFAULT_TTS_VOICE_ID
+        )
+        current_engine = self.config_entry.options.get(
+            CONF_TTS_ENGINE, DEFAULT_TTS_ENGINE
+        )
+        voice_options: list[str] = []
+        try:
+            voice_options = await fetch_polly_voices(
+                self.hass,
+                self.config_entry.data.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
+                self.config_entry.data[CONF_AWS_ACCESS_KEY_ID],
+                self.config_entry.data[CONF_AWS_SECRET_ACCESS_KEY],
+                self.config_entry.data.get(CONF_AWS_SESSION_TOKEN),
+            )
+        except Exception as err:  # noqa: BLE001 — non-fatal
+            _LOGGER.warning(
+                "Could not fetch Polly voices dynamically, "
+                "falling back to built-in list: %s",
+                err,
+            )
+
+        if not voice_options:
+            voice_options = list(FALLBACK_TTS_VOICES)
+        if current_voice not in voice_options:
+            voice_options.append(current_voice)
+
         options_schema = vol.Schema({
             vol.Optional(
                 CONF_MODEL_ID,
@@ -374,6 +440,25 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0, max=10, step=1, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
+            vol.Optional(
+                CONF_TTS_VOICE_ID,
+                default=current_voice
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=voice_options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+            vol.Optional(
+                CONF_TTS_ENGINE,
+                default=current_engine
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=TTS_ENGINES,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
             vol.Optional(
