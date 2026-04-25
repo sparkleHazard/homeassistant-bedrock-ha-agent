@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from typing import Any
@@ -87,6 +88,19 @@ def _friendly_error_message(err: ClientError) -> str:
 
 # Re-exported for backward compatibility with earlier imports / tests.
 __all__ = ["BedrockClient", "DeviceInfo"]
+
+
+def _runtime_usage_tracker(entry: ConfigEntry):
+    """Resolve `entry.runtime_data.usage` defensively.
+
+    `runtime_data` is a `BedrockRuntimeData` dataclass in the shipping
+    integration, but some tests set it to None or to a non-dataclass stub.
+    Return the `UsageTracker` when present, else None — never raise.
+    """
+    rd = getattr(entry, "runtime_data", None)
+    if rd is None:
+        return None
+    return getattr(rd, "usage", None)
 
 
 class BedrockClient:
@@ -367,7 +381,7 @@ class BedrockClient:
             except asyncio.TimeoutError:
                 error_msg = "Bedrock API call timed out after 30 seconds"
                 _LOGGER.error("%s", error_msg)
-                tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+                tracker = _runtime_usage_tracker(self.entry)
                 if tracker is not None:
                     tracker.record_error(error_msg)
                 raise HomeAssistantError(error_msg)
@@ -388,7 +402,7 @@ class BedrockClient:
 
             # Fold token usage into the per-entry tracker for the sensor
             # platform. runtime_data may be absent in tests — silently skip.
-            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            tracker = _runtime_usage_tracker(self.entry)
             if tracker is not None:
                 tracker.record(model_id, usage)
 
@@ -402,13 +416,13 @@ class BedrockClient:
         except ClientError as err:
             _LOGGER.error("AWS Bedrock error: %s", err, exc_info=True)
             friendly = _friendly_error_message(err)
-            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            tracker = _runtime_usage_tracker(self.entry)
             if tracker is not None:
                 tracker.record_error(friendly)
             raise HomeAssistantError(friendly) from err
         except Exception as err:
             _LOGGER.exception("Unexpected error calling Bedrock")
-            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            tracker = _runtime_usage_tracker(self.entry)
             if tracker is not None:
                 tracker.record_error(str(err))
             raise HomeAssistantError(f"Unexpected error: {err}") from err
@@ -469,14 +483,14 @@ class BedrockClient:
             raise HomeAssistantError("Bedrock vision request timed out after 30 seconds")
         except ClientError as err:
             friendly = _friendly_error_message(err)
-            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            tracker = _runtime_usage_tracker(self.entry)
             if tracker is not None:
                 tracker.record_error(friendly)
             raise HomeAssistantError(friendly) from err
 
         # Record usage so vision calls show up in the cost sensors too.
         usage = response_body.get("usage", {}) or {}
-        tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+        tracker = _runtime_usage_tracker(self.entry)
         if tracker is not None:
             tracker.record(model_id, usage)
 
@@ -557,7 +571,7 @@ class BedrockClient:
             stream_response = await self._retry_blocking(_open_stream)
         except ClientError as err:
             friendly = _friendly_error_message(err)
-            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            tracker = _runtime_usage_tracker(self.entry)
             if tracker is not None:
                 tracker.record_error(friendly)
             raise HomeAssistantError(friendly) from err
@@ -596,7 +610,7 @@ class BedrockClient:
                         msg = _friendly_error_message(payload)
                     else:
                         msg = f"Bedrock stream error: {payload}"
-                    tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+                    tracker = _runtime_usage_tracker(self.entry)
                     if tracker is not None:
                         tracker.record_error(msg)
                     raise HomeAssistantError(msg)
@@ -636,7 +650,7 @@ class BedrockClient:
                         # termination; the subsequent message_stop is empty.
                         # Record usage into the tracker here so the sensors
                         # update even when streaming.
-                        tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+                        tracker = _runtime_usage_tracker(self.entry)
                         if tracker is not None:
                             tracker.record(model_id, usage)
                         yield (
@@ -644,5 +658,12 @@ class BedrockClient:
                             {"stop_reason": delta.get("stop_reason"), "usage": usage},
                         )
         finally:
-            await pump_task
-            raise HomeAssistantError(f"Unexpected error: {err}") from err
+            # Drain the pump so the executor thread always exits cleanly, even
+            # if we broke out of the loop via `raise` above or an iteration
+            # exception propagated. Swallow any pump exception here — if the
+            # pump failed mid-stream, the queue's ("error", ...) message has
+            # already been yielded and raised by the loop, so re-raising its
+            # residual CancelledError / broken-pipe at this point would mask
+            # the real error. Letting pump_task finish silently is safe.
+            with contextlib.suppress(Exception):
+                await pump_task

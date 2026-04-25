@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.2 — Streaming generation fix
+
+### Fixed
+- Every conversation turn was failing with HA's generic
+  `Unexpected error during intent recognition` wrapper. Root cause in
+  `bedrock_client.async_generate_stream`: the function's outer `finally`
+  block unconditionally re-raised `HomeAssistantError(f"Unexpected error:
+  {err}")`, but `err` had never been bound at that scope — so both the
+  happy path and any error path hit `UnboundLocalError`. The `finally`
+  should only drain the pump executor; the outer try's own `raise`
+  already handles real errors. Replaced the bogus re-raise with a
+  suppressed `await pump_task`.
+- Nine more `runtime_data.get("usage")` dict-subscript holdovers in
+  `bedrock_client.py` converged on attribute access via a new
+  `_runtime_usage_tracker(entry)` helper. 1.1.1 caught only the sensor +
+  conversation + undo-service reads; these nine in `bedrock_client.py`
+  slipped past that sweep (the grep pattern didn't match `.get("usage")`).
+  Every usage-tracking call site now uses the same defensive helper.
+
 ## 1.1.1 — Entity registration + translation fix
 
 ### Fixed
