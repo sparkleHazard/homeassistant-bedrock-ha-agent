@@ -44,6 +44,9 @@
           "remember_num_interactions": "Number of interactions to remember",
           "max_tool_call_iterations": "Maximum tool call iterations",
           "auto_attach_cameras": "Attach snapshots from exposed cameras to every conversation turn (requires a vision-capable model; adds ~1.5K input tokens per image per turn)",
+          "expose_areas_only": "Restrict the device list in the system prompt to entities in these areas. Empty = every exposed entity (default). Massive token savings on large homes.",
+          "device_prompt_mode": "How the device list is formatted. 'full' = current format with state + attributes. 'compact' = name/entity/area/state, no attributes. 'names_only' = just name/entity/area (biggest token savings; the model won't know current states).",
+          "max_prompt_tokens": "Soft cap on the rendered device list size in tokens (rough heuristic). 0 = no cap.",
           "llm_hass_api": "Home Assistant LLM API for device control"
         }
       }

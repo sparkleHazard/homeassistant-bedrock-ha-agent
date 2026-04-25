@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.59
+
+### Added
+- Three new options for cutting system-prompt size on large installs:
+  - **Expose areas only** (`CONF_EXPOSE_AREAS_ONLY`) — multi-select area list; when set, only entities in those areas make it into the device list. Empty = all exposed (default).
+  - **Device list format** (`CONF_DEVICE_PROMPT_MODE`) — `full` (current behavior), `compact` (drops per-entity attributes), or `names_only` (drops state + attributes, keeps entity/name/area). Going from `full` to `names_only` on a 270-device install takes the device list from ~20 KB to ~2 KB per turn.
+  - **Max tokens in device list** (`CONF_MAX_PROMPT_TOKENS`) — soft cap on rendered size (4-chars/token heuristic). When exceeded, extra devices are omitted and the model is told how many were dropped. `0` = no cap (default).
+- All three default to existing behavior, so upgraded installs see zero change until you opt in.
+
 ## 1.0.58
 
 ### Added

@@ -116,6 +116,9 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 | Number of interactions to remember | `CONF_REMEMBER_NUM_INTERACTIONS` | 10 | History length (not including the system prompt). |
 | Max tool call iterations | `CONF_MAX_TOOL_CALL_ITERATIONS` | 5 | Safety ceiling on tool-calling loop. |
 | Extra attributes to expose | `CONF_EXTRA_ATTRIBUTES_TO_EXPOSE` | brightness, rgb_color, temperature, humidity, fan_mode, hvac_mode, etc. | Which entity attributes appear in the prompt. |
+| Expose areas only | `CONF_EXPOSE_AREAS_ONLY` | `[]` (all) | Optional list of area ids. When set, the device list in the system prompt only includes entities in those areas. Big token win on large homes. |
+| Device list format | `CONF_DEVICE_PROMPT_MODE` | `full` | `full` (current state + attributes), `compact` (state, no attributes), `names_only` (entity + area, no state). `names_only` drops an 8 KB / 270-device list to roughly 2 KB. |
+| Max tokens in device list | `CONF_MAX_PROMPT_TOKENS` | `0` (uncapped) | Soft cap on the rendered device list size. If exceeded, extra devices are omitted and the model is told how many were dropped. |
 | Home Assistant LLM API | `CONF_LLM_HASS_API` | `bedrock_conversation_services` | Which LLM API exposes tools to the model. |
 | Polly voice | `CONF_TTS_VOICE_ID` | `Joanna` | Amazon Polly `VoiceId`. Dropdown is populated from `polly:DescribeVoices`; custom IDs are accepted. |
 | Polly engine | `CONF_TTS_ENGINE` | `neural` | One of `standard`, `neural`, `long-form`, `generative`. Neural has the best price/quality for general use. |

@@ -46,6 +46,9 @@
           "remember_num_interactions": "Number of interactions to remember",
           "max_tool_call_iterations": "Max tool call iterations",
           "auto_attach_cameras": "Attach exposed camera snapshots to each turn",
+          "expose_areas_only": "Only expose devices in these areas (empty = all exposed)",
+          "device_prompt_mode": "Device list format",
+          "max_prompt_tokens": "Max tokens in device list (0 = uncapped)",
           "llm_hass_api": "Home Assistant LLM API"
         }
       }

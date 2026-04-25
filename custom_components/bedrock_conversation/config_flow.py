@@ -52,6 +52,13 @@ from .const import (
     HOME_LLM_API_ID,
     CONF_AUTO_ATTACH_CAMERAS,
     DEFAULT_AUTO_ATTACH_CAMERAS,
+    CONF_EXPOSE_AREAS_ONLY,
+    DEFAULT_EXPOSE_AREAS_ONLY,
+    CONF_DEVICE_PROMPT_MODE,
+    DEFAULT_DEVICE_PROMPT_MODE,
+    DEVICE_PROMPT_MODES,
+    CONF_MAX_PROMPT_TOKENS,
+    DEFAULT_MAX_PROMPT_TOKENS,
     get_model_max_tokens,
 )
 
@@ -315,6 +322,9 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
                 requested = int(user_input[CONF_MAX_TOKENS])
                 if requested > model_limit:
                     user_input[CONF_MAX_TOKENS] = model_limit
+            # NumberSelector returns floats — coerce the int-semantic one.
+            if CONF_MAX_PROMPT_TOKENS in user_input:
+                user_input[CONF_MAX_PROMPT_TOKENS] = int(user_input[CONF_MAX_PROMPT_TOKENS])
             return self.async_create_entry(title="", data=user_input)
 
         # Get available LLM APIs
@@ -481,6 +491,39 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
                     CONF_AUTO_ATTACH_CAMERAS, DEFAULT_AUTO_ATTACH_CAMERAS
                 ),
             ): selector.BooleanSelector(),
+            # Prompt-size trimming: optionally restrict the device list to
+            # specific areas, switch to a lighter-weight rendering, and/or
+            # cap the total rendered size. All default to "no change".
+            vol.Optional(
+                CONF_EXPOSE_AREAS_ONLY,
+                default=self.config_entry.options.get(
+                    CONF_EXPOSE_AREAS_ONLY, DEFAULT_EXPOSE_AREAS_ONLY
+                ),
+            ): selector.AreaSelector(
+                selector.AreaSelectorConfig(multiple=True)
+            ),
+            vol.Optional(
+                CONF_DEVICE_PROMPT_MODE,
+                default=self.config_entry.options.get(
+                    CONF_DEVICE_PROMPT_MODE, DEFAULT_DEVICE_PROMPT_MODE
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(DEVICE_PROMPT_MODES),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="device_prompt_mode",
+                )
+            ),
+            vol.Optional(
+                CONF_MAX_PROMPT_TOKENS,
+                default=self.config_entry.options.get(
+                    CONF_MAX_PROMPT_TOKENS, DEFAULT_MAX_PROMPT_TOKENS
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0, max=50000, step=500, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
             vol.Optional(
                 CONF_LLM_HASS_API,
                 default=self.config_entry.options.get(CONF_LLM_HASS_API, HOME_LLM_API_ID)

@@ -20,23 +20,30 @@ from homeassistant.helpers import llm, template
 from .aws_session import session_from_entry_data
 from .const import (
     CONF_AWS_REGION,
+    CONF_DEVICE_PROMPT_MODE,
+    CONF_EXPOSE_AREAS_ONLY,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
+    CONF_MAX_PROMPT_TOKENS,
     CONF_MAX_TOKENS,
     CONF_MODEL_ID,
     CONF_SELECTED_LANGUAGE,
     CONF_TEMPERATURE,
     CURRENT_DATE_PROMPT,
     DEFAULT_AWS_REGION,
+    DEFAULT_DEVICE_PROMPT_MODE,
+    DEFAULT_EXPOSE_AREAS_ONLY,
     DEFAULT_EXTRA_ATTRIBUTES,
+    DEFAULT_MAX_PROMPT_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL_ID,
     DEFAULT_SELECTED_LANGUAGE,
     DEFAULT_TEMPERATURE,
+    DEVICE_PROMPT_MODE_FULL,
     DEVICES_PROMPT,
     PERSONA_PROMPTS,
     model_supports_vision,
 )
-from .device_info import DeviceInfo, get_exposed_devices
+from .device_info import DeviceInfo, get_exposed_devices, render_devices_section
 from .messages import build_bedrock_messages, format_tools_for_bedrock
 from .vision import attach_image_to_last_user_message, fetch_camera_snapshot
 
@@ -127,7 +134,12 @@ class BedrockClient:
         extra_attributes = self.entry.options.get(
             CONF_EXTRA_ATTRIBUTES_TO_EXPOSE, DEFAULT_EXTRA_ATTRIBUTES
         )
-        return get_exposed_devices(self.hass, extra_attributes)
+        area_filter = self.entry.options.get(
+            CONF_EXPOSE_AREAS_ONLY, DEFAULT_EXPOSE_AREAS_ONLY
+        ) or None
+        return get_exposed_devices(
+            self.hass, extra_attributes, area_filter=area_filter
+        )
 
     async def _generate_system_prompt(
         self,
@@ -151,18 +163,37 @@ class BedrockClient:
         
         # Get exposed devices
         devices = self._get_exposed_entities()
-        
+
         _LOGGER.info("Found %d exposed devices for system prompt", len(devices))
-        
-        # First, render the devices section with Jinja
-        try:
-            devices_rendered = template.Template(devices_template, self.hass).async_render(
-                {"devices": [d.__dict__ for d in devices]},
-                parse_result=False
+
+        # Choose rendering mode. "full" keeps the existing Jinja template so
+        # users who rely on its exact format aren't disturbed; other modes
+        # generate a plain-text list via render_devices_section.
+        mode = options.get(CONF_DEVICE_PROMPT_MODE, DEFAULT_DEVICE_PROMPT_MODE)
+        max_prompt_tokens = int(
+            options.get(CONF_MAX_PROMPT_TOKENS, DEFAULT_MAX_PROMPT_TOKENS) or 0
+        )
+
+        if mode == DEVICE_PROMPT_MODE_FULL:
+            try:
+                devices_rendered = template.Template(devices_template, self.hass).async_render(
+                    {"devices": [d.__dict__ for d in devices]},
+                    parse_result=False,
+                )
+            except TemplateError as err:
+                _LOGGER.error("Error rendering devices template: %s", err)
+                raise
+            # Apply the soft token cap by char-truncating the already-rendered
+            # output; a loose 4-chars/token heuristic is enough for a cap.
+            if max_prompt_tokens > 0 and len(devices_rendered) > max_prompt_tokens * 4:
+                devices_rendered = (
+                    devices_rendered[: max_prompt_tokens * 4]
+                    + "\n(devices omitted to stay under the prompt cap)"
+                )
+        else:
+            devices_rendered = render_devices_section(
+                devices, mode=mode, max_tokens=max_prompt_tokens
             )
-        except TemplateError as err:
-            _LOGGER.error("Error rendering devices template: %s", err)
-            raise
         
         # Now replace placeholders in the main prompt template
         prompt = prompt_template

@@ -25,6 +25,24 @@ CONF_SELECTED_LANGUAGE: Final = "selected_language"
 CONF_AUTO_ATTACH_CAMERAS: Final = "auto_attach_cameras"
 DEFAULT_AUTO_ATTACH_CAMERAS: Final = False
 
+# Prompt-size trimming options.
+CONF_EXPOSE_AREAS_ONLY: Final = "expose_areas_only"   # list[str] of area ids; empty = no filter
+CONF_DEVICE_PROMPT_MODE: Final = "device_prompt_mode"  # full | compact | names_only
+CONF_MAX_PROMPT_TOKENS: Final = "max_prompt_tokens"    # int; 0 = no cap
+
+DEVICE_PROMPT_MODE_FULL: Final = "full"
+DEVICE_PROMPT_MODE_COMPACT: Final = "compact"
+DEVICE_PROMPT_MODE_NAMES_ONLY: Final = "names_only"
+DEVICE_PROMPT_MODES: Final = (
+    DEVICE_PROMPT_MODE_FULL,
+    DEVICE_PROMPT_MODE_COMPACT,
+    DEVICE_PROMPT_MODE_NAMES_ONLY,
+)
+
+DEFAULT_DEVICE_PROMPT_MODE: Final = DEVICE_PROMPT_MODE_FULL
+DEFAULT_MAX_PROMPT_TOKENS: Final = 0
+DEFAULT_EXPOSE_AREAS_ONLY: Final[list[str]] = []
+
 # Vision-capable Anthropic model substrings. Add to this list when new
 # Claude models on Bedrock get image support.
 VISION_CAPABLE_MODELS: Final = (
