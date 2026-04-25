@@ -10,6 +10,8 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 - Native tool-calling: the model calls Home Assistant services (`light.turn_on`, `climate.set_temperature`, etc.) directly
 - Text-to-speech via Amazon Polly (neural/long-form/generative engines), with the voice list fetched live from your account
 - Speech-to-text via Amazon Transcribe streaming (PCM 16 kHz mono), covering English variants, major European languages, and CJK
+- Prompt caching (automatic): the static system prompt + tool schema use Anthropic's ephemeral prompt cache for ~90% cost savings on cache hits
+- Usage / cost sensors — per-config-entry token counts and estimated daily/cumulative spend in USD, ready for the HA dashboard
 - Auto-generated system prompt with your exposed devices, areas, and states
 - Configurable conversation memory (turn history, per-turn prompt refresh)
 - All configuration via the Home Assistant UI — no YAML
@@ -140,6 +142,18 @@ data:
 An STT entity (`stt.aws_transcribe`) is created alongside the conversation agent and TTS entity. Wire it into **Settings → Voice assistants → Add Assistant** by setting the **Speech-to-text** provider to *AWS Transcribe*.
 
 Input format: 16 kHz, 16-bit PCM, mono. Home Assistant's voice pipeline already produces audio in this shape, so no extra conversion is needed.
+
+## Usage & Cost Sensors
+
+Each config entry creates five sensors:
+
+- `sensor.<entry>_input_tokens_today`
+- `sensor.<entry>_output_tokens_today`
+- `sensor.<entry>_cached_tokens_today` (cache_read + cache_write combined)
+- `sensor.<entry>_estimated_cost_today` (USD, rolls over at UTC midnight)
+- `sensor.<entry>_estimated_cost_total` (USD, cumulative since integration reload)
+
+Pricing uses a built-in per-model rate card (see `usage_tracker.py::_PRICING`). Unknown custom models report token counts but not cost.
 
 ## How Tool Calling Works
 

@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.54
+
+### Added
+- New `sensor` platform exposing Bedrock token usage + estimated cost per config entry: `input_tokens_today`, `output_tokens_today`, `cached_tokens_today`, `estimated_cost_today`, `estimated_cost_total`. Counters roll over at UTC midnight; totals accumulate since the last integration reload. Cost calculation uses a built-in per-model rate card (Sonnet 4.5, Haiku 4.5, plus Claude 3.x family); unknown custom models report tokens but not cost.
+- `usage_tracker.py` (small internal helper) folds the `usage` block from every Bedrock response into the counters and pushes updates to the sensors.
+
 ## 1.0.53
 
 ### Added

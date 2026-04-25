@@ -17,10 +17,11 @@ from .const import (
     SERVICE_TOOL_ALLOWED_SERVICES,
 )
 from .bedrock_client import BedrockClient
+from .usage_tracker import UsageTracker
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.CONVERSATION, Platform.STT, Platform.TTS]
+PLATFORMS = [Platform.CONVERSATION, Platform.SENSOR, Platform.STT, Platform.TTS]
 
 
 class HassServiceTool(llm.Tool):
@@ -177,6 +178,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.runtime_data = {}
     entry.runtime_data["client"] = BedrockClient(hass, entry)
+    entry.runtime_data["usage"] = UsageTracker()
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

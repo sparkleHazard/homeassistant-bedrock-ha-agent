@@ -275,6 +275,12 @@ class BedrockClient:
                 usage.get("cache_creation_input_tokens"),
             )
 
+            # Fold token usage into the per-entry tracker for the sensor
+            # platform. runtime_data may be absent in tests — silently skip.
+            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            if tracker is not None:
+                tracker.record(model_id, usage)
+
             # Log warning if stop_reason is missing
             if stop_reason is None:
                 _LOGGER.warning("Bedrock response missing 'stop_reason' field. Full response keys: %s", list(response_body.keys()))
