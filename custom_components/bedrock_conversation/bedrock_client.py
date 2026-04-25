@@ -5,27 +5,19 @@ import asyncio
 import json
 import logging
 from typing import Any
-from dataclasses import dataclass
 
 from botocore.exceptions import ClientError
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components import conversation
-from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import (
     HomeAssistantError,
     TemplateError,
 )
-from homeassistant.helpers import (
-    area_registry as ar,
-    entity_registry as er,
-    llm,
-    template,
-)
+from homeassistant.helpers import llm, template
 
 from .aws_session import session_from_entry_data
-from .utils import closest_color
 from .const import (
     CONF_AWS_REGION,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
@@ -42,24 +34,16 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEVICES_PROMPT,
     PERSONA_PROMPTS,
-    SERVICE_TOOL_NAME,
 )
+from .device_info import DeviceInfo, get_exposed_devices
+from .messages import build_bedrock_messages, format_tools_for_bedrock
 
 _LOGGER = logging.getLogger(__name__)
 
 BedrockConfigEntry = ConfigEntry
 
-
-@dataclass
-class DeviceInfo:
-    """Class to hold device information."""
-
-    entity_id: str
-    name: str
-    state: str
-    attributes: list[str]
-    area_id: str | None = None
-    area_name: str | None = None
+# Re-exported for backward compatibility with earlier imports / tests.
+__all__ = ["BedrockClient", "DeviceInfo"]
 
 
 class BedrockClient:
@@ -104,120 +88,10 @@ class BedrockClient:
 
     def _get_exposed_entities(self) -> list[DeviceInfo]:
         """Get all exposed entities with their information."""
-        entity_registry = er.async_get(self.hass)
-        area_registry = ar.async_get(self.hass)
-        
         extra_attributes = self.entry.options.get(
-            CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
-            DEFAULT_EXTRA_ATTRIBUTES
+            CONF_EXTRA_ATTRIBUTES_TO_EXPOSE, DEFAULT_EXTRA_ATTRIBUTES
         )
-        
-        devices = []
-        
-        for state in self.hass.states.async_all():
-            if not async_should_expose(self.hass, "conversation", state.entity_id):
-                continue
-            
-            entity_entry = entity_registry.async_get(state.entity_id)
-            area_id = entity_entry.area_id if entity_entry else None
-            area_name = None
-            
-            if area_id:
-                area = area_registry.async_get_area(area_id)
-                area_name = area.name if area else None
-            
-            # Extract relevant attributes
-            attributes = []
-            
-            # Brightness
-            if state.domain == "light" and "brightness" in extra_attributes:
-                brightness = state.attributes.get("brightness")
-                if brightness is not None:
-                    attributes.append(f"{int(brightness * 100 / 255)}%")
-            
-            # Color
-            if state.domain == "light" and "rgb_color" in extra_attributes:
-                rgb_color = state.attributes.get("rgb_color")
-                if rgb_color:
-                    color_name = closest_color(tuple(rgb_color))
-                    attributes.append(color_name)
-            
-            # Temperature
-            if "temperature" in extra_attributes:
-                temp = state.attributes.get("temperature")
-                if temp is not None:
-                    attributes.append(f"{temp}°")
-            
-            # Current temperature
-            if "current_temperature" in extra_attributes:
-                temp = state.attributes.get("current_temperature")
-                if temp is not None:
-                    attributes.append(f"current:{temp}°")
-            
-            # Target temperature
-            if "target_temperature" in extra_attributes:
-                temp = state.attributes.get("target_temperature")
-                if temp is not None:
-                    attributes.append(f"target:{temp}°")
-            
-            # Humidity
-            if "humidity" in extra_attributes:
-                humidity = state.attributes.get("humidity")
-                if humidity is not None:
-                    attributes.append(f"{humidity}%RH")
-            
-            # Fan mode
-            if "fan_mode" in extra_attributes:
-                fan_mode = state.attributes.get("fan_mode")
-                if fan_mode:
-                    attributes.append(f"fan:{fan_mode}")
-            
-            # HVAC mode
-            if "hvac_mode" in extra_attributes:
-                hvac_mode = state.attributes.get("hvac_mode")
-                if hvac_mode:
-                    attributes.append(f"hvac:{hvac_mode}")
-            
-            # HVAC action
-            if "hvac_action" in extra_attributes:
-                hvac_action = state.attributes.get("hvac_action")
-                if hvac_action:
-                    attributes.append(f"action:{hvac_action}")
-            
-            # Preset mode
-            if "preset_mode" in extra_attributes:
-                preset = state.attributes.get("preset_mode")
-                if preset:
-                    attributes.append(f"preset:{preset}")
-            
-            # Media title
-            if "media_title" in extra_attributes:
-                media_title = state.attributes.get("media_title")
-                if media_title:
-                    attributes.append(f"playing:{media_title}")
-            
-            # Media artist
-            if "media_artist" in extra_attributes:
-                media_artist = state.attributes.get("media_artist")
-                if media_artist:
-                    attributes.append(f"artist:{media_artist}")
-            
-            # Volume level
-            if "volume_level" in extra_attributes:
-                volume = state.attributes.get("volume_level")
-                if volume is not None:
-                    attributes.append(f"vol:{int(volume * 100)}%")
-            
-            devices.append(DeviceInfo(
-                entity_id=state.entity_id,
-                name=state.attributes.get("friendly_name", state.entity_id),
-                state=state.state,
-                area_id=area_id,
-                area_name=area_name,
-                attributes=attributes
-            ))
-        
-        return devices
+        return get_exposed_devices(self.hass, extra_attributes)
 
     async def _generate_system_prompt(
         self,
@@ -264,193 +138,17 @@ class BedrockClient:
         
         return prompt
 
-    def _format_tools_for_bedrock(self, llm_api: llm.APIInstance | None) -> list[dict[str, Any]]:
+    def _format_tools_for_bedrock(
+        self, llm_api: llm.APIInstance | None
+    ) -> list[dict[str, Any]]:
         """Format Home Assistant tools for Bedrock tool use."""
-        if not llm_api or not llm_api.tools:
-            return []
-        
-        bedrock_tools = []
-        
-        for tool in llm_api.tools:
-            # Use Anthropic Messages API format (not Converse API)
-            tool_def = {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }
-            }
-            
-            # Convert voluptuous schema to JSON schema
-            if hasattr(tool, 'parameters') and tool.parameters:
-                # For HassCallService tool
-                if tool.name == SERVICE_TOOL_NAME:
-                    tool_def["input_schema"] = {
-                        "type": "object",
-                        "properties": {
-                            "service": {
-                                "type": "string",
-                                "description": "The service to call (e.g., 'light.turn_on')"
-                            },
-                            "target_device": {
-                                "type": "string",
-                                "description": "The entity_id of the device to control"
-                            },
-                            "brightness": {
-                                "type": "number",
-                                "description": "Brightness level (0-255)"
-                            },
-                            "rgb_color": {
-                                "type": "string",
-                                "description": "RGB color as comma-separated values (e.g., '255,0,0')"
-                            },
-                            "temperature": {
-                                "type": "number",
-                                "description": "Temperature setting"
-                            },
-                            "humidity": {
-                                "type": "number",
-                                "description": "Humidity setting"
-                            },
-                            "fan_mode": {
-                                "type": "string",
-                                "description": "Fan mode setting"
-                            },
-                            "hvac_mode": {
-                                "type": "string",
-                                "description": "HVAC mode setting"
-                            },
-                            "preset_mode": {
-                                "type": "string",
-                                "description": "Preset mode"
-                            },
-                            "item": {
-                                "type": "string",
-                                "description": "Item to add to a list"
-                            },
-                            "duration": {
-                                "type": "string",
-                                "description": "Duration for the action"
-                            }
-                        },
-                        "required": ["service", "target_device"]
-                    }
-            
-            bedrock_tools.append(tool_def)
-        
-        _LOGGER.info("Formatted %d tool(s) for Bedrock", len(bedrock_tools))
-        return bedrock_tools
-
+        return format_tools_for_bedrock(llm_api)
 
     def _build_bedrock_messages(
-        self,
-        conversation_content: list[conversation.Content]
+        self, conversation_content: list[conversation.Content]
     ) -> list[dict[str, Any]]:
         """Convert Home Assistant conversation to Bedrock message format."""
-        messages = []
-        
-        # First pass: pair each tool_call with the correct ToolResultContent's
-        # tool_call_id. Tools can appear multiple times in one assistant turn
-        # (e.g. two HassCallService calls), so we need to match in order and
-        # consume results as we go — matching by tool_name alone would reuse
-        # the same id and produce duplicate tool_use blocks, which Bedrock
-        # rejects ("tool_use ids must be unique").
-        tool_call_to_id: dict[int, str] = {}
-        for idx, content in enumerate(conversation_content):
-            if not (isinstance(content, conversation.AssistantContent) and content.tool_calls):
-                continue
-
-            # Collect the ToolResultContent entries that belong to this turn
-            # (everything after it until the next AssistantContent).
-            turn_results: list[conversation.ToolResultContent] = []
-            for future_idx in range(idx + 1, len(conversation_content)):
-                future_content = conversation_content[future_idx]
-                if isinstance(future_content, conversation.ToolResultContent):
-                    turn_results.append(future_content)
-                elif isinstance(future_content, conversation.AssistantContent):
-                    break
-
-            # Match calls to results by tool_name, in order, consuming each result once.
-            consumed: set[int] = set()
-            for tool_call in content.tool_calls:
-                for result_idx, result in enumerate(turn_results):
-                    if result_idx in consumed:
-                        continue
-                    if result.tool_name == tool_call.tool_name:
-                        tool_call_to_id[id(tool_call)] = result.tool_call_id
-                        consumed.add(result_idx)
-                        break
-
-        fallback_counter = 0
-        for content in conversation_content:
-            if isinstance(content, conversation.SystemContent):
-                # System prompt is handled separately in Bedrock
-                continue
-            
-            elif isinstance(content, conversation.UserContent):
-                messages.append({
-                    "role": "user",
-                    "content": [{"type": "text", "text": content.content}]
-                })
-            
-            elif isinstance(content, conversation.AssistantContent):
-                message_content = []
-                
-                if content.content:
-                    message_content.append({"type": "text", "text": content.content})
-                
-                if content.tool_calls:
-                    for tool_call in content.tool_calls:
-                        tool_use_id = tool_call_to_id.get(id(tool_call))
-                        if tool_use_id is None:
-                            fallback_counter += 1
-                            tool_use_id = f"tool_fallback_{fallback_counter}"
-                        message_content.append({
-                            "type": "tool_use",
-                            "id": tool_use_id,
-                            "name": tool_call.tool_name,
-                            "input": tool_call.tool_args
-                        })
-                
-                if message_content:
-                    messages.append({
-                        "role": "assistant",
-                        "content": message_content
-                    })
-            
-            elif isinstance(content, conversation.ToolResultContent):
-                # Tool results go in user messages in Bedrock
-                # Convert tool result to proper content format
-                # If it's a dict/object, send as JSON text; otherwise send as text
-                tool_result_data = content.tool_result
-                if isinstance(tool_result_data, dict):
-                    # For dict results, serialize to text to avoid confusion
-                    import json as json_module
-                    result_text = json_module.dumps(tool_result_data)
-                    tool_result_content = [{"type": "text", "text": result_text}]
-                else:
-                    # For string results, send as text
-                    tool_result_content = [{"type": "text", "text": str(tool_result_data)}]
-                
-                tool_result_block = {
-                    "type": "tool_result",
-                    "tool_use_id": content.tool_call_id,
-                    "content": tool_result_content
-                }
-                
-                if messages and messages[-1]["role"] == "user":
-                    # Append to last user message
-                    messages[-1]["content"].append(tool_result_block)
-                else:
-                    # Create new user message
-                    messages.append({
-                        "role": "user",
-                        "content": [tool_result_block]
-                    })
-        
-        return messages
+        return build_bedrock_messages(conversation_content)
 
     async def async_generate(
         self,

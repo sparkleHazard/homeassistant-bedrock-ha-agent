@@ -1,0 +1,151 @@
+"""Exposed-entity enumeration and attribute formatting for the system prompt.
+
+Split out of ``bedrock_client.py`` so the Bedrock client itself stays focused
+on AWS I/O. The system-prompt generator calls ``get_exposed_devices`` to
+produce the device list that Jinja renders into ``<devices>``.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
+from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import area_registry as ar, entity_registry as er
+
+from .utils import closest_color
+
+
+@dataclass
+class DeviceInfo:
+    """Serialisable summary of one exposed entity."""
+
+    entity_id: str
+    name: str
+    state: str
+    attributes: list[str]
+    area_id: str | None = None
+    area_name: str | None = None
+
+
+# (attribute-name, domain-restriction-or-None, formatter).
+# formatter(raw) -> str | None; returning None skips the attribute.
+def _brightness(raw: object) -> str | None:
+    if raw is None:
+        return None
+    return f"{int(float(raw) * 100 / 255)}%"
+
+
+def _rgb(raw: object) -> str | None:
+    if not raw:
+        return None
+    try:
+        return closest_color(tuple(raw))
+    except Exception:  # noqa: BLE001 — bad data → skip, not fatal
+        return None
+
+
+def _temperature(raw: object) -> str | None:
+    return None if raw is None else f"{raw}°"
+
+
+def _temperature_with_prefix(prefix: str):
+    def fmt(raw: object) -> str | None:
+        return None if raw is None else f"{prefix}:{raw}°"
+
+    return fmt
+
+
+def _humidity(raw: object) -> str | None:
+    return None if raw is None else f"{raw}%RH"
+
+
+def _labelled(label: str):
+    def fmt(raw: object) -> str | None:
+        return None if not raw else f"{label}:{raw}"
+
+    return fmt
+
+
+def _volume(raw: object) -> str | None:
+    return None if raw is None else f"vol:{int(float(raw) * 100)}%"
+
+
+# (state attribute key, domain filter, formatter).
+# Using a table keeps the dispatch declarative and makes it trivial to add
+# new attributes later.
+_ATTRIBUTE_FORMATTERS: tuple[tuple[str, str | None, "_FormatFn"], ...] = (
+    ("brightness", "light", _brightness),
+    ("rgb_color", "light", _rgb),
+    ("temperature", None, _temperature),
+    ("current_temperature", None, _temperature_with_prefix("current")),
+    ("target_temperature", None, _temperature_with_prefix("target")),
+    ("humidity", None, _humidity),
+    ("fan_mode", None, _labelled("fan")),
+    ("hvac_mode", None, _labelled("hvac")),
+    ("hvac_action", None, _labelled("action")),
+    ("preset_mode", None, _labelled("preset")),
+    ("media_title", None, _labelled("playing")),
+    ("media_artist", None, _labelled("artist")),
+    ("volume_level", None, _volume),
+)
+
+# Formatter signature alias. Declared after the table to avoid a forward
+# reference since this module stays simple (no ``from __future__`` needed beyond
+# the one already at the top).
+_FormatFn = callable  # type: ignore[assignment]
+
+
+def _format_state_attributes(state: State, allowed: list[str]) -> list[str]:
+    """Return the subset of ``state.attributes`` the system prompt should show.
+
+    ``allowed`` is the user-configured ``CONF_EXTRA_ATTRIBUTES_TO_EXPOSE``
+    list. Only attributes listed there are emitted, and only for domains the
+    formatter applies to.
+    """
+    out: list[str] = []
+    for attr_key, domain_filter, formatter in _ATTRIBUTE_FORMATTERS:
+        if attr_key not in allowed:
+            continue
+        if domain_filter is not None and state.domain != domain_filter:
+            continue
+        formatted = formatter(state.attributes.get(attr_key))
+        if formatted is not None:
+            out.append(formatted)
+    return out
+
+
+def get_exposed_devices(
+    hass: HomeAssistant, extra_attributes: list[str]
+) -> list[DeviceInfo]:
+    """Enumerate entities exposed to the ``conversation`` context.
+
+    ``extra_attributes`` is the user-configured attribute allow-list —
+    typically ``CONF_EXTRA_ATTRIBUTES_TO_EXPOSE`` from the config entry.
+    """
+    entity_registry = er.async_get(hass)
+    area_registry = ar.async_get(hass)
+
+    devices: list[DeviceInfo] = []
+    for state in hass.states.async_all():
+        if not async_should_expose(hass, "conversation", state.entity_id):
+            continue
+
+        entity_entry = entity_registry.async_get(state.entity_id)
+        area_id = entity_entry.area_id if entity_entry else None
+        area_name = None
+        if area_id:
+            area = area_registry.async_get_area(area_id)
+            area_name = area.name if area else None
+
+        devices.append(
+            DeviceInfo(
+                entity_id=state.entity_id,
+                name=state.attributes.get("friendly_name", state.entity_id),
+                state=state.state,
+                area_id=area_id,
+                area_name=area_name,
+                attributes=_format_state_attributes(state, extra_attributes),
+            )
+        )
+
+    return devices

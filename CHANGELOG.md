@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.51
+
+### Changed
+- Internal refactor (no behaviour change): split `bedrock_client.py` (585 LOC) into three focused modules. `device_info.py` now owns `DeviceInfo` and the exposed-entity enumeration (the attribute-extraction cascade is now a declarative table). `messages.py` owns the Bedrock messages + tool-schema construction as pure functions. `bedrock_client.py` shrinks to 270 LOC and keeps only what deals with AWS I/O. `DeviceInfo` is re-exported from `bedrock_client` for backward compatibility with existing imports / tests.
+
 ## 1.0.50
 
 ### Changed
