@@ -75,7 +75,7 @@ class ConfigHelperCreate(ConfigEditingTool):
 
     async def build_proposed_payload(self, hass, tool_input):
         domain = tool_input.tool_args["domain"]
-        config = dict(tool_input.tool_args["config"])
+        config = self._extract_config(tool_input.tool_args, ("domain", "object_id"))
         config["_domain"] = domain  # convenience for apply_change; stripped before validation
         return config
 
@@ -151,7 +151,7 @@ class ConfigHelperEdit(ConfigEditingTool):
     async def build_proposed_payload(self, hass, tool_input):
         domain = tool_input.tool_args["domain"]
         object_id = tool_input.tool_args["object_id"]
-        config = dict(tool_input.tool_args["config"])
+        config = self._extract_config(tool_input.tool_args, ("domain", "object_id"))
         # Stash domain/object_id so apply_change can recover them
         config["_domain"] = domain
         config["_object_id"] = object_id

@@ -64,7 +64,7 @@ class ConfigSceneCreate(ConfigEditingTool):
         self, hass: HomeAssistant, tool_input: llm.ToolInput
     ) -> dict | None:
         """Return the scene config to create."""
-        return dict(tool_input.tool_args["config"])
+        return self._extract_config(tool_input.tool_args, ("object_id",))
 
     async def validate(
         self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
@@ -148,7 +148,7 @@ class ConfigSceneEdit(ConfigEditingTool):
         self, hass: HomeAssistant, tool_input: llm.ToolInput
     ) -> dict | None:
         """Return the updated scene config."""
-        return dict(tool_input.tool_args["config"])
+        return self._extract_config(tool_input.tool_args, ("object_id",))
 
     async def validate(
         self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None

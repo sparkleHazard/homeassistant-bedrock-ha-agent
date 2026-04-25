@@ -133,6 +133,31 @@ class ConfigEditingTool(llm.Tool):
         """
         return []
 
+    @staticmethod
+    def _extract_config(
+        tool_args: dict, metadata_keys: tuple[str, ...] = ()
+    ) -> dict:
+        """Pull an automation/script/scene/helper config dict out of tool_args.
+
+        Claude on Bedrock inconsistently nests tool arguments: sometimes the
+        full config lives under ``tool_args["config"]`` (matching our
+        parameter schema), sometimes Claude flattens it and passes the
+        config fields at the top level of ``tool_args``. Both shapes are
+        expressing the same intent; this helper accepts either.
+
+        When a top-level "config" key is present and maps to a dict, use
+        it verbatim. Otherwise build a config dict from ``tool_args``
+        minus the metadata keys the caller names (e.g. ``("object_id",)``
+        for automations, ``("domain", "object_id")`` for helpers).
+        """
+        cfg = tool_args.get("config")
+        if isinstance(cfg, dict):
+            return dict(cfg)
+        return {
+            k: v for k, v in tool_args.items()
+            if k not in metadata_keys and k != "config"
+        }
+
     # --- Entry-point used by the llm framework ---
 
     async def async_call(

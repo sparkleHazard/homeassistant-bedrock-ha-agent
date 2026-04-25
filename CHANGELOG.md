@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.5 — Accept flat and nested config shapes from Claude
+
+### Fixed
+- `ConfigAutomationCreate` / `Edit` / `ConfigSceneCreate` / `Edit` /
+  `ConfigHelperCreate` / `Edit` crashed with `KeyError: 'config'` when
+  Claude called them. The parameter schemas nested the resource config
+  under `"config"`, but Claude on Bedrock inconsistently flattens tool
+  arguments — sometimes passing `{"config": {"alias": "...", ...}}` and
+  sometimes passing `{"alias": "...", "trigger": [...], ...}` at the
+  top level. The tool-call shape is driven by Claude's reading of the
+  schema but is not strictly enforced, so either shape can arrive.
+- Added `ConfigEditingTool._extract_config(tool_args, metadata_keys)`
+  that accepts either shape: if `tool_args["config"]` is a dict, use it
+  verbatim; otherwise build a config dict from all `tool_args` minus
+  the caller-named metadata keys (e.g. `("object_id",)` for
+  automations, `("domain", "object_id")` for helpers). Automation,
+  scene, and helper tools now route their config reads through this
+  helper. Script tools already used the flat shape and are unchanged.
+
 ## 1.1.4 — Approval interceptor finds tool-written pending changes
 
 ### Fixed

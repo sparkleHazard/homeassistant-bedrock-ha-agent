@@ -73,7 +73,7 @@ class ConfigAutomationCreate(ConfigEditingTool):
         return None
 
     async def build_proposed_payload(self, hass, tool_input):
-        config = dict(tool_input.tool_args["config"])
+        config = self._extract_config(tool_input.tool_args, ("object_id",))
         # Assign a deterministic object_id if the caller didn't supply one
         provided_object_id = tool_input.tool_args.get("object_id")
         if provided_object_id:
@@ -178,7 +178,7 @@ class ConfigAutomationEdit(ConfigEditingTool):
         return dict(current)
 
     async def build_proposed_payload(self, hass, tool_input):
-        config = dict(tool_input.tool_args["config"])
+        config = self._extract_config(tool_input.tool_args, ("object_id",))
         # M2: Sanitize object_id for edit operations too
         object_id = tool_input.tool_args["object_id"]
         if not _OBJECT_ID_RE.match(object_id):
