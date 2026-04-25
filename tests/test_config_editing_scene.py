@@ -77,7 +77,7 @@ async def test_scene_create_golden_path(hass, mock_entry, mock_llm_context, mock
 
     tool = ConfigSceneCreate()
     tool_input = llm.ToolInput(
-        tool_name="config_scene_create",
+        tool_name="ConfigSceneCreate",
         tool_args={
             "object_id": "evening",
             "config": {
@@ -130,7 +130,7 @@ async def test_scene_with_unknown_entity_rejected(
 
     tool = ConfigSceneCreate()
     tool_input = llm.ToolInput(
-        tool_name="config_scene_create",
+        tool_name="ConfigSceneCreate",
         tool_args={
             "object_id": "test_scene",
             "config": {
@@ -167,7 +167,7 @@ async def test_scene_edit_diff_shows_entity_state_change(
 
     tool = ConfigSceneEdit()
     tool_input = llm.ToolInput(
-        tool_name="config_scene_edit",
+        tool_name="ConfigSceneEdit",
         tool_args={
             "object_id": "bedtime",
             "config": {
@@ -198,7 +198,7 @@ async def test_scene_delete_unknown_object_id(
 
     tool = ConfigSceneDelete()
     tool_input = llm.ToolInput(
-        tool_name="config_scene_delete",
+        tool_name="ConfigSceneDelete",
         tool_args={
             "object_id": "nonexistent",
         },
@@ -217,6 +217,6 @@ async def test_get_tools_returns_three_instances(hass, mock_entry):
     assert isinstance(tools[0], ConfigSceneCreate)
     assert isinstance(tools[1], ConfigSceneEdit)
     assert isinstance(tools[2], ConfigSceneDelete)
-    assert tools[0].name == "config_scene_create"
-    assert tools[1].name == "config_scene_edit"
-    assert tools[2].name == "config_scene_delete"
+    assert tools[0].name == "ConfigSceneCreate"
+    assert tools[1].name == "ConfigSceneEdit"
+    assert tools[2].name == "ConfigSceneDelete"

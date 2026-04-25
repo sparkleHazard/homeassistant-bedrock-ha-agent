@@ -155,6 +155,21 @@ def test_past_tense_summary_rejected() -> None:
             ttl=timedelta(seconds=300),
         )
 
+    # M4: Also test mid-sentence past-tense detection
+    with pytest.raises(ValueError, match="past-tense token"):
+        PendingChange(
+            proposal_id="test_id2",
+            entry_id="entry",
+            conversation_id="conv",
+            tool_name="tool",
+            proposed_payload={},
+            pre_state=None,
+            proposed_summary="Will update after automation created",
+            proposed_diff="+ line",
+            created_at=datetime.now(UTC),
+            ttl=timedelta(seconds=300),
+        )
+
 
 def test_imperative_summary_accepted() -> None:
     """Test that imperative/future summaries are accepted."""
@@ -285,3 +300,65 @@ def test_intent_approval_on_no_pending_not_intercepted(
     result = manager.handle_approval_intent("yes")
     assert result.outcome == ApprovalOutcome.NOT_INTERCEPTED
     assert result.intercepted is False
+
+
+def test_intent_yes_with_hedge_not_intercepted(manager: PendingChangeManager) -> None:
+    """Test that 'yes but...' with hedge word is NOT intercepted (H1 fix)."""
+    manager.create(
+        tool_name="test_tool",
+        proposed_payload={},
+        pre_state=None,
+        proposed_summary="Would create item",
+        proposed_diff="+ line",
+    )
+
+    result = manager.handle_approval_intent("yes but actually never mind")
+    assert result.outcome == ApprovalOutcome.NOT_INTERCEPTED
+    assert result.intercepted is False
+    # Pending should still exist
+    assert manager.get_current() is not None
+
+
+def test_intent_yes_please_apply_accepted(manager: PendingChangeManager) -> None:
+    """Test that short approval without hedge is accepted."""
+    manager.create(
+        tool_name="test_tool",
+        proposed_payload={},
+        pre_state=None,
+        proposed_summary="Would create item",
+        proposed_diff="+ line",
+    )
+
+    result = manager.handle_approval_intent("yes please apply")
+    assert result.outcome == ApprovalOutcome.APPLIED
+    assert result.intercepted is True
+
+
+def test_intent_ok_but_wait_not_intercepted(manager: PendingChangeManager) -> None:
+    """Test that 'ok but wait' with hedge word is NOT intercepted."""
+    manager.create(
+        tool_name="test_tool",
+        proposed_payload={},
+        pre_state=None,
+        proposed_summary="Would create item",
+        proposed_diff="+ line",
+    )
+
+    result = manager.handle_approval_intent("ok but wait")
+    assert result.outcome == ApprovalOutcome.NOT_INTERCEPTED
+    assert result.intercepted is False
+
+
+def test_intent_exact_do_it_still_works(manager: PendingChangeManager) -> None:
+    """Test that bare 'do it' phrase still intercepts."""
+    manager.create(
+        tool_name="test_tool",
+        proposed_payload={},
+        pre_state=None,
+        proposed_summary="Would create item",
+        proposed_diff="+ line",
+    )
+
+    result = manager.handle_approval_intent("do it")
+    assert result.outcome == ApprovalOutcome.APPLIED
+    assert result.intercepted is True

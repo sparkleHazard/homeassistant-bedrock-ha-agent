@@ -40,21 +40,31 @@ ALLOWLISTED_FILES: dict[str, str] = {
 
 
 class _FileIoFinder(ast.NodeVisitor):
-    """Walks an AST looking for disallowed file-I/O call patterns."""
+    """Walks an AST looking for disallowed file-I/O and dangerous call patterns.
 
-    FORBIDDEN_FUNCTION_NAMES = frozenset({"open"})
+    M1: Extended to cover eval, exec, subprocess, os.system in addition to file I/O.
+    """
+
+    FORBIDDEN_FUNCTION_NAMES = frozenset({"open", "eval", "exec", "compile", "__import__"})
     FORBIDDEN_PATH_METHODS = frozenset({
         "read_text", "write_text", "read_bytes", "write_bytes",
         "open", "touch", "unlink", "mkdir",
     })
     OS_PATH_SENSITIVE = frozenset({"join", "exists", "isfile", "isdir"})
+    # M1: Dangerous module.function patterns
+    FORBIDDEN_MODULE_CALLS = {
+        "subprocess": {"run", "Popen", "call", "check_call", "check_output",
+                       "getoutput", "getstatusoutput"},
+        "os": {"system", "popen", "spawn", "spawnv", "spawnvp", "spawnve",
+               "execv", "execve", "execvp", "execvpe"},
+    }
 
     def __init__(self, filename: str) -> None:
         self.filename = filename
         self.offenses: list[tuple[int, str]] = []
 
     def visit_Call(self, node: ast.Call) -> None:
-        # Case 1: bare `open(...)`
+        # Case 1: bare `open(...)`, `eval(...)`, `exec(...)`, `compile(...)`, `__import__(...)`
         if isinstance(node.func, ast.Name) and node.func.id in self.FORBIDDEN_FUNCTION_NAMES:
             self.offenses.append((node.lineno, f"{self.filename}:{node.lineno} — disallowed call `{node.func.id}(...)`"))
 
@@ -78,6 +88,19 @@ class _FileIoFinder(ast.NodeVisitor):
                 node.lineno,
                 f"{self.filename}:{node.lineno} — disallowed `os.path.{node.func.attr}(.../config/...)`"
             ))
+
+        # Case 4 (M1): `subprocess.run(...)`, `os.system(...)`, etc.
+        if isinstance(node.func, ast.Attribute):
+            # Check if this is module.function pattern
+            if isinstance(node.func.value, ast.Name):
+                module_name = node.func.value.id
+                func_name = node.func.attr
+                if module_name in self.FORBIDDEN_MODULE_CALLS:
+                    if func_name in self.FORBIDDEN_MODULE_CALLS[module_name]:
+                        self.offenses.append((
+                            node.lineno,
+                            f"{self.filename}:{node.lineno} — disallowed call `{module_name}.{func_name}(...)`"
+                        ))
 
         self.generic_visit(node)
 
@@ -143,7 +166,7 @@ def test_no_file_io_under_config_from_integration():
         offenses.extend(msg for _, msg in finder.offenses)
 
     if offenses:
-        lines = ["File-I/O offenses detected (spec Principle #2):"]
+        lines = ["Dangerous call offenses detected (file I/O, eval/exec, subprocess):"]
         lines.extend(f"  - {o}" for o in offenses)
         lines.append("")
         lines.append("If this offense is intentional and unavoidable, add the relative file path to "

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
@@ -31,7 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 class ConfigLovelaceCardAdd(ConfigEditingTool):
     """Add a card to a specific view on an existing Lovelace dashboard."""
 
-    name = "config_lovelace_card_add"
+    name = "ConfigLovelaceCardAdd"
     description = "Add a card to a specific view on a Lovelace dashboard"
     parameters = vol.Schema(
         {
@@ -192,7 +192,7 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
 class ConfigLovelaceCardRemove(ConfigEditingTool):
     """Remove a card from a Lovelace dashboard view."""
 
-    name = "config_lovelace_card_remove"
+    name = "ConfigLovelaceCardRemove"
     description = "Remove a card from a Lovelace dashboard view"
     parameters = vol.Schema(
         {
@@ -344,7 +344,7 @@ class ConfigLovelaceCardRemove(ConfigEditingTool):
 class ConfigLovelaceDashboardCreate(ConfigEditingTool):
     """Create a new Lovelace dashboard."""
 
-    name = "config_lovelace_dashboard_create"
+    name = "ConfigLovelaceDashboardCreate"
     description = "Create a new Lovelace dashboard"
     parameters = vol.Schema(
         {

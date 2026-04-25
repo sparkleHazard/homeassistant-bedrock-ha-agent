@@ -6,7 +6,7 @@ Scene payloads: {"name": str, "entities": {entity_id: state_or_attrs}, "icon"?: 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
@@ -45,7 +45,7 @@ _SCENE_CONFIG_SCHEMA = vol.Schema(
 class ConfigSceneCreate(ConfigEditingTool):
     """Create a new scene."""
 
-    name = "config_scene_create"
+    name = "ConfigSceneCreate"
     description = "Create a new Home Assistant scene with the given configuration."
     parameters = vol.Schema(
         {
@@ -128,7 +128,7 @@ class ConfigSceneCreate(ConfigEditingTool):
 class ConfigSceneEdit(ConfigEditingTool):
     """Edit an existing scene."""
 
-    name = "config_scene_edit"
+    name = "ConfigSceneEdit"
     description = "Update an existing Home Assistant scene configuration."
     parameters = vol.Schema(
         {
@@ -230,7 +230,7 @@ class ConfigSceneEdit(ConfigEditingTool):
 class ConfigSceneDelete(ConfigEditingTool):
     """Delete an existing scene."""
 
-    name = "config_scene_delete"
+    name = "ConfigSceneDelete"
     description = "Delete an existing Home Assistant scene."
     parameters = vol.Schema(
         {

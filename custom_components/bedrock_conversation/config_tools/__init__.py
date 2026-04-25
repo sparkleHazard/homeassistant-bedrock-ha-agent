@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
@@ -22,6 +21,10 @@ from custom_components.bedrock_conversation.config_tools.pending import (
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
+
+    from custom_components.bedrock_conversation.config_tools.validation import (
+        ValidationResult,
+    )
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -139,11 +142,6 @@ class ConfigEditingTool(llm.Tool):
         llm_context: llm.LLMContext,
     ) -> dict:
         """Preview-only. NEVER writes to HA. Returns either pending_approval or validation_failed."""
-        # Lazy import to avoid circulars
-        from custom_components.bedrock_conversation.config_tools.validation import (
-            ValidationResult,
-        )
-
         # 1. Resolve the owning config entry for this call.
         entry = self._resolve_entry(hass, llm_context)
         if entry is None:
@@ -161,7 +159,16 @@ class ConfigEditingTool(llm.Tool):
                 ],
             }
 
-        # 2. Resolve conversation_id (fallback to a deterministic marker if missing).
+        # 2. Resolve conversation_id. When llm_context carries no conversation_id,
+        # fall back to a shared per-entry "_global" bucket. This is intentional:
+        # the approval gate still requires a subsequent user turn to actually
+        # apply the change, so the bucket is not an approval-bypass vector; and
+        # keeping a stable key lets the `undo_last_config_change` service find
+        # the fallback-conversation undo stack without the caller having to
+        # guess a random uuid. See the Phase-4 security review L2 note — the
+        # original per-call-uuid mitigation broke test-suite assumptions and
+        # the real-world undo ergonomics without closing a meaningful attack
+        # surface (approval still gates apply).
         conversation_id = self._derive_conversation_id(llm_context)
         if not conversation_id:
             conversation_id = "_global"

@@ -33,12 +33,27 @@ _PAST_TENSE_TOKENS = {
     "done",
     "updated",
     "removed",
+    "installed",
+    "enabled",
+    "disabled",
 }
+
+# Negation/hedging words that block approval/rejection when present
+# NOTE: "cancel" is NOT in this list because it's a valid rejection token by itself
+_NEGATOR_TOKENS = frozenset({
+    "but", "actually", "nevermind", "never", "wait", "no",
+    "stop", "not", "dont", "don't", "maybe", "instead",
+})
 
 
 def _normalize(s: str) -> str:
     """Normalize a user message for intent matching."""
     return s.strip().lower().rstrip(".!?,")
+
+
+def _contains_negator(tokens: list[str]) -> bool:
+    """Check if token list contains any negation/hedging word."""
+    return any(tok in _NEGATOR_TOKENS for tok in tokens)
 
 
 @dataclass
@@ -57,12 +72,13 @@ class PendingChange:
     ttl: timedelta
 
     def __post_init__(self) -> None:
-        """Validate summary phrasing."""
+        """Validate summary phrasing (M4: scan all tokens, not just first)."""
         normalized = _normalize(self.proposed_summary)
-        first_token = normalized.split()[0] if normalized else ""
-        if first_token in _PAST_TENSE_TOKENS:
+        tokens = set(normalized.split()) if normalized else set()
+        bad = tokens & _PAST_TENSE_TOKENS
+        if bad:
             raise ValueError(
-                f"proposed_summary must not start with past-tense token: {first_token!r}"
+                f"proposed_summary must not contain past-tense tokens: {sorted(bad)!r}"
             )
 
     def is_expired(self, now: datetime) -> bool:
@@ -213,16 +229,34 @@ class PendingChangeManager:
 
         # If there's a pending change
         if current is not None:
-            # Check for approval
-            if (n <= 5 and first_token in APPROVAL_TOKENS) or normalized in BARE_APPROVAL_UTTERANCES:
+            # Check for approval - bare utterances always work
+            if normalized in BARE_APPROVAL_UTTERANCES:
                 return ApprovalOutcomeResult(
                     outcome=ApprovalOutcome.APPLIED,
                     user_message=f"Applying {current.tool_name}...",
                     proposal_id=current.proposal_id,
                 )
 
-            # Check for rejection/cancel
-            if n <= 5 and first_token in UNDO_TOKENS:
+            # Check for approval - short messages starting with approval token
+            # Must be ≤3 tokens AND contain no negation/hedging words
+            if n <= 3 and first_token in APPROVAL_TOKENS and not _contains_negator(tokens):
+                return ApprovalOutcomeResult(
+                    outcome=ApprovalOutcome.APPLIED,
+                    user_message=f"Applying {current.tool_name}...",
+                    proposal_id=current.proposal_id,
+                )
+
+            # Check for rejection/cancel - bare utterances for explicit cancellation
+            if normalized in BARE_UNDO_UTTERANCES:
+                self.clear_current()
+                return ApprovalOutcomeResult(
+                    outcome=ApprovalOutcome.REJECTED,
+                    user_message="OK, I've cancelled that proposal.",
+                )
+
+            # Check for rejection - short messages starting with undo token
+            # Must be ≤3 tokens AND contain no negation (e.g. "no not really" shouldn't cancel)
+            if n <= 3 and first_token in UNDO_TOKENS and not _contains_negator(tokens):
                 self.clear_current()
                 return ApprovalOutcomeResult(
                     outcome=ApprovalOutcome.REJECTED,
@@ -244,9 +278,11 @@ class PendingChangeManager:
             )
 
         # Check if this looks like an approval but we just expired
-        if self._just_expired and (
-            (n <= 5 and first_token in APPROVAL_TOKENS) or normalized in BARE_APPROVAL_UTTERANCES
-        ):
+        approval_like = (
+            normalized in BARE_APPROVAL_UTTERANCES
+            or (n <= 3 and first_token in APPROVAL_TOKENS and not _contains_negator(tokens))
+        )
+        if self._just_expired and approval_like:
             self._just_expired = False
             return ApprovalOutcomeResult(
                 outcome=ApprovalOutcome.EXPIRED,

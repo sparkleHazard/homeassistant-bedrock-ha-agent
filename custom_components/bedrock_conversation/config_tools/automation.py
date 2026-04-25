@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
@@ -34,10 +34,12 @@ from custom_components.bedrock_conversation.config_tools.ha_client import automa
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers import llm
 
 
 _LOGGER = logging.getLogger(__name__)
+
+# M2: object_id validation pattern (lowercase alphanumeric + underscore, 1-64 chars)
+_OBJECT_ID_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 
 
 # Shared schema fragment for an automation config dict
@@ -73,7 +75,30 @@ class ConfigAutomationCreate(ConfigEditingTool):
     async def build_proposed_payload(self, hass, tool_input):
         config = dict(tool_input.tool_args["config"])
         # Assign a deterministic object_id if the caller didn't supply one
-        object_id = tool_input.tool_args.get("object_id") or self._slugify_alias(config.get("alias", "new_automation"))
+        provided_object_id = tool_input.tool_args.get("object_id")
+        if provided_object_id:
+            object_id = provided_object_id
+        else:
+            object_id = self._slugify_alias(config.get("alias", "new_automation"))
+
+        # M2: Sanitize object_id
+        if not _OBJECT_ID_RE.match(object_id):
+            # Attempt to clean it
+            object_id = re.sub(r"[^a-z0-9_]+", "_", object_id.lower()).strip("_")
+            if not object_id or len(object_id) > 64:
+                object_id = "unnamed_automation"
+
+        # M2: Check for collision and append suffix if needed
+        existing = await ha_automation.get_automation(hass, object_id)
+        if existing is not None:
+            # Collision: append numeric suffix
+            base_id = object_id
+            counter = 2
+            while existing is not None and counter < 100:
+                object_id = f"{base_id}_{counter}"
+                existing = await ha_automation.get_automation(hass, object_id)
+                counter += 1
+
         config["_object_id"] = object_id  # convenience for apply_change; stripped before write
         return config
 
@@ -95,9 +120,11 @@ class ConfigAutomationCreate(ConfigEditingTool):
 
     def build_proposed_summary(self, proposed, pre_state):
         alias = (proposed or {}).get("alias", "a new automation")
+        object_id = (proposed or {}).get("_object_id", "unknown")
+        # M2: Include object_id in summary so user sees collision
         return render_spoken_summary(
             "Would add",
-            f"automation {alias!r}",
+            f"automation {alias!r} (object_id: {object_id})",
         )
 
     def build_proposed_diff(self, proposed, pre_state):
@@ -152,8 +179,15 @@ class ConfigAutomationEdit(ConfigEditingTool):
 
     async def build_proposed_payload(self, hass, tool_input):
         config = dict(tool_input.tool_args["config"])
-        # Stash object_id so apply_change can recover it
-        config["_object_id"] = tool_input.tool_args["object_id"]
+        # M2: Sanitize object_id for edit operations too
+        object_id = tool_input.tool_args["object_id"]
+        if not _OBJECT_ID_RE.match(object_id):
+            # For edit, we reject invalid object_ids (they should match existing)
+            # But we'll clean it and let validation catch if it doesn't exist
+            object_id = re.sub(r"[^a-z0-9_]+", "_", object_id.lower()).strip("_")
+            if not object_id or len(object_id) > 64:
+                object_id = "invalid_object_id"
+        config["_object_id"] = object_id
         return config
 
     async def validate(self, hass, proposed, pre_state):

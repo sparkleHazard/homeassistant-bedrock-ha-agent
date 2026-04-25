@@ -301,6 +301,40 @@ def test_past_tense_vs_pending_logs_warning(
     assert any("added" in record.message for record in caplog.records)
 
 
+def test_imperative_phrasing_does_not_warn(
+    hass: HomeAssistant, mock_entry: ConfigEntry, caplog
+):
+    """AC17 negative case: Imperative/conditional phrasing does NOT trigger warning."""
+    set_entry_options(hass, mock_entry, **{CONF_ENABLE_CONFIG_EDITING: True})
+
+    # Create a pending change
+    manager = PendingChangeManager.for_entry_conv(
+        hass, mock_entry.entry_id, "test_conv_id"
+    )
+    pending = manager.create(
+        tool_name="TestTool",
+        proposed_payload={"test": "data"},
+        pre_state=None,
+        proposed_summary="Would create test",
+        proposed_diff="+ test",
+        approval_ttl_seconds=300,
+    )
+
+    # Call the helper with imperative/conditional phrasing (no past-tense success verbs)
+    final_text = "Would you like me to apply this proposal? Let me know if you approve."
+
+    with caplog.at_level("WARNING"):
+        _check_past_tense_vs_pending(
+            hass, mock_entry.entry_id, "test_conv_id", final_text
+        )
+
+    # Assert NO warning fired
+    assert not any(
+        "pending proposal" in record.message and pending.proposal_id in record.message
+        for record in caplog.records
+    )
+
+
 def test_split_proposal_for_stream_pending_approval():
     """Test AC12: split returns summary for speech, full dict for structured log."""
     tool_result = {
@@ -392,6 +426,40 @@ async def test_update_listener_haiku_flag_on_fires_notification(
         # Call again with same options — should NOT fire second time
         await _async_update_listener(hass, mock_entry)
         assert mock_notify.call_count == 1  # Still just 1
+
+
+@pytest.mark.asyncio
+async def test_haiku_warning_not_duplicated_on_same_options_save(
+    hass: HomeAssistant, mock_entry: ConfigEntry
+):
+    """AC11 negative case: Haiku warning does NOT fire again on same options save."""
+    from custom_components.bedrock_conversation import _async_update_listener
+
+    # Set Haiku model and enable config editing
+    set_entry_options(
+        hass,
+        mock_entry,
+        **{
+            CONF_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            CONF_ENABLE_CONFIG_EDITING: True,
+        }
+    )
+
+    with patch(
+        "homeassistant.components.persistent_notification.async_create",
+        new_callable=AsyncMock,
+    ) as mock_notify, patch.object(
+        hass.config_entries, "async_reload", return_value=None
+    ):
+        # First call: fires once
+        await _async_update_listener(hass, mock_entry)
+        assert mock_notify.call_count == 1
+
+        # Save same options again (user clicks Save without changes)
+        await _async_update_listener(hass, mock_entry)
+
+        # Should NOT fire again (idempotency via runtime_data.last_model_warned_for)
+        assert mock_notify.call_count == 1
 
 
 @pytest.mark.asyncio

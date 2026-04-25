@@ -34,7 +34,6 @@ from custom_components.bedrock_conversation.config_tools.ha_client.helper import
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
-    from homeassistant.helpers import llm
 
 
 _LOGGER = logging.getLogger(__name__)

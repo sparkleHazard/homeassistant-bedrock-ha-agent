@@ -3,7 +3,7 @@
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform, ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant, SupportsResponse
-from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError, Unauthorized
 from homeassistant.helpers import llm
 import voluptuous as vol
 import logging
@@ -315,6 +315,23 @@ async def _async_register_undo_service(hass: HomeAssistant) -> None:
     )
 
     async def _handle(call) -> dict:
+        # H2 fix: verify caller is admin when user context exists
+        if call.context.user_id:
+            user = await hass.auth.async_get_user(call.context.user_id)
+            if user is None or not user.is_admin:
+                _LOGGER.warning(
+                    "undo_last_config_change rejected: non-admin user %s",
+                    call.context.user_id,
+                )
+                raise Unauthorized(
+                    context=call.context,
+                    permission="is_admin",
+                    perm_category="config",
+                )
+        else:
+            # No user context (automation/script) — allow by default
+            _LOGGER.debug("undo_last_config_change: no user context, allowing")
+
         # Resolve entry_id
         explicit_id = call.data.get("config_entry_id")
         entries = [

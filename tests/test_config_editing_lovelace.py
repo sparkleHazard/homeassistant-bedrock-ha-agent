@@ -72,7 +72,7 @@ async def test_add_card_golden_path(mock_hass, mock_entry, mock_llm_context, sam
 
     new_card = {"type": "weather-forecast", "entity": "weather.home"}
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_card_add",
+        tool_name="ConfigLovelaceCardAdd",
         tool_args={
             "url_path": "test-dash",
             "view_path": "home",
@@ -128,7 +128,7 @@ async def test_add_card_yaml_mode_rejected(mock_hass, mock_entry, mock_llm_conte
 
     new_card = {"type": "button", "entity": "switch.test"}
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_card_add",
+        tool_name="ConfigLovelaceCardAdd",
         tool_args={
             "url_path": "lovelace",
             "view_path": "home",
@@ -165,7 +165,7 @@ async def test_add_card_unknown_view_rejected(mock_hass, mock_llm_context, sampl
 
     new_card = {"type": "button", "entity": "switch.test"}
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_card_add",
+        tool_name="ConfigLovelaceCardAdd",
         tool_args={
             "url_path": None,
             "view_path": "nonexistent",
@@ -199,7 +199,7 @@ async def test_add_card_missing_type_rejected(mock_hass, mock_llm_context, sampl
     # Card missing 'type'
     invalid_card = {"entity": "switch.test"}
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_card_add",
+        tool_name="ConfigLovelaceCardAdd",
         tool_args={
             "url_path": None,
             "view_path": "home",
@@ -230,7 +230,7 @@ async def test_remove_card_golden_path(mock_hass, mock_llm_context, sample_dashb
     tool = ConfigLovelaceCardRemove()
 
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_card_remove",
+        tool_name="ConfigLovelaceCardRemove",
         tool_args={
             "url_path": "test-dash",
             "view_path": "home",
@@ -268,7 +268,7 @@ async def test_remove_card_index_out_of_range_rejected(mock_hass, mock_llm_conte
     tool = ConfigLovelaceCardRemove()
 
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_card_remove",
+        tool_name="ConfigLovelaceCardRemove",
         tool_args={
             "url_path": None,
             "view_path": "home",
@@ -301,7 +301,7 @@ async def test_dashboard_create_golden_path(mock_hass, mock_llm_context):
     tool = ConfigLovelaceDashboardCreate()
 
     tool_input = llm.ToolInput(
-        tool_name="config_lovelace_dashboard_create",
+        tool_name="ConfigLovelaceDashboardCreate",
         tool_args={
             "url_path": "new-dash",
             "title": "New Dashboard",

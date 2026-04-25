@@ -74,12 +74,15 @@ def _check_past_tense_vs_pending(
     entry_id: str,
     conversation_id: str,
     final_text: str,
-) -> None:
-    """Emit warning if assistant claims success while a proposal is pending (AC17)."""
+) -> str | None:
+    """Check if assistant claims success while a proposal is pending (AC17).
+
+    M3: Returns a correction string if past-tense detected with pending, None otherwise.
+    """
     runtime_data = _get_runtime_data(hass, entry_id)
     pending = runtime_data.pending.get(conversation_id)
     if pending is None:
-        return
+        return None
 
     match = _PAST_TENSE_REGEX.search(final_text)
     if match:
@@ -89,6 +92,11 @@ def _check_past_tense_vs_pending(
             pending.proposal_id,
             match.group(0),
         )
+        return (
+            "(Heads up — the change is still waiting for your approval; "
+            "I haven't applied anything yet.)"
+        )
+    return None
 
 
 class BedrockConversationEntity(
@@ -136,7 +144,9 @@ class BedrockConversationEntity(
         self, user_input: conversation.ConversationInput
     ) -> conversation.ConversationResult:
         """Process a sentence."""
-        _LOGGER.info("Processing user input: '%s'", user_input.text)
+        # L1: downgrade PII-sensitive user text to DEBUG
+        _LOGGER.debug("Processing user input: '%s'", user_input.text)
+        _LOGGER.info("Processing user input (%d chars)", len(user_input.text))
         
         options = {**self.entry.data, **self.entry.options}
         
@@ -427,14 +437,17 @@ class BedrockConversationEntity(
                     if turn_state.stop_reason != "tool_use" or not turn_state.tool_calls:
                         final_text = turn_state.full_text.strip()
 
-                        # Check for past-tense claims vs pending (AC17)
+                        # Check for past-tense claims vs pending (AC17 + M3)
                         if options.get(CONF_ENABLE_CONFIG_EDITING, False):
-                            _check_past_tense_vs_pending(
+                            correction = _check_past_tense_vs_pending(
                                 self.hass,
                                 self.entry.entry_id,
                                 user_input.conversation_id,
                                 final_text,
                             )
+                            if correction:
+                                # M3: prepend correction to speech response
+                                final_text = f"{correction}\n\n{final_text}"
 
                         _LOGGER.info(
                             "Conversation complete. Streamed %d chars",
