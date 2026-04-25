@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.48
+
+### Removed
+- "Top P" configuration option. Claude models only accept `temperature`, not `top_p`; the integration's `AVAILABLE_MODELS` list is Claude-only, so `top_p` was never actually sent to Bedrock — it was a slider that did nothing. `CONF_TOP_P` and the dead non-Claude conditional in `async_generate` are gone too. Existing entries with a stored `top_p` are harmless; the value is simply ignored.
+
+### Changed
+- Default system prompt template is now a readable, user-editable set of device-control instructions instead of just the three placeholders (`<persona>`, `<current_date>`, `<devices>`). The `<persona>` placeholder substitution still works for backward compatibility but is no longer used by the built-in default. Helper text under the prompt field now explains what `<current_date>` and `<devices>` do.
+
 ## 1.0.47
 
 ### Changed

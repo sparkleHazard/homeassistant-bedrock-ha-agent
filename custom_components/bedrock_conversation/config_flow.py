@@ -32,7 +32,6 @@ from .const import (
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_TEMPERATURE,
-    CONF_TOP_P,
     CONF_TTS_ENGINE,
     CONF_TTS_VOICE_ID,
     DEFAULT_AWS_REGION,
@@ -45,7 +44,6 @@ from .const import (
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_P,
     DEFAULT_TTS_ENGINE,
     DEFAULT_TTS_VOICE_ID,
     DOMAIN,
@@ -267,7 +265,6 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_PROMPT: DEFAULT_PROMPT,
                     CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
                     CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
-                    CONF_TOP_P: DEFAULT_TOP_P,
                     CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
                     CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
                     CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
@@ -428,14 +425,6 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(
                 CONF_TEMPERATURE,
                 default=self.config_entry.options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0, max=1, step=0.05, mode=selector.NumberSelectorMode.SLIDER
-                )
-            ),
-            vol.Optional(
-                CONF_TOP_P,
-                default=self.config_entry.options.get(CONF_TOP_P, DEFAULT_TOP_P)
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0, max=1, step=0.05, mode=selector.NumberSelectorMode.SLIDER

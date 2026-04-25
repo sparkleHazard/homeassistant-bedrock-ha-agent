@@ -36,7 +36,6 @@ from .const import (
     CONF_MODEL_ID,
     CONF_SELECTED_LANGUAGE,
     CONF_TEMPERATURE,
-    CONF_TOP_P,
     CURRENT_DATE_PROMPT,
     DEFAULT_AWS_REGION,
     DEFAULT_EXTRA_ATTRIBUTES,
@@ -44,7 +43,6 @@ from .const import (
     DEFAULT_MODEL_ID,
     DEFAULT_SELECTED_LANGUAGE,
     DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_P,
     DEVICES_PROMPT,
     PERSONA_PROMPTS,
     SERVICE_TOOL_NAME,
@@ -483,7 +481,6 @@ class BedrockClient:
         # Anthropic schema requires max_tokens to be an int.
         max_tokens = int(options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS))
         temperature = float(options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE))
-        top_p = float(options.get(CONF_TOP_P, DEFAULT_TOP_P))
 
         # Extract system prompt
         system_prompt = None
@@ -515,11 +512,6 @@ class BedrockClient:
         if tools:
             request_body["tools"] = tools
             _LOGGER.info("Added %d tool(s) to request", len(tools))
-        
-        # Note: For Claude models, temperature and top_p are mutually exclusive.
-        # We use temperature by default and do not include top_p in the request.
-        if "anthropic.claude" not in model_id:
-            request_body["top_p"] = top_p
         
         try:
             _LOGGER.info("Calling Bedrock model: %s", model_id)

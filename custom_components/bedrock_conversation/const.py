@@ -14,7 +14,6 @@ CONF_AWS_REGION: Final = "aws_region"
 CONF_MODEL_ID: Final = "model"
 CONF_PROMPT: Final = "prompt"
 CONF_TEMPERATURE: Final = "temperature"
-CONF_TOP_P: Final = "top_p"
 CONF_MAX_TOKENS: Final = "max_tokens"
 CONF_REFRESH_SYSTEM_PROMPT: Final = "refresh_prompt_per_turn"
 CONF_REMEMBER_CONVERSATION: Final = "remember_conversation"
@@ -52,14 +51,21 @@ FALLBACK_TTS_VOICES: Final = [
 
 DEFAULT_MODEL: Final = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 DEFAULT_MODEL_ID: Final = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-DEFAULT_PROMPT: Final = """<persona>
+DEFAULT_PROMPT: Final = """You are a helpful Home Assistant smart home assistant. Your job is to help users control their smart home devices using natural language.
+
+IMPORTANT INSTRUCTIONS FOR DEVICE CONTROL:
+1. When a user asks to control a device (e.g., "turn on the lamp", "dim the bedroom light"), identify the correct entity_id from the device list below.
+2. NEVER ask the user for an entity_id — always find it yourself from the available devices.
+3. Match the user's natural language to device names using fuzzy matching (e.g., "lamp" matches devices with "lamp" in the name; "bedroom light" matches lights in the bedroom area).
+4. If multiple devices match, choose the most likely one or ask the user to clarify.
+5. After identifying the device, call the HassCallService tool with the correct entity_id and service.
+6. If no device matches, say what devices are available and ask the user to be more specific.
 
 <current_date>
 
 <devices>"""
 DEFAULT_MAX_TOKENS: Final = 4096
 DEFAULT_TEMPERATURE: Final = 1.0
-DEFAULT_TOP_P: Final = 0.999
 DEFAULT_AWS_REGION: Final = "us-west-2"
 DEFAULT_REFRESH_SYSTEM_PROMPT: Final = True
 DEFAULT_REMEMBER_CONVERSATION: Final = True

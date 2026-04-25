@@ -107,8 +107,7 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 | Model ID | `CONF_MODEL_ID` | (chosen during setup) | Picked from the dynamic list fetched via `bedrock:ListInferenceProfiles`, the built-in fallback, or a free-form custom ID. Required — no silent default. |
 | System prompt template | `CONF_PROMPT` | Built-in template | Supports `<persona>`, `<current_date>`, `<devices>` placeholders plus Jinja. |
 | Max tokens | `CONF_MAX_TOKENS` | 4096 | Bedrock response cap. Slider bound to the selected model's limit (e.g. 8 192 for Haiku 4.5, 64 000 for Sonnet 4.5); clamped on save. |
-| Temperature | `CONF_TEMPERATURE` | 1.0 | Claude treats temperature and top_p as mutually exclusive; only temperature is sent for Claude. |
-| Top P | `CONF_TOP_P` | 0.999 | Only applied for non-Claude models. |
+| Temperature | `CONF_TEMPERATURE` | 1.0 | Sampling temperature. Claude treats temperature and top_p as mutually exclusive, and Bedrock's Claude path only accepts temperature — there is no top_p option. |
 | Refresh system prompt each turn | `CONF_REFRESH_SYSTEM_PROMPT` | `True` | If true, device states are refreshed before every turn. |
 | Remember conversation | `CONF_REMEMBER_CONVERSATION` | `True` | Keep chat history across turns. |
 | Number of interactions to remember | `CONF_REMEMBER_NUM_INTERACTIONS` | 10 | History length (not including the system prompt). |
