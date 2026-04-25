@@ -1,7 +1,6 @@
 """AWS Bedrock conversation implementation."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Literal
 
@@ -13,13 +12,10 @@ from homeassistant.exceptions import (
     HomeAssistantError,
     TemplateError,
 )
-from homeassistant.helpers import (
-    chat_session,
-    intent,
-    llm,
-)
+from homeassistant.helpers import chat_session, llm
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .bedrock_client import BedrockClient
 from .const import (
     CONF_LLM_HASS_API,
     CONF_MAX_TOOL_CALL_ITERATIONS,
@@ -34,7 +30,12 @@ from .const import (
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DOMAIN,
 )
-from .bedrock_client import BedrockClient
+from .conversation_helpers import (
+    error_result,
+    execute_tool_call,
+    parse_bedrock_response,
+    speech_result,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,14 +124,10 @@ class BedrockConversationEntity(
                     _LOGGER.info("LLM API loaded with %d tools", len(llm_api.tools) if llm_api.tools else 0)
                 except HomeAssistantError as err:
                     _LOGGER.error("Error getting LLM API: %s", err)
-                    intent_response = intent.IntentResponse(language=user_input.language)
-                    intent_response.async_set_error(
-                        intent.IntentResponseErrorCode.UNKNOWN,
+                    return error_result(
+                        user_input.conversation_id,
+                        user_input.language,
                         f"Error preparing LLM API: {err}",
-                    )
-                    return conversation.ConversationResult(
-                        response=intent_response,
-                        conversation_id=user_input.conversation_id
                     )
             
             # Ensure chat log has the LLM API instance
@@ -162,14 +159,10 @@ class BedrockConversationEntity(
                     _LOGGER.info("System prompt generated (%d chars)", len(system_prompt_text))
                 except TemplateError as err:
                     _LOGGER.error("Error rendering prompt: %s", err)
-                    intent_response = intent.IntentResponse(language=user_input.language)
-                    intent_response.async_set_error(
-                        intent.IntentResponseErrorCode.UNKNOWN,
+                    return error_result(
+                        user_input.conversation_id,
+                        user_input.language,
                         f"Sorry, I had a problem with my template: {err}",
-                    )
-                    return conversation.ConversationResult(
-                        response=intent_response,
-                        conversation_id=user_input.conversation_id
                     )
                 
                 if len(message_history) == 0:
@@ -190,208 +183,99 @@ class BedrockConversationEntity(
                 try:
                     _LOGGER.info("Iteration %d: Calling Bedrock...", tool_iterations)
                     
-                    # Call Bedrock
                     response = await self.client.async_generate(
-                        message_history,
-                        llm_api,
-                        agent_id,
-                        options
+                        message_history, llm_api, agent_id, options
                     )
-                    
-                    # Parse response - Bedrock uses snake_case (stop_reason)
-                    stop_reason = response.get("stop_reason")
-                    content_blocks = response.get("content", [])
-                    
+
+                    parsed = parse_bedrock_response(response)
                     _LOGGER.info(
-                        "Bedrock response - stop_reason: %s, content_blocks: %d",
-                        stop_reason, len(content_blocks)
+                        "Bedrock response - stop_reason: %s, tool_calls: %d",
+                        parsed.stop_reason, len(parsed.tool_calls),
                     )
-                    
-                    # Validate response structure
-                    if stop_reason is None:
+
+                    # Missing stop_reason means the response shape is unexpected
+                    # (e.g. an error payload with no content). Surface it.
+                    if parsed.stop_reason is None:
                         _LOGGER.error(
-                            "Bedrock response missing 'stop_reason' field. "
-                            "Response keys: %s", list(response.keys())
+                            "Bedrock response missing 'stop_reason'. Keys: %s",
+                            list(response.keys()),
                         )
-                        _LOGGER.debug("Full response: %s", response)
-                        
-                        # Check if there's an error in the response
                         if "error" in response:
-                            error_msg = f"Bedrock API error: {response.get('error')}"
-                            _LOGGER.error("%s", error_msg)
-                            intent_response = intent.IntentResponse(language=user_input.language)
-                            intent_response.async_set_error(
-                                intent.IntentResponseErrorCode.UNKNOWN,
-                                error_msg
+                            return error_result(
+                                user_input.conversation_id,
+                                user_input.language,
+                                f"Bedrock API error: {response.get('error')}",
                             )
-                            return conversation.ConversationResult(
-                                response=intent_response,
-                                conversation_id=user_input.conversation_id
-                            )
-                        
-                        # Unexpected response format
-                        error_msg = "Received unexpected response from Bedrock (missing stop_reason)"
-                        _LOGGER.error("%s", error_msg)
-                        intent_response = intent.IntentResponse(language=user_input.language)
-                        intent_response.async_set_error(
-                            intent.IntentResponseErrorCode.UNKNOWN,
+                        return error_result(
+                            user_input.conversation_id,
+                            user_input.language,
                             "Sorry, I received an unexpected response. Please try again.",
                         )
-                        return conversation.ConversationResult(
-                            response=intent_response,
-                            conversation_id=user_input.conversation_id
-                        )
-                    
-                    # Extract text and tool uses from content blocks
-                    response_text = ""
-                    tool_calls = []
-                    tool_use_ids = {}  # Map tool_call to Bedrock's tool_use_id
-                    
-                    for block in content_blocks:
-                        block_type = block.get("type")
-                        
-                        if block_type == "text":
-                            text_content = block.get("text", "")
-                            _LOGGER.debug(
-                                "Extracted text block (len=%d): %r",
-                                len(text_content),
-                                text_content[:200] if len(text_content) > 200 else text_content,
-                            )
-                            response_text += text_content
-                        elif block_type == "tool_use":
-                            # Bedrock returns tool use with snake_case fields
-                            tool_use_id = block.get("id")
-                            tool_name = block.get("name")
-                            tool_input_data = block.get("input", {})
-                            
-                            tool_input = llm.ToolInput(
-                                tool_name=tool_name,
-                                tool_args=tool_input_data
-                            )
-                            tool_calls.append(tool_input)
-                            
-                            # Store the mapping from tool_input to Bedrock's ID
-                            if tool_use_id:
-                                tool_use_ids[id(tool_input)] = tool_use_id
-                                _LOGGER.info(
-                                    "Found tool use '%s' with ID: %s, args: %s",
-                                    tool_name, tool_use_id, tool_input_data
-                                )
-                    
-                    # Add assistant response to history
-                    if response_text or tool_calls:
+
+                    # Record the assistant's turn.
+                    if parsed.response_text or parsed.tool_calls:
                         message_history.append(
                             conversation.AssistantContent(
                                 agent_id=agent_id,
-                                content=response_text.strip(),
-                                tool_calls=tool_calls if tool_calls else None
+                                content=parsed.response_text.strip(),
+                                tool_calls=parsed.tool_calls or None,
                             )
                         )
-                    
-                    # If no tool calls or stop reason is not tool_use, we're done
-                    if stop_reason != "tool_use" or not tool_calls:
-                        final_text = response_text.strip()
-                        _LOGGER.info("Conversation complete. Response length: %d chars", len(final_text))
-                        _LOGGER.debug("Response preview: %r", final_text[:200])
 
-                        # Check for control characters that might cause display issues
-                        control_chars = [c for c in final_text if ord(c) < 32 and c not in '\n\r\t']
-                        if control_chars:
-                            _LOGGER.warning("Found control characters in response: %s", [hex(ord(c)) for c in control_chars[:10]])
-                        
-                        intent_response = intent.IntentResponse(language=user_input.language)
-                        intent_response.async_set_speech(final_text)
-                        return conversation.ConversationResult(
-                            response=intent_response,
-                            conversation_id=user_input.conversation_id
+                    # Terminal turn — no tool loop continues.
+                    if parsed.stop_reason != "tool_use" or not parsed.tool_calls:
+                        final_text = parsed.response_text.strip()
+                        _LOGGER.info(
+                            "Conversation complete. Response length: %d chars",
+                            len(final_text),
                         )
-                    
-                    # Execute tool calls
-                    _LOGGER.info("Executing %d tool call(s)...", len(tool_calls))
-                    tool_iteration_results = []
-                    
-                    for idx, tool_call in enumerate(tool_calls):
-                        try:
-                            _LOGGER.info(
-                                "[%d/%d] Executing tool: %s with args: %s",
-                                idx + 1, len(tool_calls),
-                                tool_call.tool_name, tool_call.tool_args
+                        control_chars = [
+                            c for c in final_text if ord(c) < 32 and c not in "\n\r\t"
+                        ]
+                        if control_chars:
+                            _LOGGER.warning(
+                                "Found control characters in response: %s",
+                                [hex(ord(c)) for c in control_chars[:10]],
                             )
-                            
-                            # Add timeout protection to prevent indefinite hangs
-                            try:
-                                async with asyncio.timeout(10.0):
-                                    tool_result = await llm_api.async_call_tool(tool_call)
-                            except asyncio.TimeoutError:
-                                error_msg = "Tool call timed out after 10 seconds"
-                                _LOGGER.error("[%d/%d] %s", idx + 1, len(tool_calls), error_msg)
-                                tool_result = {"error": error_msg}
-                            
-                            # Use the Bedrock tool_use_id if available, otherwise fallback
-                            tool_call_id = tool_use_ids.get(id(tool_call), f"tool_{id(tool_call)}")
-                            
-                            _LOGGER.info(
-                                "[%d/%d] Tool %s completed: %s (ID: %s)",
-                                idx + 1, len(tool_calls),
-                                tool_call.tool_name, tool_result, tool_call_id
+                        return speech_result(
+                            user_input.conversation_id, user_input.language, final_text
+                        )
+
+                    # Run every tool in this turn and append the results to history.
+                    _LOGGER.info("Executing %d tool call(s)...", len(parsed.tool_calls))
+                    for idx, tool_call in enumerate(parsed.tool_calls):
+                        tool_use_id = parsed.tool_use_ids.get(
+                            id(tool_call), f"tool_fallback_{tool_iterations}_{idx}"
+                        )
+                        message_history.append(
+                            await execute_tool_call(
+                                llm_api, tool_call, tool_use_id, agent_id
                             )
-                            
-                            tool_iteration_results.append(
-                                conversation.ToolResultContent(
-                                    agent_id=agent_id,
-                                    tool_call_id=tool_call_id,
-                                    tool_name=tool_call.tool_name,
-                                    tool_result=tool_result
-                                )
-                            )
-                        except Exception as err:
-                            _LOGGER.error(
-                                "[%d/%d] Error executing tool %s: %s",
-                                idx + 1, len(tool_calls),
-                                tool_call.tool_name, err,
-                                exc_info=True
-                            )
-                            tool_call_id = tool_use_ids.get(id(tool_call), f"tool_{id(tool_call)}")
-                            tool_iteration_results.append(
-                                conversation.ToolResultContent(
-                                    agent_id=agent_id,
-                                    tool_call_id=tool_call_id,
-                                    tool_name=tool_call.tool_name,
-                                    tool_result={"error": str(err)}
-                                )
-                            )
-                    
-                    # Add tool results to history
-                    message_history.extend(tool_iteration_results)
-                    
+                        )
+
                     _LOGGER.info(
-                        "Iteration %d complete, added %d tool result(s) to history",
-                        tool_iterations, len(tool_iteration_results)
+                        "Iteration %d complete (%d tool result(s) appended)",
+                        tool_iterations, len(parsed.tool_calls),
                     )
-                    
                     tool_iterations += 1
-                    
+
                 except HomeAssistantError as err:
                     _LOGGER.error("Error calling Bedrock: %s", err, exc_info=True)
-                    intent_response = intent.IntentResponse(language=user_input.language)
-                    intent_response.async_set_error(
-                        intent.IntentResponseErrorCode.UNKNOWN,
+                    return error_result(
+                        user_input.conversation_id,
+                        user_input.language,
                         f"Sorry, there was an error: {err}",
                     )
-                    return conversation.ConversationResult(
-                        response=intent_response,
-                        conversation_id=user_input.conversation_id
-                    )
-            
+
             # Max iterations reached
-            _LOGGER.warning("Max iterations (%d) reached without completion", max_tool_call_iterations)
-            intent_response = intent.IntentResponse(language=user_input.language)
-            intent_response.async_set_speech(
-                "I'm sorry, I couldn't complete that request after multiple attempts."
+            _LOGGER.warning(
+                "Max iterations (%d) reached without completion",
+                max_tool_call_iterations,
             )
-            return conversation.ConversationResult(
-                response=intent_response,
-                conversation_id=user_input.conversation_id
+            return speech_result(
+                user_input.conversation_id,
+                user_input.language,
+                "I'm sorry, I couldn't complete that request after multiple attempts.",
             )
 
     async def async_reload(self, language: str | None = None) -> None:

@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.52
+
+### Changed
+- Internal refactor (no behaviour change): extract pure helpers out of `conversation.py::async_process` into `conversation_helpers.py`. `parse_bedrock_response` returns a typed `BedrockResponse` dataclass; `execute_tool_call` wraps one `llm_api.async_call_tool` with the 10-second timeout and converts errors to `ToolResultContent`; `error_result` / `speech_result` build `ConversationResult` values. `async_process` now reads top-to-bottom as the orchestration it is. `conversation.py` drops from 413 → 297 LOC.
+
 ## 1.0.51
 
 ### Changed
