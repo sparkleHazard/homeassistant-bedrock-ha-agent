@@ -69,6 +69,21 @@ def _split_proposal_for_stream(tool_result: dict) -> tuple[str | None, dict]:
     return None, tool_result
 
 
+def _lookup_pending(runtime_data, conversation_id: str):
+    """Return the non-expired pending change visible to this conversation.
+
+    Checks `conversation_id` first, then falls back to the ``"_global"`` key
+    used by `ConfigEditingTool.async_call` when it can't derive a real
+    conversation_id from `llm.LLMContext`. See `PendingChangeManager._resolve_key`
+    for the background; keeping the same fallback rule here ensures the
+    interceptor and the tool-side storage agree on which slot is authoritative.
+    """
+    pending = runtime_data.pending.get(conversation_id)
+    if pending is not None:
+        return pending
+    return runtime_data.pending.get("_global")
+
+
 def _check_past_tense_vs_pending(
     hass: HomeAssistant,
     entry_id: str,
@@ -80,7 +95,7 @@ def _check_past_tense_vs_pending(
     M3: Returns a correction string if past-tense detected with pending, None otherwise.
     """
     runtime_data = _get_runtime_data(hass, entry_id)
-    pending = runtime_data.pending.get(conversation_id)
+    pending = _lookup_pending(runtime_data, conversation_id)
     if pending is None:
         return None
 
@@ -209,9 +224,12 @@ class BedrockConversationEntity(
                     )
 
                     if outcome.outcome == ApprovalOutcome.APPLIED:
-                        # Apply the pending change
+                        # Apply the pending change. Uses `_lookup_pending` so the
+                        # fallback to the "_global" bucket matches what the
+                        # ConfigEditingTool may have written if
+                        # llm_context didn't carry a conversation_id.
                         runtime_data = _get_runtime_data(self.hass, self.entry.entry_id)
-                        pending = runtime_data.pending.get(user_input.conversation_id)
+                        pending = _lookup_pending(runtime_data, user_input.conversation_id)
 
                         if pending is not None:
                             try:

@@ -192,14 +192,38 @@ class PendingChangeManager:
         runtime_data.pending[self._conversation_id] = pending
         return pending
 
+    def _resolve_key(self) -> str:
+        """Return the runtime_data.pending key that currently holds a
+        non-expired pending change for this scope, or ``_conversation_id`` if
+        nothing is stored.
+
+        Background: `ConfigEditingTool.async_call` can't recover
+        `conversation_id` from HA's `llm.LLMContext` (HA doesn't thread it
+        through `ConversationInput.as_llm_context`), so it writes pending
+        changes under the fallback key ``"_global"``. The conversation-agent
+        interceptor in `conversation.py:async_process` uses the real
+        `user_input.conversation_id`. Two different keys, zero matches.
+        Resolving here papers over the mismatch: if nothing's under our own
+        key, we adopt ``"_global"`` for this call's reads and writes.
+        """
+        runtime_data = _get_runtime_data(self._hass, self._entry_id)
+        own = runtime_data.pending.get(self._conversation_id)
+        if own is not None and not own.is_expired(self._now_fn()):
+            return self._conversation_id
+        fallback = runtime_data.pending.get("_global")
+        if fallback is not None and not fallback.is_expired(self._now_fn()):
+            return "_global"
+        return self._conversation_id
+
     def get_current(self) -> PendingChange | None:
         """Get the current pending change, evicting if expired."""
         runtime_data = _get_runtime_data(self._hass, self._entry_id)
-        pending = runtime_data.pending.get(self._conversation_id)
+        key = self._resolve_key()
+        pending = runtime_data.pending.get(key)
 
         if pending is not None and pending.is_expired(self._now_fn()):
             _LOGGER.debug("Evicting expired proposal %s", pending.proposal_id)
-            runtime_data.pending[self._conversation_id] = None
+            runtime_data.pending[key] = None
             self._just_expired = True
             return None
 
@@ -296,6 +320,7 @@ class PendingChangeManager:
         )
 
     def clear_current(self) -> None:
-        """Clear the current pending change."""
+        """Clear the current pending change (whichever key holds it)."""
         runtime_data = _get_runtime_data(self._hass, self._entry_id)
-        runtime_data.pending[self._conversation_id] = None
+        key = self._resolve_key()
+        runtime_data.pending[key] = None

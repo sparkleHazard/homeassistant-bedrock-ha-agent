@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.4 — Approval interceptor finds tool-written pending changes
+
+### Fixed
+- Approval ("yes" / "apply" / "do it") turns were never intercepted, so
+  pending automation/script/scene/etc. proposals silently stayed pending
+  forever while Claude handled each follow-up as a new conversation turn.
+  Root cause: `ConfigEditingTool.async_call` stored pending changes under
+  the ``"_global"`` key (because HA's `llm.LLMContext` doesn't thread
+  `conversation_id` through `ConversationInput.as_llm_context`), but the
+  interceptor in `conversation.py:async_process` looked them up under the
+  real `user_input.conversation_id`. Two different keys, zero matches,
+  100% miss rate. Fixed by having `PendingChangeManager.get_current` and
+  `clear_current` fall back from the requested conversation_id to
+  ``"_global"`` when nothing is stored at the first key, and by routing
+  the interceptor's two direct `runtime_data.pending.get(...)` reads
+  through a new `_lookup_pending(runtime_data, conversation_id)` helper
+  that applies the same fallback rule. Tool-side writes stay at
+  ``"_global"``; interceptor-side reads find them.
+
 ## 1.1.3 — Prompt placeholder syntax + config-tool nudging
 
 ### Fixed
