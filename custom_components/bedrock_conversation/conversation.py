@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from datetime import UTC, datetime
 from typing import Literal
 
 from homeassistant.components import conversation
@@ -18,6 +20,13 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .bedrock_client import BedrockClient
 from .const import (
     CONF_AUTO_ATTACH_CAMERAS,
+    CONF_CONFIG_APPROVAL_TTL_SECONDS,
+    CONF_CONFIG_UNDO_DEPTH,
+    CONF_CONFIG_UNDO_TTL_SECONDS,
+    CONF_ENABLE_CONFIG_EDITING,
+    DEFAULT_CONFIG_APPROVAL_TTL_SECONDS,
+    DEFAULT_CONFIG_UNDO_DEPTH,
+    DEFAULT_CONFIG_UNDO_TTL_SECONDS,
     CONF_LLM_HASS_API,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
@@ -32,10 +41,54 @@ from .const import (
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DOMAIN,
 )
+from .config_tools.pending import ApprovalOutcome, PendingChangeManager
+from .config_tools.undo import UndoEntry, get_or_create_stack
+from .runtime_data import _get_runtime_data
 from .vision import exposed_camera_entity_ids
 from .conversation_helpers import error_result, speech_result
 
 _LOGGER = logging.getLogger(__name__)
+
+# Past-tense regex for AC17 warning
+_PAST_TENSE_REGEX = re.compile(
+    r"\b(added|created|renamed|deleted|saved|applied|done|configured|updated|removed)\b",
+    re.IGNORECASE,
+)
+
+
+def _split_proposal_for_stream(tool_result: dict) -> tuple[str | None, dict]:
+    """Return (spoken_text, structured_payload_for_chat_log).
+
+    For pending_approval results, spoken_text is ONLY `proposed_summary`;
+    `proposed_diff` stays in the structured payload (chat_log mirrors it as
+    text-only structured content, not as a delta). For all other results,
+    returns (None, tool_result) — no splitting needed.
+    """
+    if isinstance(tool_result, dict) and tool_result.get("status") == "pending_approval":
+        return tool_result.get("proposed_summary", ""), tool_result
+    return None, tool_result
+
+
+def _check_past_tense_vs_pending(
+    hass: HomeAssistant,
+    entry_id: str,
+    conversation_id: str,
+    final_text: str,
+) -> None:
+    """Emit warning if assistant claims success while a proposal is pending (AC17)."""
+    runtime_data = _get_runtime_data(hass, entry_id)
+    pending = runtime_data.pending.get(conversation_id)
+    if pending is None:
+        return
+
+    match = _PAST_TENSE_REGEX.search(final_text)
+    if match:
+        _LOGGER.warning(
+            "config_editing: pending proposal %s still awaiting approval; "
+            "assistant text claims success (matched %r)",
+            pending.proposal_id,
+            match.group(0),
+        )
 
 
 class BedrockConversationEntity(
@@ -130,7 +183,152 @@ class BedrockConversationEntity(
             
             # Ensure chat log has the LLM API instance
             chat_log.llm_api = llm_api
-            
+
+            # Approval-turn interceptor (Phase 3 Step 3.2)
+            if options.get(CONF_ENABLE_CONFIG_EDITING, False):
+                manager = PendingChangeManager.for_entry_conv(
+                    self.hass, self.entry.entry_id, user_input.conversation_id
+                )
+                outcome = manager.handle_approval_intent(user_input.text)
+
+                if outcome.intercepted:
+                    # Append synthetic assistant response to chat_log
+                    assistant_content = conversation.AssistantContent(
+                        agent_id=user_input.agent_id or DOMAIN,
+                        content=outcome.user_message,
+                    )
+
+                    if outcome.outcome == ApprovalOutcome.APPLIED:
+                        # Apply the pending change
+                        runtime_data = _get_runtime_data(self.hass, self.entry.entry_id)
+                        pending = runtime_data.pending.get(user_input.conversation_id)
+
+                        if pending is not None:
+                            try:
+                                # Execute apply_fn
+                                apply_result = await pending.apply_fn(  # type: ignore[attr-defined]
+                                    self.hass, pending.proposed_payload, pending.pre_state
+                                )
+
+                                # Push undo entry
+                                undo_stack = get_or_create_stack(
+                                    self.hass,
+                                    self.entry.entry_id,
+                                    user_input.conversation_id,
+                                    max_depth=int(
+                                        options.get(
+                                            CONF_CONFIG_UNDO_DEPTH, DEFAULT_CONFIG_UNDO_DEPTH
+                                        )
+                                    ),
+                                    ttl_seconds=int(
+                                        options.get(
+                                            CONF_CONFIG_UNDO_TTL_SECONDS,
+                                            DEFAULT_CONFIG_UNDO_TTL_SECONDS,
+                                        )
+                                    ),
+                                )
+
+                                undo_entry = UndoEntry(
+                                    entry_id=self.entry.entry_id,
+                                    conversation_id=user_input.conversation_id,
+                                    proposal_id=pending.proposal_id,
+                                    tool_name=pending.tool_name,
+                                    before_state=pending.pre_state,
+                                    after_state=pending.proposed_payload,
+                                    restore_fn=pending.restore_fn,  # type: ignore[attr-defined]
+                                    timestamp=datetime.now(UTC),
+                                    ttl=undo_stack.ttl,
+                                    warnings=getattr(pending, "warnings", []),
+                                )
+                                undo_stack.push(undo_entry)
+
+                                # Clear pending
+                                manager.clear_current()
+
+                                # Success message
+                                success_msg = f"Applied: {pending.tool_name}."
+                                if undo_entry.warnings:
+                                    success_msg += " Note: " + "; ".join(undo_entry.warnings)
+
+                                assistant_content = conversation.AssistantContent(
+                                    agent_id=user_input.agent_id or DOMAIN,
+                                    content=success_msg,
+                                )
+
+                            except Exception as err:
+                                _LOGGER.exception(
+                                    "config_editing: apply_fn failed for proposal %s",
+                                    pending.proposal_id,
+                                )
+
+                                # Auto-pop undo stack and restore on failure
+                                popped = undo_stack.pop_latest()
+                                if popped is not None:
+                                    try:
+                                        await popped.restore_fn()
+                                    except Exception as restore_err:
+                                        _LOGGER.exception(
+                                            "config_editing: restore_fn also failed after apply error"
+                                        )
+
+                                assistant_content = conversation.AssistantContent(
+                                    agent_id=user_input.agent_id or DOMAIN,
+                                    content=f"Failed to apply change: {err}",
+                                )
+
+                    elif outcome.outcome == ApprovalOutcome.UNDONE:
+                        # Pop from undo stack
+                        undo_stack = get_or_create_stack(
+                            self.hass,
+                            self.entry.entry_id,
+                            user_input.conversation_id,
+                            max_depth=int(
+                                options.get(CONF_CONFIG_UNDO_DEPTH, DEFAULT_CONFIG_UNDO_DEPTH)
+                            ),
+                            ttl_seconds=int(
+                                options.get(
+                                    CONF_CONFIG_UNDO_TTL_SECONDS,
+                                    DEFAULT_CONFIG_UNDO_TTL_SECONDS,
+                                )
+                            ),
+                        )
+                        undo_entry = undo_stack.pop_latest()
+
+                        if undo_entry is None:
+                            assistant_content = conversation.AssistantContent(
+                                agent_id=user_input.agent_id or DOMAIN,
+                                content="Nothing to undo in this conversation.",
+                            )
+                        else:
+                            try:
+                                await undo_entry.restore_fn()
+
+                                undo_msg = f"Reverted: {undo_entry.tool_name}."
+                                if undo_entry.warnings:
+                                    undo_msg += " Note: " + "; ".join(undo_entry.warnings)
+
+                                assistant_content = conversation.AssistantContent(
+                                    agent_id=user_input.agent_id or DOMAIN,
+                                    content=undo_msg,
+                                )
+                            except Exception as err:
+                                _LOGGER.exception(
+                                    "config_editing: undo restore_fn failed for %s",
+                                    undo_entry.proposal_id,
+                                )
+                                assistant_content = conversation.AssistantContent(
+                                    agent_id=user_input.agent_id or DOMAIN,
+                                    content=f"Failed to undo: {err}",
+                                )
+
+                    # Append to chat_log and return
+                    chat_log.async_add_assistant_content_without_tools(assistant_content)
+                    return speech_result(
+                        user_input.conversation_id,
+                        user_input.language,
+                        assistant_content.content,
+                    )
+
             # Get message history
             if remember_conversation:
                 message_history = chat_log.content[:]
@@ -228,6 +426,16 @@ class BedrockConversationEntity(
                     # Terminal turn — streaming already pushed text to TTS.
                     if turn_state.stop_reason != "tool_use" or not turn_state.tool_calls:
                         final_text = turn_state.full_text.strip()
+
+                        # Check for past-tense claims vs pending (AC17)
+                        if options.get(CONF_ENABLE_CONFIG_EDITING, False):
+                            _check_past_tense_vs_pending(
+                                self.hass,
+                                self.entry.entry_id,
+                                user_input.conversation_id,
+                                final_text,
+                            )
+
                         _LOGGER.info(
                             "Conversation complete. Streamed %d chars",
                             len(final_text),

@@ -22,6 +22,20 @@ from .const import (
     CONF_AWS_REGION,
     CONF_AWS_SECRET_ACCESS_KEY,
     CONF_AWS_SESSION_TOKEN,
+    CONF_CONFIG_APPROVAL_TTL_SECONDS,
+    CONF_CONFIG_UNDO_DEPTH,
+    CONF_CONFIG_UNDO_TTL_SECONDS,
+    CONF_ENABLE_CONFIG_EDITING,
+    CONFIG_APPROVAL_TTL_MAX,
+    CONFIG_APPROVAL_TTL_MIN,
+    CONFIG_UNDO_DEPTH_MAX,
+    CONFIG_UNDO_DEPTH_MIN,
+    CONFIG_UNDO_TTL_MAX,
+    CONFIG_UNDO_TTL_MIN,
+    DEFAULT_CONFIG_APPROVAL_TTL_SECONDS,
+    DEFAULT_CONFIG_UNDO_DEPTH,
+    DEFAULT_CONFIG_UNDO_TTL_SECONDS,
+    DEFAULT_ENABLE_CONFIG_EDITING,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
     CONF_LLM_HASS_API,
     CONF_MAX_TOKENS,
@@ -533,8 +547,54 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
+            # Config editing options (Phase 3)
+            vol.Optional(
+                CONF_ENABLE_CONFIG_EDITING,
+                default=self.config_entry.options.get(
+                    CONF_ENABLE_CONFIG_EDITING, DEFAULT_ENABLE_CONFIG_EDITING
+                ),
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_CONFIG_UNDO_DEPTH,
+                default=self.config_entry.options.get(
+                    CONF_CONFIG_UNDO_DEPTH, DEFAULT_CONFIG_UNDO_DEPTH
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=CONFIG_UNDO_DEPTH_MIN,
+                    max=CONFIG_UNDO_DEPTH_MAX,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_CONFIG_UNDO_TTL_SECONDS,
+                default=self.config_entry.options.get(
+                    CONF_CONFIG_UNDO_TTL_SECONDS, DEFAULT_CONFIG_UNDO_TTL_SECONDS
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=CONFIG_UNDO_TTL_MIN,
+                    max=CONFIG_UNDO_TTL_MAX,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_CONFIG_APPROVAL_TTL_SECONDS,
+                default=self.config_entry.options.get(
+                    CONF_CONFIG_APPROVAL_TTL_SECONDS, DEFAULT_CONFIG_APPROVAL_TTL_SECONDS
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=CONFIG_APPROVAL_TTL_MIN,
+                    max=CONFIG_APPROVAL_TTL_MAX,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
         })
-        
+
         return self.async_show_form(
             step_id="init",
             data_schema=options_schema
