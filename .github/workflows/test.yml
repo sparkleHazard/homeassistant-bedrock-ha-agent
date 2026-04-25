@@ -18,6 +18,15 @@ jobs:
         # (landed in HA 2024.6), so we pin to Python 3.13 to match the runtime
         # contract rather than drift on 3.11.
         python-version: "3.13"
+    - name: Install system libraries
+      # PyTurboJPEG (required by HA's camera component, which our vision.py
+      # imports transitively) is a ctypes wrapper around libturbojpeg.so. The
+      # python wheel doesn't bundle the native library, so we install it via
+      # apt here. PyAV bundles its own ffmpeg build inside the wheel, so we
+      # don't need to apt-install ffmpeg separately.
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libturbojpeg0-dev
     - name: Install dependencies
       run: |
         pip install --upgrade pip

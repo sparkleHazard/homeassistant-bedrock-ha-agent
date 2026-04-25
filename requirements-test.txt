@@ -8,14 +8,23 @@ pytest-cov>=4.0.0
 pytest-homeassistant-custom-component>=0.13.300
 homeassistant>=2025.6.0
 
-# `homeassistant.components.conversation` is imported by bedrock_client.py and
-# transitively by several tests. HA core's pypi package ships WITHOUT the
-# conversation component's parsing deps (you only get them by installing the
-# conversation integration's manifest-declared requirements, which pip's
-# dependency resolver doesn't see). Pin them here explicitly so CI can collect
-# tests that import conversation.
+# HA component pypi-deps that our integration drags in at import time.
+#
+# HA core's pypi package ships without per-component requirements; those live
+# in each component's manifest.json and only get installed when a real HA
+# installation loads that component. Our tests import
+# `custom_components.bedrock_ha_agent.__init__` which chains
+# `bedrock_client` → `vision` → `homeassistant.components.{camera,stream,conversation}`,
+# each of which imports its manifest deps at module load time. We have to
+# declare those deps here or collection fails with ModuleNotFoundError.
+#
+# conversation (manifest): hassil, home-assistant-intents
+# camera     (manifest): PyTurboJPEG (also needs libturbojpeg system lib — see CI workflow)
+# stream     (manifest): PyTurboJPEG, av (bundles ffmpeg inside its wheel)
 hassil>=2.0
 home-assistant-intents>=2025.1
+PyTurboJPEG>=1.8.0
+av>=16.0.0
 
 # Integration runtime deps — mirror manifest.json `requirements` so tests can
 # import the same package surface the real HA setup would.
