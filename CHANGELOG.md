@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.43
+
+### Fixed
+- `messages.1.content.N: tool_use ids must be unique` error when a single assistant turn contained two calls to the same tool (e.g. controlling two lights at once). `_build_bedrock_messages` was matching reconstructed `ToolInput` objects to `ToolResultContent` by `tool_name` alone, so every call to the same tool received the first result's id. Now matches in order and consumes each result exactly once, and the fallback id uses a counter instead of `id(obj)` so it can't collide across turns.
+
 ## 1.0.42
 
 ### Added

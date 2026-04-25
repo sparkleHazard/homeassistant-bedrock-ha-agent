@@ -366,25 +366,39 @@ class BedrockClient:
         """Convert Home Assistant conversation to Bedrock message format."""
         messages = []
         
-        # First pass: build a mapping of tool_call identity to actual Bedrock tool_use_id
-        # by looking at ToolResultContent entries which have the correct IDs
-        tool_call_to_id = {}
+        # First pass: pair each tool_call with the correct ToolResultContent's
+        # tool_call_id. Tools can appear multiple times in one assistant turn
+        # (e.g. two HassCallService calls), so we need to match in order and
+        # consume results as we go — matching by tool_name alone would reuse
+        # the same id and produce duplicate tool_use blocks, which Bedrock
+        # rejects ("tool_use ids must be unique").
+        tool_call_to_id: dict[int, str] = {}
         for idx, content in enumerate(conversation_content):
-            if isinstance(content, conversation.AssistantContent) and content.tool_calls:
-                # Look ahead for corresponding ToolResultContent entries
-                for tool_call in content.tool_calls:
-                    # Search forward for matching ToolResultContent
-                    for future_idx in range(idx + 1, len(conversation_content)):
-                        future_content = conversation_content[future_idx]
-                        if isinstance(future_content, conversation.ToolResultContent):
-                            if future_content.tool_name == tool_call.tool_name:
-                                # Found the corresponding tool result
-                                tool_call_to_id[id(tool_call)] = future_content.tool_call_id
-                                break
-                        # Stop searching if we hit another AssistantContent (new turn)
-                        elif isinstance(future_content, conversation.AssistantContent):
-                            break
-        
+            if not (isinstance(content, conversation.AssistantContent) and content.tool_calls):
+                continue
+
+            # Collect the ToolResultContent entries that belong to this turn
+            # (everything after it until the next AssistantContent).
+            turn_results: list[conversation.ToolResultContent] = []
+            for future_idx in range(idx + 1, len(conversation_content)):
+                future_content = conversation_content[future_idx]
+                if isinstance(future_content, conversation.ToolResultContent):
+                    turn_results.append(future_content)
+                elif isinstance(future_content, conversation.AssistantContent):
+                    break
+
+            # Match calls to results by tool_name, in order, consuming each result once.
+            consumed: set[int] = set()
+            for tool_call in content.tool_calls:
+                for result_idx, result in enumerate(turn_results):
+                    if result_idx in consumed:
+                        continue
+                    if result.tool_name == tool_call.tool_name:
+                        tool_call_to_id[id(tool_call)] = result.tool_call_id
+                        consumed.add(result_idx)
+                        break
+
+        fallback_counter = 0
         for content in conversation_content:
             if isinstance(content, conversation.SystemContent):
                 # System prompt is handled separately in Bedrock
@@ -404,8 +418,10 @@ class BedrockClient:
                 
                 if content.tool_calls:
                     for tool_call in content.tool_calls:
-                        # Use the actual Bedrock tool_use_id if we found it, otherwise fallback
-                        tool_use_id = tool_call_to_id.get(id(tool_call), f"tool_{id(tool_call)}")
+                        tool_use_id = tool_call_to_id.get(id(tool_call))
+                        if tool_use_id is None:
+                            fallback_counter += 1
+                            tool_use_id = f"tool_fallback_{fallback_counter}"
                         message_content.append({
                             "type": "tool_use",
                             "id": tool_use_id,
