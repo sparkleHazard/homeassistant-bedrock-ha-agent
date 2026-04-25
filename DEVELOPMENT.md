@@ -123,9 +123,14 @@ The allowlists are **security boundaries** — the model can only invoke service
 
 ## Adding a New Model
 
-1. Add the Bedrock model id to `AVAILABLE_MODELS` in `const.py`.
-2. If it is not a Claude model, verify `bedrock_client.py::async_generate` handles the body shape (currently Claude uses `temperature` and drops `top_p`; other families receive `top_p`).
-3. Update the README's Supported Models section.
+The options-flow model dropdown is populated dynamically from `bedrock:ListInferenceProfiles` (see `config_flow.py::fetch_claude_inference_profiles`) and filtered to Anthropic/`ACTIVE` entries. Any Claude inference profile your AWS account has access to will appear automatically — no code change required.
+
+You only need to touch `const.py::AVAILABLE_MODELS` when:
+
+- Updating the **fallback** list used when the dynamic API call fails (missing IAM permission, network error), or
+- Changing `DEFAULT_MODEL_ID`.
+
+Non-Claude models: verify `bedrock_client.py::async_generate` handles the request body shape (Claude uses `temperature` and drops `top_p`; other families receive `top_p`). The dynamic dropdown currently filters to Anthropic profiles only — broaden the filter in `fetch_claude_inference_profiles` if you add other families.
 
 ## Contributing
 

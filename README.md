@@ -100,7 +100,7 @@ After setup, use **Devices & Services → AWS Bedrock Conversation → Configure
 
 | Option | Constant | Default | Notes |
 |--------|----------|---------|-------|
-| Model ID | `CONF_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Must be in `AVAILABLE_MODELS`. |
+| Model ID | `CONF_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Picked from the dynamic list fetched via `bedrock:ListInferenceProfiles`, or the built-in fallback. Custom IDs can also be typed directly. |
 | System prompt template | `CONF_PROMPT` | Built-in template | Supports `<persona>`, `<current_date>`, `<devices>` placeholders plus Jinja. |
 | Max tokens | `CONF_MAX_TOKENS` | 4096 | Bedrock response cap. |
 | Temperature | `CONF_TEMPERATURE` | 1.0 | Claude treats temperature and top_p as mutually exclusive; only temperature is sent for Claude. |
