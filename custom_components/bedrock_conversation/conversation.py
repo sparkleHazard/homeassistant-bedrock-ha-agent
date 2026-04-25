@@ -30,11 +30,7 @@ from .const import (
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DOMAIN,
 )
-from .conversation_helpers import (
-    error_result,
-    execute_tool_call,
-    speech_result,
-)
+from .conversation_helpers import error_result, speech_result
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -193,11 +189,14 @@ class BedrockConversationEntity(
                         agent_id=agent_id,
                     )
 
-                    # Fold the finalized assistant turn into message_history
-                    # so the next Bedrock request sees it in the correct
-                    # Bedrock-message shape.
+                    # chat_log's delta stream already:
+                    #   - wrote the AssistantContent (text + tool_calls) to the log
+                    #   - executed non-external tools and appended ToolResultContent
+                    # We mirror both into our own message_history so the next
+                    # Bedrock turn sees the full Bedrock-shaped conversation.
                     if turn_state.assistant_content is not None:
                         message_history.append(turn_state.assistant_content)
+                    message_history.extend(turn_state.tool_results)
 
                     if turn_state.stop_reason is None:
                         _LOGGER.error(
@@ -223,26 +222,13 @@ class BedrockConversationEntity(
                             final_text,
                         )
 
-                    # tool_use turn — run tools, append results, loop.
+                    # tool_use turn — chat_log already executed the tools,
+                    # turn_state.tool_results has the resulting content. Loop
+                    # back for the next Bedrock response.
                     _LOGGER.info(
-                        "Executing %d tool call(s) from streamed turn",
-                        len(turn_state.tool_calls),
+                        "Iteration %d: chat_log executed %d tool call(s), looping",
+                        tool_iterations, len(turn_state.tool_calls),
                     )
-                    for idx, tool_call in enumerate(turn_state.tool_calls):
-                        tool_use_id = turn_state.tool_use_ids.get(
-                            id(tool_call),
-                            f"tool_fallback_{tool_iterations}_{idx}",
-                        )
-                        tool_result_content = await execute_tool_call(
-                            llm_api, tool_call, tool_use_id, agent_id
-                        )
-                        message_history.append(tool_result_content)
-                        # Mirror the result into chat_log so the next
-                        # stream starts from a complete log state.
-                        await chat_log.async_add_assistant_content_without_tools(
-                            tool_result_content
-                        )
-
                     tool_iterations += 1
 
                 except HomeAssistantError as err:
@@ -347,35 +333,29 @@ class BedrockConversationEntity(
                 raise
 
         # chat_log.async_add_delta_content_stream consumes the delta async
-        # iterable and yields the finalized AssistantContent/ToolResultContent
-        # records that landed in the log. We only expect one AssistantContent
-        # per turn.
+        # iterable and yields the finalized AssistantContent + any
+        # ToolResultContent records it produced by executing non-external
+        # tools itself. We capture both.
         assistant_content: conversation.AssistantContent | None = None
+        tool_results: list[conversation.ToolResultContent] = []
         async for finalized in chat_log.async_add_delta_content_stream(
             agent_id, delta_stream()
         ):
             if isinstance(finalized, conversation.AssistantContent):
                 assistant_content = finalized
+            elif isinstance(finalized, conversation.ToolResultContent):
+                tool_results.append(finalized)
 
-        # Rebuild tool_use_ids by pairing our streamed index → Bedrock id
-        # against the finalized tool_calls list. Order is preserved above so
-        # zipping is safe.
-        tool_use_ids: dict[int, str] = {}
         tool_calls: list[llm.ToolInput] = []
         if assistant_content and assistant_content.tool_calls:
             tool_calls = list(assistant_content.tool_calls)
-            ordered_indexes = sorted(pending_tool_use)
-            for tool_call, stream_idx in zip(tool_calls, ordered_indexes):
-                bedrock_id = pending_tool_use[stream_idx].get("id")
-                if bedrock_id:
-                    tool_use_ids[id(tool_call)] = bedrock_id
 
         return SimpleNamespace(
             stop_reason=stop_reason,
             full_text="".join(full_text),
             tool_calls=tool_calls,
-            tool_use_ids=tool_use_ids,
             assistant_content=assistant_content,
+            tool_results=tool_results,
         )
 
     async def async_reload(self, language: str | None = None) -> None:

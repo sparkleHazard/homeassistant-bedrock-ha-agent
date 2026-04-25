@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.56
+
+### Fixed
+- Streaming path (1.0.55) executed every tool call twice and then crashed with `TypeError: 'NoneType' object can't be awaited`. Two issues:
+  - `chat_log.async_add_delta_content_stream` already runs non-external tools itself and yields the resulting `ToolResultContent` records; our old code re-executed them via `execute_tool_call`. Devices were turned on/off twice per request.
+  - `chat_log.async_add_assistant_content_without_tools` is a sync method in this HA path — awaiting it raised `TypeError`.
+- The streaming turn helper now collects both the `AssistantContent` and any `ToolResultContent` records yielded by `chat_log` and the outer loop just extends `message_history` with both. No double-execution, no spurious await.
+
 ## 1.0.55
 
 ### Added
