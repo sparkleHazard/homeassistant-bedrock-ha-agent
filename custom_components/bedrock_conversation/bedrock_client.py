@@ -42,6 +42,40 @@ _LOGGER = logging.getLogger(__name__)
 
 BedrockConfigEntry = ConfigEntry
 
+# AWS error codes that are worth a second try (transient infrastructure /
+# rate-limit conditions, not config/permission errors). These match the
+# common retryable set boto3 itself uses internally, plus Bedrock-specific
+# stream errors.
+_RETRYABLE_ERROR_CODES = frozenset(
+    {
+        "ThrottlingException",
+        "TooManyRequestsException",
+        "ServiceUnavailableException",
+        "InternalServerException",
+        "ModelStreamErrorException",
+        "ModelTimeoutException",
+    }
+)
+_RETRY_DELAYS_S = (0.5, 1.0, 2.0)  # 3 attempts max (initial + 2 retries after first)
+
+
+def _friendly_error_message(err: ClientError) -> str:
+    """Translate a boto3 ClientError into a voice-friendly sentence."""
+    code = err.response.get("Error", {}).get("Code", "") if err.response else ""
+    mapping = {
+        "ThrottlingException": "I'm being rate-limited right now. Try again in a minute.",
+        "TooManyRequestsException": "I'm being rate-limited right now. Try again in a minute.",
+        "ServiceUnavailableException": "The AI service is temporarily unavailable. Try again shortly.",
+        "InternalServerException": "The AI service hit an internal error. Try again shortly.",
+        "ModelStreamErrorException": "The connection to the AI service dropped. Try again.",
+        "ModelTimeoutException": "The AI took too long to respond. Try again.",
+        "ValidationException": "That request didn't pass the AI service's validation. Check the logs for details.",
+        "AccessDeniedException": "My AWS credentials don't have permission for that model.",
+        "ResourceNotFoundException": "The selected model isn't available in this AWS region.",
+    }
+    return mapping.get(code, f"AWS Bedrock error: {err}")
+
+
 # Re-exported for backward compatibility with earlier imports / tests.
 __all__ = ["BedrockClient", "DeviceInfo"]
 
@@ -257,13 +291,16 @@ class BedrockClient:
                 
                 return parsed_response
             
-            # Add timeout protection for Bedrock API calls
+            # Add timeout protection for Bedrock API calls + retry on transient errors.
             try:
                 async with asyncio.timeout(30.0):
-                    response_body = await self.hass.async_add_executor_job(invoke_and_read)
+                    response_body = await self._retry_blocking(invoke_and_read)
             except asyncio.TimeoutError:
                 error_msg = "Bedrock API call timed out after 30 seconds"
                 _LOGGER.error("%s", error_msg)
+                tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+                if tracker is not None:
+                    tracker.record_error(error_msg)
                 raise HomeAssistantError(error_msg)
             
             # Log the full response for debugging
@@ -295,10 +332,44 @@ class BedrockClient:
             
         except ClientError as err:
             _LOGGER.error("AWS Bedrock error: %s", err, exc_info=True)
-            raise HomeAssistantError(f"Bedrock API error: {err}") from err
+            friendly = _friendly_error_message(err)
+            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            if tracker is not None:
+                tracker.record_error(friendly)
+            raise HomeAssistantError(friendly) from err
         except Exception as err:
             _LOGGER.exception("Unexpected error calling Bedrock")
+            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            if tracker is not None:
+                tracker.record_error(str(err))
             raise HomeAssistantError(f"Unexpected error: {err}") from err
+
+    async def _retry_blocking(self, fn, *args):
+        """Call a blocking ``fn`` via the executor with retry on transient errors.
+
+        Retryable ``ClientError`` codes are listed in ``_RETRYABLE_ERROR_CODES``;
+        backoff follows ``_RETRY_DELAYS_S``. Non-retryable errors (auth,
+        validation, etc.) bubble immediately so the caller can surface them.
+        """
+        last_err: Exception | None = None
+        for attempt, delay in enumerate([0.0, *_RETRY_DELAYS_S]):
+            if delay:
+                _LOGGER.info("Bedrock retry attempt %d after %.1fs backoff", attempt, delay)
+                await asyncio.sleep(delay)
+            try:
+                return await self.hass.async_add_executor_job(fn, *args)
+            except ClientError as err:
+                code = err.response.get("Error", {}).get("Code", "") if err.response else ""
+                if code not in _RETRYABLE_ERROR_CODES:
+                    raise
+                last_err = err
+                _LOGGER.warning(
+                    "Bedrock transient error %s (attempt %d/%d)",
+                    code, attempt + 1, len(_RETRY_DELAYS_S) + 1,
+                )
+        # Exhausted retries — re-raise the last transient error.
+        assert last_err is not None
+        raise last_err
 
     async def async_generate_stream(
         self,
@@ -327,13 +398,26 @@ class BedrockClient:
         queue: asyncio.Queue = asyncio.Queue()
         SENTINEL = object()
 
+        # Open the stream with retry; once we have an EventStream the pump
+        # just iterates events on the executor.
+        def _open_stream():
+            return self._bedrock_runtime.invoke_model_with_response_stream(
+                modelId=model_id, body=json.dumps(request_body)
+            )
+
+        try:
+            stream_response = await self._retry_blocking(_open_stream)
+        except ClientError as err:
+            friendly = _friendly_error_message(err)
+            tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+            if tracker is not None:
+                tracker.record_error(friendly)
+            raise HomeAssistantError(friendly) from err
+
         def _pump() -> None:
             """Drain Bedrock's EventStream (blocking) into the async queue."""
             try:
-                response = self._bedrock_runtime.invoke_model_with_response_stream(
-                    modelId=model_id, body=json.dumps(request_body)
-                )
-                for event in response.get("body"):
+                for event in stream_response.get("body"):
                     chunk = event.get("chunk")
                     if not chunk or "bytes" not in chunk:
                         continue
@@ -360,7 +444,14 @@ class BedrockClient:
                     break
                 kind, payload = item
                 if kind == "error":
-                    raise HomeAssistantError(f"Bedrock stream error: {payload}")
+                    if isinstance(payload, ClientError):
+                        msg = _friendly_error_message(payload)
+                    else:
+                        msg = f"Bedrock stream error: {payload}"
+                    tracker = getattr(self.entry, "runtime_data", {}).get("usage")
+                    if tracker is not None:
+                        tracker.record_error(msg)
+                    raise HomeAssistantError(msg)
 
                 event_type = payload.get("type")
                 if event_type == "content_block_start":

@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.57
+
+### Added
+- Automatic retry with exponential backoff (0.5s / 1s / 2s, 3 attempts total) on transient Bedrock errors: `ThrottlingException`, `TooManyRequestsException`, `ServiceUnavailableException`, `InternalServerException`, `ModelStreamErrorException`, `ModelTimeoutException`. Non-retryable errors (auth, validation, region mismatches) still fail fast so the user sees them immediately.
+- Two new health sensors per config entry: `sensor.<entry>_last_successful_request` (timestamp) and `sensor.<entry>_last_error` (text, "none" when clean). Plug them into a dashboard to watch for persistent failures.
+- Voice-friendly error responses. Instead of "Sorry, there was an error: An error occurred (ThrottlingException)...", the assistant now says things like "I'm being rate-limited right now. Try again in a minute." or "The selected model isn't available in this AWS region." AWS error codes are mapped in `_friendly_error_message` in `bedrock_client.py`.
+
 ## 1.0.56
 
 ### Fixed

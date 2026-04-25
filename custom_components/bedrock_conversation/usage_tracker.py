@@ -85,12 +85,25 @@ class UsageCounters:
 
 @dataclass
 class UsageTracker:
-    """Per-entry running total of Bedrock token usage + cost."""
+    """Per-entry running total of Bedrock token usage + cost + health."""
 
     today: UsageCounters = field(default_factory=UsageCounters)
     total: UsageCounters = field(default_factory=UsageCounters)
     last_reset_day: date = field(default_factory=lambda: datetime.now(timezone.utc).date())
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+    last_success_at: datetime | None = None
     _listeners: list[Callable[[], None]] = field(default_factory=list)
+
+    def record_error(self, message: str) -> None:
+        """Record a Bedrock failure and fire listeners."""
+        self.last_error = message
+        self.last_error_at = datetime.now(timezone.utc)
+        for cb in list(self._listeners):
+            try:
+                cb()
+            except Exception:  # noqa: BLE001
+                pass
 
     def add_listener(self, cb: Callable[[], None]) -> Callable[[], None]:
         """Register a callback fired after each ``record`` call; returns unsubscribe."""
@@ -141,6 +154,8 @@ class UsageTracker:
             bucket.cache_read_tokens += cache_read_t
             bucket.cache_write_tokens += cache_write_t
             bucket.cost_usd += delta_cost
+
+        self.last_success_at = datetime.now(timezone.utc)
 
         for cb in list(self._listeners):
             try:

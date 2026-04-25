@@ -16,6 +16,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from datetime import datetime
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -36,8 +38,9 @@ class _SensorSpec:
     name: str
     unit: str | None
     device_class: SensorDeviceClass | None
-    getter: Callable[[UsageTracker], float | int]
+    getter: Callable[[UsageTracker], float | int | str | datetime | None]
     suggested_precision: int | None = None
+    state_class: SensorStateClass | None = SensorStateClass.TOTAL
 
 
 _SENSORS: tuple[_SensorSpec, ...] = (
@@ -78,6 +81,23 @@ _SENSORS: tuple[_SensorSpec, ...] = (
         getter=lambda t: round(t.total.cost_usd, 4),
         suggested_precision=4,
     ),
+    _SensorSpec(
+        key="last_success_at",
+        name="Last successful request",
+        unit=None,
+        device_class=SensorDeviceClass.TIMESTAMP,
+        getter=lambda t: t.last_success_at,
+        state_class=None,
+    ),
+    _SensorSpec(
+        key="last_error",
+        name="Last error",
+        unit=None,
+        device_class=None,
+        # HA's state is capped at 255 chars — trim long Bedrock messages.
+        getter=lambda t: (t.last_error or "")[:250] or "none",
+        state_class=None,
+    ),
 )
 
 
@@ -100,7 +120,6 @@ class BedrockUsageSensor(SensorEntity):
 
     _attr_has_entity_name = True
     _attr_should_poll = False
-    _attr_state_class = SensorStateClass.TOTAL
 
     def __init__(
         self,
@@ -115,6 +134,8 @@ class BedrockUsageSensor(SensorEntity):
         self._attr_name = spec.name
         self._attr_native_unit_of_measurement = spec.unit
         self._attr_device_class = spec.device_class
+        if spec.state_class is not None:
+            self._attr_state_class = spec.state_class
         if spec.suggested_precision is not None:
             self._attr_suggested_display_precision = spec.suggested_precision
 
@@ -124,7 +145,7 @@ class BedrockUsageSensor(SensorEntity):
         self.async_on_remove(self._tracker.add_listener(self._handle_update))
 
     @property
-    def native_value(self) -> float | int:
+    def native_value(self):
         return self._spec.getter(self._tracker)
 
     @callback

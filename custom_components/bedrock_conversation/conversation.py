@@ -233,10 +233,14 @@ class BedrockConversationEntity(
 
                 except HomeAssistantError as err:
                     _LOGGER.error("Error during Bedrock stream: %s", err, exc_info=True)
+                    # The client already translated ClientError → a
+                    # voice-friendly message before raising, so surface it
+                    # directly instead of wrapping with "Sorry, there was an
+                    # error:".
                     return error_result(
                         user_input.conversation_id,
                         user_input.language,
-                        f"Sorry, there was an error: {err}",
+                        str(err),
                     )
 
             # Max iterations reached
