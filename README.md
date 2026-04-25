@@ -9,6 +9,7 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 - Conversation agent backed by Claude on AWS Bedrock
 - Native tool-calling: the model calls Home Assistant services (`light.turn_on`, `climate.set_temperature`, etc.) directly
 - Text-to-speech via Amazon Polly (neural/long-form/generative engines), with the voice list fetched live from your account
+- Speech-to-text via Amazon Transcribe streaming (PCM 16 kHz mono), covering English variants, major European languages, and CJK
 - Auto-generated system prompt with your exposed devices, areas, and states
 - Configurable conversation memory (turn history, per-turn prompt refresh)
 - All configuration via the Home Assistant UI — no YAML
@@ -62,7 +63,8 @@ Attach a policy equivalent to:
         "bedrock:ListFoundationModels",
         "bedrock:ListInferenceProfiles",
         "polly:SynthesizeSpeech",
-        "polly:DescribeVoices"
+        "polly:DescribeVoices",
+        "transcribe:StartStreamTranscription"
       ],
       "Resource": "*"
     }
@@ -73,6 +75,8 @@ Attach a policy equivalent to:
 `ListFoundationModels` is used by the config flow to validate credentials during setup. `ListInferenceProfiles` is called when opening the options flow to populate the model dropdown with the Claude inference profiles actually available in your account and region — if the call is denied, the integration falls back to a built-in list.
 
 Polly permissions are optional: if you don't use the TTS entity, you can leave `polly:*` out of the policy. When present, `DescribeVoices` populates the Polly voice dropdown and `SynthesizeSpeech` performs the actual TTS.
+
+Transcribe permission (`transcribe:StartStreamTranscription`) is optional too — it's only needed for the STT entity.
 
 Create an access key for this user and keep the secret somewhere safe.
 
@@ -131,6 +135,12 @@ data:
     voice: Ruth
     engine: generative
 ```
+
+## Speech-to-Text (Amazon Transcribe)
+
+An STT entity (`stt.aws_transcribe`) is created alongside the conversation agent and TTS entity. Wire it into **Settings → Voice assistants → Add Assistant** by setting the **Speech-to-text** provider to *AWS Transcribe*.
+
+Input format: 16 kHz, 16-bit PCM, mono. Home Assistant's voice pipeline already produces audio in this shape, so no extra conversion is needed.
 
 ## How Tool Calling Works
 

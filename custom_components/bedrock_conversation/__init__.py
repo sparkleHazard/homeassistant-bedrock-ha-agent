@@ -20,7 +20,7 @@ from .bedrock_client import BedrockClient
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.CONVERSATION, Platform.TTS]
+PLATFORMS = [Platform.CONVERSATION, Platform.STT, Platform.TTS]
 
 
 class HassServiceTool(llm.Tool):

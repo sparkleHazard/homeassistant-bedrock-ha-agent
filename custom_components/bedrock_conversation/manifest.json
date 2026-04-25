@@ -1,7 +1,7 @@
 {
   "domain": "bedrock_conversation",
   "name": "AWS Bedrock Conversation",
-  "version": "1.0.41",
+  "version": "1.0.42",
   "codeowners": [
     "cronus@stolenshoe.com"
   ],
@@ -19,6 +19,7 @@
   "iot_class": "cloud_polling",
   "requirements": [
     "boto3>=1.35.0",
-    "webcolors>=24.8.0"
+    "webcolors>=24.8.0",
+    "amazon-transcribe>=0.6.2"
   ]
 }

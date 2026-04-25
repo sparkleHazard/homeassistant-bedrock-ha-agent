@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.42
+
+### Added
+- Amazon Transcribe streaming speech-to-text entity (`stt.aws_transcribe`). Creates an STT entity next to the TTS one, using the same AWS credentials. Expects 16 kHz / 16-bit PCM mono input, which matches Home Assistant's voice pipeline defaults.
+- `amazon-transcribe>=0.6.2` added to `manifest.json` requirements so Home Assistant installs the streaming SDK on first load.
+- `transcribe:StartStreamTranscription` added to the recommended IAM policy (optional — only required if you use the STT entity).
+
 ## 1.0.41
 
 ### Added
