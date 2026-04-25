@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.44
+
+### Added
+- Polly TTS entity implements `async_get_supported_voices`, so Home Assistant's voice-assistant pipeline UI now shows the real per-language voice list fetched live from `polly:DescribeVoices`. Results are cached per language for one hour to keep the UI snappy.
+
 ## 1.0.43
 
 ### Fixed

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import boto3
@@ -11,6 +12,7 @@ from homeassistant.components.tts import (
     ATTR_VOICE,
     TextToSpeechEntity,
     TtsAudioType,
+    Voice,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -51,10 +53,15 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
     _attr_has_entity_name = True
     _attr_name = "AWS Polly"
 
+    # Cache DescribeVoices results per language for VOICE_CACHE_TTL seconds so
+    # the pipeline UI stays responsive without hammering the Polly API.
+    VOICE_CACHE_TTL = 3600
+
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize the Polly TTS entity."""
         self._config_entry = config_entry
         self._attr_unique_id = f"{config_entry.entry_id}_polly_tts"
+        self._voices_cache: dict[str, tuple[float, list[Voice]]] = {}
 
     @property
     def default_language(self) -> str:
@@ -80,6 +87,60 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
     def supported_options(self) -> list[str]:
         """Return list of supported options."""
         return [ATTR_VOICE, "engine"]
+
+    async def async_get_supported_voices(
+        self, language: str
+    ) -> list[Voice] | None:
+        """Return the list of Polly voices available for ``language``.
+
+        Calls ``polly:DescribeVoices`` filtered by ``LanguageCode``. Results
+        are cached per language for ``VOICE_CACHE_TTL`` seconds. Returns
+        ``None`` on failure so Home Assistant can fall back to a free-form
+        text input.
+        """
+        now = time.monotonic()
+        cached = self._voices_cache.get(language)
+        if cached and now - cached[0] < self.VOICE_CACHE_TTL:
+            return cached[1]
+
+        merged = {**self._config_entry.data, **self._config_entry.options}
+
+        def _describe() -> list[Voice]:
+            session = boto3.Session(
+                aws_access_key_id=merged[CONF_AWS_ACCESS_KEY_ID],
+                aws_secret_access_key=merged[CONF_AWS_SECRET_ACCESS_KEY],
+                aws_session_token=merged.get(CONF_AWS_SESSION_TOKEN) or None,
+                region_name=merged.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
+            )
+            polly = session.client("polly")
+            voices: list[Voice] = []
+            paginator = polly.get_paginator("describe_voices")
+            for page in paginator.paginate(LanguageCode=language):
+                for entry in page.get("Voices", []):
+                    voice_id = entry.get("Id")
+                    if not voice_id:
+                        continue
+                    name = entry.get("Name", voice_id)
+                    gender = entry.get("Gender")
+                    label = f"{name} ({gender})" if gender else name
+                    voices.append(Voice(voice_id=voice_id, name=label))
+            return sorted(voices, key=lambda v: v.name.lower())
+
+        try:
+            voices = await self.hass.async_add_executor_job(_describe)
+        except (ClientError, BotoCoreError) as err:
+            _LOGGER.warning(
+                "Could not list Polly voices for language %s: %s", language, err
+            )
+            return None
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception(
+                "Unexpected error listing Polly voices for language %s", language
+            )
+            return None
+
+        self._voices_cache[language] = (now, voices)
+        return voices
 
     async def async_get_tts_audio(
         self, message: str, language: str, options: dict[str, Any] | None = None
