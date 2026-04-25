@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.47
+
+### Changed
+- Polly voice pickers (both the options-flow dropdown and the pipeline UI voice selector) now filter by the currently configured Polly engine. Voices whose `SupportedEngines` do not include the chosen engine are hidden, so you can no longer pick a voice + engine combo that Polly would reject at runtime. The per-language voice cache keys on `(language, engine)` so switching engine invalidates the stale list cleanly.
+
 ## 1.0.46
 
 ### Changed

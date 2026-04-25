@@ -123,17 +123,21 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
     ) -> list[Voice] | None:
         """Return the list of Polly voices available for ``language``.
 
-        Calls ``polly:DescribeVoices`` filtered by ``LanguageCode``. Results
-        are cached per language for ``VOICE_CACHE_TTL`` seconds. Returns
-        ``None`` on failure so Home Assistant can fall back to a free-form
-        text input.
+        Calls ``polly:DescribeVoices`` filtered by ``LanguageCode`` and
+        further filtered to voices whose ``SupportedEngines`` include the
+        currently configured engine, so the pipeline UI never offers a
+        voice + engine combo Polly would reject. Results are cached per
+        (language, engine) for ``VOICE_CACHE_TTL`` seconds. Returns ``None``
+        on failure so Home Assistant can fall back to a free-form text input.
         """
+        merged = {**self._config_entry.data, **self._config_entry.options}
+        engine = merged.get(CONF_TTS_ENGINE, DEFAULT_TTS_ENGINE)
+
+        cache_key = f"{language}|{engine}"
         now = time.monotonic()
-        cached = self._voices_cache.get(language)
+        cached = self._voices_cache.get(cache_key)
         if cached and now - cached[0] < self.VOICE_CACHE_TTL:
             return cached[1]
-
-        merged = {**self._config_entry.data, **self._config_entry.options}
 
         def _describe() -> list[Voice]:
             session = boto3.Session(
@@ -150,6 +154,8 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
                     voice_id = entry.get("Id")
                     if not voice_id:
                         continue
+                    if engine not in (entry.get("SupportedEngines") or []):
+                        continue
                     name = entry.get("Name", voice_id)
                     gender = entry.get("Gender")
                     label = f"{name} ({gender})" if gender else name
@@ -160,16 +166,18 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             voices = await self.hass.async_add_executor_job(_describe)
         except (ClientError, BotoCoreError) as err:
             _LOGGER.warning(
-                "Could not list Polly voices for language %s: %s", language, err
+                "Could not list Polly voices for language=%s engine=%s: %s",
+                language, engine, err,
             )
             return None
         except Exception:  # noqa: BLE001
             _LOGGER.exception(
-                "Unexpected error listing Polly voices for language %s", language
+                "Unexpected error listing Polly voices for language=%s engine=%s",
+                language, engine,
             )
             return None
 
-        self._voices_cache[language] = (now, voices)
+        self._voices_cache[cache_key] = (now, voices)
         return voices
 
     async def async_get_tts_audio(

@@ -107,10 +107,13 @@ async def fetch_polly_voices(
     aws_access_key_id: str,
     aws_secret_access_key: str,
     aws_session_token: str | None = None,
+    engine: str | None = None,
 ) -> list[str]:
     """Return sorted unique Polly voice IDs available in the account/region.
 
-    Raises on API errors so callers can fall back to ``FALLBACK_TTS_VOICES``.
+    If ``engine`` is provided, only voices whose ``SupportedEngines`` include
+    that engine are returned. Raises on API errors so callers can fall back to
+    ``FALLBACK_TTS_VOICES``.
     """
 
     def _list() -> list[str]:
@@ -126,8 +129,11 @@ async def fetch_polly_voices(
         for page in paginator.paginate():
             for voice in page.get("Voices", []):
                 voice_id = voice.get("Id")
-                if voice_id:
-                    voice_ids.append(voice_id)
+                if not voice_id:
+                    continue
+                if engine and engine not in (voice.get("SupportedEngines") or []):
+                    continue
+                voice_ids.append(voice_id)
         return sorted(set(voice_ids))
 
     return await hass.async_add_executor_job(_list)
@@ -369,6 +375,7 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
                 self.config_entry.data[CONF_AWS_ACCESS_KEY_ID],
                 self.config_entry.data[CONF_AWS_SECRET_ACCESS_KEY],
                 self.config_entry.data.get(CONF_AWS_SESSION_TOKEN),
+                engine=current_engine,
             )
         except Exception as err:  # noqa: BLE001 — non-fatal
             _LOGGER.warning(
