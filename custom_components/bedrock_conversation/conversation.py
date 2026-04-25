@@ -101,12 +101,14 @@ class BedrockConversationEntity(
             remember_conversation = options.get(
                 CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION
             )
-            remember_num_interactions = options.get(
+            # NumberSelector stores values as floats; coerce the integer-semantic
+            # options before using them for list slicing / loop bounds.
+            remember_num_interactions = int(options.get(
                 CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS
-            )
-            max_tool_call_iterations = options.get(
+            ))
+            max_tool_call_iterations = int(options.get(
                 CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS
-            )
+            ))
             
             # Get LLM API if configured
             llm_api: llm.APIInstance | None = None

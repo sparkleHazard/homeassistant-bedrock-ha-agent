@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.40
+
+### Fixed
+- "`max_tokens: Input should be a valid integer`" error from Bedrock. Home Assistant's `NumberSelector` always returns floats — even when configured with `step=1` — so the integer-semantic options (`max_tokens`, `remember_num_interactions`, `max_tool_call_iterations`) were reaching the Anthropic request schema as `4096.0` etc. Coerce to `int` at the boundaries in `bedrock_client.py` and `conversation.py`.
+
 ## 1.0.39
 
 ### Changed

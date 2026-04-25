@@ -463,9 +463,11 @@ class BedrockClient:
         await self._ensure_client()
         
         model_id = options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
-        max_tokens = options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS)
-        temperature = options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)
-        top_p = options.get(CONF_TOP_P, DEFAULT_TOP_P)
+        # HA's NumberSelector always returns floats even when step=1; Bedrock's
+        # Anthropic schema requires max_tokens to be an int.
+        max_tokens = int(options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS))
+        temperature = float(options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE))
+        top_p = float(options.get(CONF_TOP_P, DEFAULT_TOP_P))
 
         # Extract system prompt
         system_prompt = None
