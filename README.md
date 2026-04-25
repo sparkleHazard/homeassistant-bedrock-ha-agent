@@ -33,7 +33,7 @@ If that API call fails (missing IAM permission, network error, etc.), the dropdo
 ### HACS (recommended)
 
 1. Open **HACS → Integrations**.
-2. Menu (⋮) → **Custom repositories** → add `https://github.com/cronus42/homeassistant-aws-bedrock-conversation-agent` as category **Integration**.
+2. Menu (⋮) → **Custom repositories** → add `https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent` as category **Integration**.
 3. Search for **AWS Bedrock Conversation** and install it.
 4. Restart Home Assistant.
 

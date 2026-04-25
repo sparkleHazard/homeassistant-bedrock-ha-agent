@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.49
+
+### Changed
+- The "?" documentation link in **Settings → Devices & Services** now points directly at the README (`manifest.json:documentation`) instead of the repo homepage.
+- Corrected every remaining `cronus42/...` repo URL to the real `sparkleHazard/...` slug in README, DEVELOPMENT.md, CHANGELOG, and manifest.
+
 ## 1.0.48
 
 ### Removed
@@ -115,4 +121,4 @@ git log --oneline v1.0.35..v1.0.36
 ```
 
 or view the release on GitHub at
-`https://github.com/cronus42/homeassistant-aws-bedrock-conversation-agent/releases`.
+`https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent/releases`.

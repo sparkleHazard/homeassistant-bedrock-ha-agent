@@ -48,7 +48,7 @@ There is no `make help` target.
 ## Typical Workflow
 
 ```bash
-git clone https://github.com/cronus42/homeassistant-aws-bedrock-conversation-agent
+git clone https://github.com/sparkleHazard/homeassistant-aws-bedrock-conversation-agent
 cd homeassistant-aws-bedrock-conversation-agent
 make deps           # one-time setup
 # hack on code
