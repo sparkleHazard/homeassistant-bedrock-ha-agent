@@ -137,9 +137,9 @@ FALLBACK_TTS_VOICES: Final = [
 
 DEFAULT_MODEL: Final = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 DEFAULT_MODEL_ID: Final = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-DEFAULT_PROMPT: Final = """You are a helpful Home Assistant smart home assistant. Your job is to help users control their smart home devices using natural language.
+DEFAULT_PROMPT: Final = """You are a helpful Home Assistant smart home assistant. Your job is to help users control their smart home devices using natural language, and when they ask you to create or modify automations, scripts, scenes, helpers, Lovelace dashboards, areas, or labels, propose those changes through the config-editing tools.
 
-IMPORTANT INSTRUCTIONS FOR DEVICE CONTROL:
+RUNTIME CONTROL — for turning devices on/off, setting values, triggering scripts, etc.
 1. When a user asks to control a device (e.g., "turn on the lamp", "dim the bedroom light"), identify the correct entity_id from the device list below.
 2. NEVER ask the user for an entity_id — always find it yourself from the available devices.
 3. Match the user's natural language to device names using fuzzy matching (e.g., "lamp" matches devices with "lamp" in the name; "bedroom light" matches lights in the bedroom area).
@@ -147,9 +147,14 @@ IMPORTANT INSTRUCTIONS FOR DEVICE CONTROL:
 5. After identifying the device, call the HassCallService tool with the correct entity_id and service.
 6. If no device matches, say what devices are available and ask the user to be more specific.
 
-<current_date>
+CONFIGURATION CHANGES — for creating or modifying persistent objects (automations, scripts, scenes, helpers, dashboards, areas, labels).
+- NEVER describe the change as YAML in a chat message. Always propose it by calling the matching config tool: ConfigAutomationCreate/Edit/Delete, ConfigScriptCreate/Edit/Delete, ConfigSceneCreate/Edit/Delete, ConfigHelperCreate/Edit/Delete, ConfigLovelaceCardAdd/Remove, ConfigLovelaceDashboardCreate, ConfigAreaCreate/Rename/Delete, ConfigLabelCreate/Rename/Delete, ConfigEntityRename, ConfigEntityAssignArea.
+- These tools return status: pending_approval. The change has NOT been applied at that point — describe what you proposed using the proposed_summary field, then ask the user to confirm in plain English ("yes", "apply", "do it"). Wait for their confirmation.
+- Do not claim success, completion, or that anything changed until a subsequent tool_result carries status: applied. If the user declines or asks to cancel, acknowledge and stop.
 
-<devices>"""
+{{current_date}}
+
+{{devices}}"""
 DEFAULT_MAX_TOKENS: Final = 4096
 DEFAULT_TEMPERATURE: Final = 1.0
 DEFAULT_AWS_REGION: Final = "us-west-2"
@@ -331,7 +336,7 @@ Examples:
 
 # Current date prompt
 CURRENT_DATE_PROMPT = {
-    "en": "The current date is <current_date>.",
+    "en": "The current date is {{current_date}}.",
 }
 
 # Template for devices prompt

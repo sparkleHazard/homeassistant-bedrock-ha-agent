@@ -171,9 +171,18 @@ class BedrockClient:
         date_prompt_template = CURRENT_DATE_PROMPT.get(language, CURRENT_DATE_PROMPT["en"])
         devices_template = DEVICES_PROMPT.get(language, DEVICES_PROMPT["en"])
         
-        # Get current date/time and format it
+        # Get current date/time and format it. Accept both the new
+        # ``{{current_date}}`` delimiter (added in v1.1.3 to avoid HA's
+        # options-flow translation renderer parsing ``<current_date>`` as
+        # an unclosed HTML tag) and the legacy ``<current_date>`` form so
+        # users who customized the system prompt before v1.1.3 and saved
+        # the old syntax keep working.
         current_datetime = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-        date_prompt = date_prompt_template.replace("<current_date>", current_datetime)
+        date_prompt = (
+            date_prompt_template
+            .replace("{{current_date}}", current_datetime)
+            .replace("<current_date>", current_datetime)
+        )
         
         # Get exposed devices
         devices = self._get_exposed_entities()
@@ -211,9 +220,19 @@ class BedrockClient:
         
         # Now replace placeholders in the main prompt template
         prompt = prompt_template
-        prompt = prompt.replace("<persona>", persona_prompt)
-        prompt = prompt.replace("<current_date>", date_prompt)
-        prompt = prompt.replace("<devices>", devices_rendered)
+        # Substitute both the new ``{{token}}`` and legacy ``<token>``
+        # delimiters. See v1.1.3 note above: the new syntax dodges HA's
+        # options-flow translation renderer's UNCLOSED_TAG error, but
+        # existing customized prompts may still carry the old form.
+        for old, new in (
+            ("{{persona}}", persona_prompt),
+            ("<persona>", persona_prompt),
+            ("{{current_date}}", date_prompt),
+            ("<current_date>", date_prompt),
+            ("{{devices}}", devices_rendered),
+            ("<devices>", devices_rendered),
+        ):
+            prompt = prompt.replace(old, new)
         
         _LOGGER.info("Generated system prompt with %d characters", len(prompt))
         

@@ -108,7 +108,7 @@ After setup, use **Devices & Services → Bedrock Home Assistant Agent → Confi
 | Option | Constant | Default | Notes |
 |--------|----------|---------|-------|
 | Model ID | `CONF_MODEL_ID` | (chosen during setup) | Picked from the dynamic list fetched via `bedrock:ListInferenceProfiles`, the built-in fallback, or a free-form custom ID. Required — no silent default. |
-| System prompt template | `CONF_PROMPT` | Built-in template | Supports `<persona>`, `<current_date>`, `<devices>` placeholders plus Jinja. |
+| System prompt template | `CONF_PROMPT` | Built-in template | Supports `{{persona}}`, `{{current_date}}`, `{{devices}}` placeholders plus Jinja. The legacy `<persona>` / `<current_date>` / `<devices>` syntax is still accepted for backward compatibility. |
 | Max tokens | `CONF_MAX_TOKENS` | 4096 | Bedrock response cap. Slider bound to the selected model's limit (e.g. 8 192 for Haiku 4.5, 64 000 for Sonnet 4.5); clamped on save. |
 | Temperature | `CONF_TEMPERATURE` | 1.0 | Sampling temperature. Claude treats temperature and top_p as mutually exclusive, and Bedrock's Claude path only accepts temperature — there is no top_p option. |
 | Refresh system prompt each turn | `CONF_REFRESH_SYSTEM_PROMPT` | `True` | If true, device states are refreshed before every turn. |

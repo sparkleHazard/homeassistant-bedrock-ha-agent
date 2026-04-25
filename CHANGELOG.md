@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.3 — Prompt placeholder syntax + config-tool nudging
+
+### Fixed
+- UNCLOSED_TAG translation error when viewing the system-prompt template in
+  the options flow. The default prompt body contained literal `<current_date>`
+  and `<devices>` tokens, which HA's options UI parses as unclosed HTML tags.
+  Switched placeholder syntax to `{{current_date}}` / `{{devices}}` /
+  `{{persona}}` — safe for HA's renderer, and still substituted correctly by
+  `BedrockClient._generate_system_prompt`. The legacy `<…>` syntax continues
+  to work so custom prompts saved on earlier versions keep rendering.
+- Config-editing tools were registered but never called. Root cause was in
+  the DEFAULT_PROMPT body itself: six imperative bullets instructed Claude
+  to call `HassCallService` for every request, with no mention of the
+  config-editing tool family. Claude followed instructions and free-texted
+  YAML for "create an automation" requests instead of calling
+  ConfigAutomationCreate. New prompt explicitly separates runtime control
+  (HassCallService) from configuration changes (Config* tools) and tells
+  Claude to NEVER describe changes as YAML in chat when the matching
+  config tool is available.
+
 ## 1.1.2 — Streaming generation fix
 
 ### Fixed
