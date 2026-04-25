@@ -26,6 +26,39 @@
       "unknown": "Unknown error occurred"
     }
   },
+  "notifications": {
+    "haiku_config_advisory": {
+      "title": "Bedrock Conversation: Model advisory",
+      "message": "Config editing works best on Claude Sonnet 4.5 or Opus; Haiku may truncate large dashboards."
+    }
+  },
+  "conversation_responses": {
+    "approval_applied": "Done — {summary}",
+    "approval_rejected": "OK, cancelled that proposal.",
+    "approval_expired": "That change expired; please ask again if you still want it.",
+    "undo_success": "Undone: {summary}",
+    "undo_nothing_to_undo": "Nothing to undo.",
+    "undo_nothing_to_undo_for_conversation": "Nothing to undo for this conversation.",
+    "undo_ambiguous": "I have pending undo history in more than one conversation. Pass `conversation_id` to disambiguate.",
+    "apply_failed_restored": "Sorry — that change failed to apply and I've rolled it back. Error: {error}",
+    "validation_failed": "I can't make that change: {errors}"
+  },
+  "services": {
+    "undo_last_config_change": {
+      "name": "Undo last config change",
+      "description": "Revert the most recent config change made by the conversation agent. Uses an in-memory undo stack (cleared on restart).",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Which Bedrock integration entry to target. Optional when you only have one."
+        },
+        "conversation_id": {
+          "name": "Conversation ID",
+          "description": "Which conversation's undo stack to pop. Optional unless more than one conversation has pending undo state."
+        }
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -47,7 +80,17 @@
           "expose_areas_only": "Restrict the device list in the system prompt to entities in these areas. Empty = every exposed entity (default). Massive token savings on large homes.",
           "device_prompt_mode": "How the device list is formatted. 'full' = current format with state + attributes. 'compact' = name/entity/area/state, no attributes. 'names_only' = just name/entity/area (biggest token savings; the model won't know current states).",
           "max_prompt_tokens": "Soft cap on the rendered device list size in tokens (rough heuristic). 0 = no cap.",
-          "llm_hass_api": "Home Assistant LLM API for device control"
+          "llm_hass_api": "Home Assistant LLM API for device control",
+          "enable_config_editing": "Enable config editing (experimental)",
+          "config_undo_depth": "Undo history depth",
+          "config_undo_ttl_seconds": "Undo entry TTL (seconds)",
+          "config_approval_ttl_seconds": "Approval TTL (seconds)"
+        },
+        "data_description": {
+          "enable_config_editing": "Allow Claude to propose changes to automations, scripts, scenes, helpers, Lovelace dashboards, areas, and labels. Changes require your confirmation before they apply.",
+          "config_undo_depth": "How many recent config changes to keep in the in-memory undo stack per conversation.",
+          "config_undo_ttl_seconds": "Seconds an undo entry stays available before expiry.",
+          "config_approval_ttl_seconds": "Seconds a pending change waits for your approval before it expires."
         }
       }
     }

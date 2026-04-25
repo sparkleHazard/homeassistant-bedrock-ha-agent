@@ -1,5 +1,5 @@
 
-.PHONY: test venv deps clean lint format release version typecheck release-no-tests
+.PHONY: test venv deps clean lint format release version typecheck release-no-tests test-no-file-io
 
 venv:
 	python3 -m venv .venv
@@ -21,8 +21,11 @@ clean:
 	rm -rf htmlcov
 	rm -f .coverage
 
-lint: deps
+lint: test-no-file-io deps
 	.venv/bin/ruff check .
+
+test-no-file-io: deps
+	.venv/bin/pytest tests/test_no_file_io.py -v
 
 format: deps
 	.venv/bin/black .

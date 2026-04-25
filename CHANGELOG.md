@@ -4,6 +4,60 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.0 — Config editing (opt-in)
+
+### Breaking
+- **Minimum Home Assistant version raised to 2025.6.0.** The integration's
+  `manifest.json` already depends on `ai_task` (which landed in HA 2025.6), so
+  the previous `hacs.json` floor of 2024.12 was inaccurate. Users on HA
+  versions below 2025.6 MUST remain on integration version `1.0.59`; HACS will
+  prevent the update automatically.
+
+### Added
+- Opt-in conversational config editing for automations, scripts, scenes,
+  helpers, Lovelace dashboards & cards, areas, labels, and entity registry
+  fields. Disabled by default. Enable via Settings → Devices & Services →
+  Bedrock Conversation → Configure → "Enable config editing."
+- Per-conversation pending-approval flow: Claude proposes a change; you
+  confirm with "yes"/"apply"/"do it"; the change applies. Cancel with "no"/
+  "cancel"/"revert that" before applying.
+- Per-conversation undo stack (20 deep, 1 hour TTL). Say "undo that" or call
+  the new `bedrock_conversation.undo_last_config_change` service. Multiple
+  concurrent voice satellites on one Bedrock entry do NOT share undo history.
+- YAML-mode Lovelace dashboards are detected and refused with a clear error
+  ("this dashboard is managed via configuration.yaml; edit the file manually").
+- Model advisory: enabling config editing on a Claude Haiku model surfaces a
+  one-time notification recommending Claude Sonnet 4.5 or Opus for large diffs.
+
+### Safety
+- All config-editing tools go through a pending-approval gate; the model cannot
+  apply changes in a single turn.
+- Post-apply reload failures auto-revert the change (undo-stack pop + restore).
+- Pre-validation catches unknown entities and malformed schemas before the user
+  sees a diff. `check_config` is NOT called (see known limitations).
+- No file I/O under /config from the integration; all edits route through HA
+  REST/WS APIs. AST-enforced (see `tests/test_no_file_io.py`).
+
+### Known limitations
+- Restoring an area or label that was deleted via the integration re-creates
+  the entity but assigns a NEW `area_id` / `label_id`; existing references to
+  the old id remain dangling. The undo success message calls this out.
+- Entities whose `disabled_by` is `INTEGRATION`/`CONFIG_ENTRY`/`DEVICE` cannot
+  be toggled by the integration (HA restricts WS updates to `USER` origin).
+- Undo history is in-memory only and clears on HA restart.
+- `check_config` is not called for pre-validation or post-apply verification in
+  v1; reload-exception catching is the post-apply safety net.
+
+### Migration
+- No data migration. All new settings are optional `entry.options` keys that
+  default to safe values. Users updating from 1.0.x will see the new options
+  in the configure dialog but nothing changes until they opt in.
+
+> **If you are on Home Assistant 2024.12 through 2025.5:** do NOT update to
+> integration 1.1.x. Stay on 1.0.59. The 1.1.x series requires HA 2025.6+ due
+> to its dependency on the `ai_task` component. Upgrade HA first, then update
+> the integration.
+
 ## 1.0.59
 
 ### Added
