@@ -1,260 +1,137 @@
 # Development Guide
 
-## Quick Start
+Local development and release workflow for this Home Assistant custom integration.
 
-```bash
-# Show all available commands
-make help
-
-# Install dependencies
-make deps
-
-# Run tests
-make test
-
-# Format code
-make format
-
-# Check code quality
-make lint
-make typecheck
-
-# Clean build artifacts
-make clean
-```
-
-## Makefile Targets
-
-### `make help`
-Show all available targets with descriptions
-
-### `make deps`
-Install all development and test dependencies in a virtual environment
-
-### `make test`
-Run the full test suite with coverage reporting
-- Creates coverage report in `htmlcov/index.html`
-- Shows coverage percentage in terminal
-
-### `make lint`
-Run code linters (ruff and flake8)
-
-### `make format`
-Auto-format code with black and isort
-
-### `make typecheck`
-Run mypy type checking
-
-### `make clean`
-Remove all build artifacts, cache files, and virtual environment
-
-### `make release`
-**Create a new release:**
-1. Runs full test suite
-2. Checks git working tree is clean
-3. Extracts version from `manifest.json`
-4. Creates and pushes git tag
-5. Prints next steps for GitHub release
-
-### `make version`
-Show current version from manifest.json
-
-## Development Workflow
-
-### Setting Up
-```bash
-# Clone the repository
-git clone <repo-url>
-cd homeassistant-aws-bedrock-conversation-agent
-
-# Install dependencies
-make deps
-
-# Activate virtual environment
-source .venv/bin/activate
-```
-
-### Making Changes
-```bash
-# Make your changes
-vim custom_components/bedrock_conversation/some_file.py
-
-# Format code
-make format
-
-# Run tests
-make test
-
-# Check code quality
-make lint
-make typecheck
-```
-
-### Testing Locally
-```bash
-# Copy to Home Assistant
-cp -r custom_components/bedrock_conversation ~/.homeassistant/custom_components/
-
-# Restart Home Assistant
-# Test your changes
-```
-
-### Releasing
-```bash
-# Update version in manifest.json
-vim custom_components/bedrock_conversation/manifest.json
-
-# Commit changes
-git add .
-git commit -m "Release v1.0.1"
-
-# Create release (runs tests, creates tag, pushes)
-make release
-
-# Create GitHub release with release notes
-# Submit to HACS
-```
-
-## Project Structure
+## Repo Layout
 
 ```
 .
-├── Makefile                 # Build automation
-├── custom_components/       # The actual integration
-│   └── bedrock_conversation/
-├── tests/                   # Unit tests
-├── requirements-test.txt    # Test dependencies
-├── requirements-dev.txt     # Dev tools
-└── pytest.ini              # Test configuration
+├── custom_components/bedrock_conversation/  # the integration
+│   ├── __init__.py        # setup/teardown, HassServiceTool, BedrockServicesAPI
+│   ├── bedrock_client.py  # boto3 wrapper, prompt + tool schema, invoke_model
+│   ├── conversation.py    # ConversationEntity, tool-calling loop
+│   ├── config_flow.py     # setup + options UI, validate_aws_credentials
+│   ├── const.py           # config keys, defaults, allowlists, prompts
+│   ├── utils.py           # closest_color, tool-call helpers
+│   ├── manifest.json      # version, requirements, dependencies
+│   ├── strings.json       # source strings for HA translation pipeline
+│   └── translations/      # localized config-flow strings
+├── tests/                 # pytest suite (mocks boto3; see tests/AGENTS.md)
+├── translations/          # service-description translations (YAML)
+├── Makefile               # venv, deps, test, lint, format, release
+├── pyproject.toml         # tool configuration (ruff, black, isort, mypy)
+├── requirements-dev.txt   # developer tooling
+├── requirements-test.txt  # test dependencies
+└── AGENTS.md              # architecture reference (per directory)
 ```
 
-## Code Style
+Architecture details live in the `AGENTS.md` files — start at the root one.
 
-- **Formatter**: black (line length 88)
-- **Import sorting**: isort
-- **Linter**: ruff + flake8
-- **Type checking**: mypy
-- Follow Home Assistant coding standards
+## Makefile Targets
 
-## Testing
+| Target | Purpose |
+|--------|---------|
+| `make venv` | Create `.venv/`. |
+| `make deps` | Install test + editable-install dependencies into `.venv/`. |
+| `make test` | Full pytest run with coverage into `htmlcov/`. |
+| `make test-simple` | Curated fast subset (`test_bedrock_client`, `test_config_flow`, `test_init`, `test_utils`). Used as the release gate. |
+| `make lint` | `ruff check .`. |
+| `make format` | `black .` + `isort .`. |
+| `make typecheck` | `mypy custom_components/`. |
+| `make clean` | Remove `.venv/`, caches, coverage artifacts. |
+| `make version` | Print the version from `manifest.json`. |
+| `make release` | Runs `test-simple`, verifies clean working tree, creates and pushes the `vX.Y.Z` tag, cuts a GitHub release. |
+| `make release-no-tests` | Same as `release` but skips tests (use with care). |
 
-### Test Organization
-- `tests/conftest.py` - Shared fixtures
-- `tests/test_*.py` - Test files matching module names
-- Mock AWS calls - never make real API requests
+There is no `make help` target.
 
-### Writing Tests
-```python
-import pytest
-from unittest.mock import patch
+## Typical Workflow
 
-@pytest.mark.asyncio
-async def test_my_feature(hass, mock_config_entry):
-    """Test description."""
-    # Your test code
-    assert result is True
-```
-
-### Running Specific Tests
 ```bash
-# Single file
-pytest tests/test_utils.py
-
-# Single test
-pytest tests/test_utils.py::test_closest_color -v
-
-# With output
-pytest tests/ -v -s
+git clone https://github.com/cronus42/homeassistant-aws-bedrock-conversation-agent
+cd homeassistant-aws-bedrock-conversation-agent
+make deps           # one-time setup
+# hack on code
+make format         # keep the formatter happy
+make lint
+make test-simple    # fast feedback loop
+make test           # full suite before PR
 ```
 
-## Debugging
+## Testing Against a Real Home Assistant
 
-### Enable Debug Logging
-Add to Home Assistant `configuration.yaml`:
+Mount or copy the integration into your HA config:
+
+```bash
+cp -r custom_components/bedrock_conversation ~/.homeassistant/custom_components/
+# restart Home Assistant
+```
+
+Enable debug logging to observe the tool-calling loop:
+
 ```yaml
+# configuration.yaml
 logger:
   default: info
   logs:
     custom_components.bedrock_conversation: debug
 ```
 
-### VS Code
-Add to `.vscode/launch.json`:
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Python: Current File",
-      "type": "python",
-      "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}"
-      }
-    }
-  ]
-}
-```
+For a quick smoke test against real Bedrock without Home Assistant, `test_bedrock.py` at the repo root issues a single Bedrock call using `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` / `MODEL_ID` env vars. It is **not** part of the automated suite.
 
-## Version Management
+## Release Workflow
 
-Version is stored in `custom_components/bedrock_conversation/manifest.json`:
-```json
-{
-  "version": "1.0.0"
-}
-```
+Version lives in exactly one place: `custom_components/bedrock_conversation/manifest.json`.
 
-The Makefile automatically extracts this version for releases.
-
-## Release Checklist
-
-- [ ] Update version in `manifest.json`
-- [ ] Update `CHANGELOG.md`
-- [ ] Run `make test` - all tests pass
-- [ ] Run `make lint` - no issues
-- [ ] Commit all changes
-- [ ] Run `make release`
-- [ ] Create GitHub release with notes
-- [ ] Test installation from HACS
-- [ ] Announce on Home Assistant Community
-
-## Troubleshooting
-
-### Tests Fail
 ```bash
-# Reinstall dependencies
-make clean
-make deps
-make test
+# 1. Bump version
+${EDITOR} custom_components/bedrock_conversation/manifest.json
+# 2. Update CHANGELOG.md under a new heading for the new version
+${EDITOR} CHANGELOG.md
+# 3. Commit
+git add custom_components/bedrock_conversation/manifest.json CHANGELOG.md
+git commit -m "release: vX.Y.Z"
+# 4. Tag and publish
+make release
 ```
 
-### Import Errors
-```bash
-# Activate virtual environment
-source .venv/bin/activate
-```
+`make release` refuses to run with a dirty working tree or an existing tag. Do not pass `--force` to resolve either — commit or delete as appropriate instead.
 
-### Release Fails
-```bash
-# Check working tree is clean
-git status
+## Code Style
 
-# Check version extraction
-make version
+- Formatter: `black` (default line length).
+- Import sorter: `isort`.
+- Linter: `ruff` (configured in `pyproject.toml`).
+- Type checker: `mypy` on `custom_components/`.
+- Follow Home Assistant's [integration development conventions](https://developers.home-assistant.io/docs/creating_integration_manifest).
 
-# Check no tag exists
-git tag | grep v1.0.0
-```
+## Adding a Configuration Option
+
+1. Add `CONF_<NAME>` and `DEFAULT_<NAME>` in `const.py`.
+2. Add the field to the options schema in `config_flow.py::BedrockConversationOptionsFlow`.
+3. Add a translated label in `strings.json` and every file under `custom_components/bedrock_conversation/translations/`.
+4. Read it in the code path that consumes it (`bedrock_client.py` or `conversation.py`).
+5. Add a test asserting the default and schema presence (see `tests/test_config_flow.py` / `tests/test_init.py`).
+
+## Adding a Supported Service for Tool-Calling
+
+1. Add the domain to `SERVICE_TOOL_ALLOWED_DOMAINS` (if new) and the specific service to `SERVICE_TOOL_ALLOWED_SERVICES` in `const.py`.
+2. Add any new argument keys to `ALLOWED_SERVICE_CALL_ARGUMENTS`.
+3. Extend `tests/test_init.py` to confirm the new service passes `HassServiceTool`'s validation.
+
+The allowlists are **security boundaries** — the model can only invoke services on them. Be deliberate.
+
+## Adding a New Model
+
+1. Add the Bedrock model id to `AVAILABLE_MODELS` in `const.py`.
+2. If it is not a Claude model, verify `bedrock_client.py::async_generate` handles the body shape (currently Claude uses `temperature` and drops `top_p`; other families receive `top_p`).
+3. Update the README's Supported Models section.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linters
-5. Submit a pull request
+Open a PR against `main`. Ensure:
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+- `make test-simple` passes locally.
+- `make lint` is clean.
+- New options, services, or models are covered by tests.
+- `CHANGELOG.md` has an entry under the next release.

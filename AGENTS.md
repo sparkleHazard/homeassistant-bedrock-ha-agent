@@ -20,12 +20,9 @@ A Home Assistant **custom integration** that exposes AWS Bedrock foundation mode
 | `repository.json` | Repository-level metadata. |
 | `manifest.json` (in `custom_components/bedrock_conversation/`) | Single source of truth for the release version. |
 | `apparmor.txt` | AppArmor profile for add-on style deployment contexts. |
-| `README.md` | Top-level readme; points end users at the integration-level README. |
-| `INSTALL.md` | User-facing install instructions. |
-| `DEVELOPMENT.md` | Developer workflow reference (maps to Makefile targets). |
-| `TESTING_GUIDE.md` | Testing conventions and examples. |
-| `WARP.md` | Architectural reference originally written for the WARP agent; still the most complete in-repo design doc. |
-| `CHANGELOG.md` | Release history. |
+| `README.md` | Primary user-facing documentation: install, AWS setup, config options, troubleshooting. |
+| `DEVELOPMENT.md` | Contributor guide: repo layout, Makefile targets, release workflow. |
+| `CHANGELOG.md` | Release history (keep-a-changelog style). |
 | `LICENSE` | MIT license. |
 | `icon.png`, `logo.png` | Integration branding assets. |
 
@@ -45,7 +42,7 @@ A Home Assistant **custom integration** that exposes AWS Bedrock foundation mode
 - **Never bypass the Makefile** when installing deps or running tests — `make test` creates `.venv/`, installs pinned requirements, and runs pytest with coverage. Running `pytest` directly from a global interpreter will miss `pytest-homeassistant-custom-component`.
 - **Version bumps happen in `custom_components/bedrock_conversation/manifest.json` only.** `make version` and `make release` read from that file; there is no other version string.
 - `make release` refuses to run with a dirty working tree or a pre-existing tag. Resolve those before invoking it; do not `--force` tags.
-- **WARP.md is the canonical architecture doc.** If you update the integration's high-level design, update WARP.md. `README.md` at the root intentionally stays short and delegates to `custom_components/bedrock_conversation/README.md` for end-user docs.
+- **AGENTS.md files are the canonical architecture reference.** The root `AGENTS.md` plus each subdirectory's `AGENTS.md` describe the design. `README.md` at the root is the end-user doc; keep implementation detail out of it and put it here instead.
 - `test_bedrock.py` at the root hits real AWS — do not invoke it in CI or without credentials intentionally provided.
 
 ### Testing Requirements

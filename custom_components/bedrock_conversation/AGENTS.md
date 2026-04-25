@@ -18,7 +18,6 @@ The AWS Bedrock conversation integration for Home Assistant. Registers a `Conver
 | `config_flow.py` | `BedrockConversationConfigFlow` (initial setup) and `BedrockConversationOptionsFlow` (reconfigure). `validate_aws_credentials` issues a `bedrock.list_foundation_models` call to verify credentials and maps AWS error codes to HA form errors. |
 | `utils.py` | `closest_color(rgb_tuple)` — nearest CSS3 color name via `webcolors`. Used by `BedrockClient` when formatting `rgb_color` attributes into device prompts. |
 | `strings.json` | Source strings for HA's translation pipeline. |
-| `README.md` | End-user installation, configuration, model list, and troubleshooting. |
 
 ## Subdirectories
 

@@ -18,7 +18,6 @@ Automated pytest suite for the `bedrock_conversation` integration. Uses `pytest-
 | `test_system_prompt.py` | Validates `_generate_system_prompt` template substitution and Jinja rendering of the device list. |
 | `test_device_context.py` | Verifies `_get_exposed_entities` / `DeviceInfo` output against a mocked entity registry. |
 | `test_tool_calling.py` | Largest test file; covers the end-to-end tool-calling loop, Bedrock response parsing, and iteration limits. |
-| `README.md` | Minimal pointer to `./run_tests.sh`. |
 
 ## For AI Agents
 

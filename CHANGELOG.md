@@ -1,21 +1,45 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented here.
 
-## [1.0.0] - 2025-12-20
+This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
+
+## Unreleased
+
+### Changed
+- Documentation overhaul: single primary README at the repo root; removed add-on-style installation content that did not apply to this custom integration.
+- Logging: stripped emoji/debug banners and demoted lifecycle events from ERROR to INFO/DEBUG.
+
+### Removed
+- Legacy Goose-era memory files (`.goose/`, `.goosehints`).
+- `top_k` configuration option — it was being silently discarded on the Bedrock request path, so the UI knob was dead.
+- `INSTALL.md`, `WARP.md`, `TESTING_GUIDE.md`, and `tests/README.md` — obsolete or superseded by the new README/AGENTS.md layout.
 
 ### Added
-- Initial release of AWS Bedrock Conversation Agent
-- Support for multiple Bedrock model families (Claude, Llama, Mistral)
-- Configurable temperature and max_tokens parameters
-- Secure AWS credential management
-- Session token support for temporary credentials
-- Health check endpoint
-- Comprehensive error handling and logging
-- REST API for conversation processing
+- `brightness_pct` and `tilt_position` to the tool-calling service-argument allowlist.
+- Hierarchical `AGENTS.md` files describing each part of the repo.
 
-### Features
-- Multi-architecture support (aarch64, amd64, armhf, armv7, i386)
-- Integration with Home Assistant conversation system
-- Support for conversation IDs
-- Model-specific request formatting
+### Fixed
+- Config-flow error keys (`unknown_error` → `unknown`) now match the entries in `strings.json` / `translations/en.json`.
+- Double-blank-line / unused-import leftovers from the cleanup pass.
+
+## 1.0.36 and earlier
+
+Pre-1.0.36 history is tracked in git. Notable themes up to this version:
+
+- Initial HACS custom integration delivering a Home Assistant conversation agent backed by AWS Bedrock.
+- Claude 4.x model support (`claude-sonnet-4-5`, `claude-haiku-4-5`) with the haiku variant as default.
+- Native Bedrock tool-calling wired through `homeassistant.helpers.llm.Tool` so Claude can invoke Home Assistant services directly (`HassCallService` tool).
+- System-prompt generation from exposed entities and areas, with Jinja templating and per-turn refresh.
+- Config flow with AWS credential validation via `bedrock:ListFoundationModels`, and an options flow for model parameters and memory behavior.
+- `boto3` calls pushed onto the executor so the event loop is never blocked.
+- Allowlist-based safety boundaries on the service-calling tool (`SERVICE_TOOL_ALLOWED_DOMAINS`, `SERVICE_TOOL_ALLOWED_SERVICES`, `ALLOWED_SERVICE_CALL_ARGUMENTS`).
+
+For the exact diff between any two versions, use git tags:
+
+```bash
+git log --oneline v1.0.35..v1.0.36
+```
+
+or view the release on GitHub at
+`https://github.com/cronus42/homeassistant-aws-bedrock-conversation-agent/releases`.
