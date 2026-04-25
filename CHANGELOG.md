@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.38
+
+### Added
+- Options flow model dropdown is now populated dynamically from `bedrock:ListInferenceProfiles`, filtered to Anthropic entries in `ACTIVE` status. Whatever Claude inference profiles your account has access to appear automatically.
+
+### Changed
+- IAM policy in the README now includes `bedrock:ListInferenceProfiles`. If it's missing, the options flow still opens — it just falls back to the built-in `AVAILABLE_MODELS` list.
+
 ## 1.0.37
 
 ### Fixed

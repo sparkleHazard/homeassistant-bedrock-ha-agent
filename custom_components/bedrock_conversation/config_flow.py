@@ -51,6 +51,49 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+async def fetch_claude_inference_profiles(
+    hass: HomeAssistant,
+    aws_region: str,
+    aws_access_key_id: str,
+    aws_secret_access_key: str,
+    aws_session_token: str | None = None,
+) -> list[str]:
+    """Return sorted, active Anthropic inference profile IDs available in this account/region.
+
+    Inference profile IDs (e.g. ``us.anthropic.claude-haiku-4-5-...``) are what actually
+    work with on-demand ``InvokeModel`` in most regions — raw foundation model IDs
+    typically return "use inference profile ID" validation errors.
+
+    Returns an empty list if the API call succeeds but no Anthropic profiles are present.
+    Raises on API errors so the caller can fall back to a hardcoded list.
+    """
+
+    def _list() -> list[str]:
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token or None,
+            region_name=aws_region,
+        )
+        client = session.client("bedrock")
+
+        profile_ids: list[str] = []
+        paginator = client.get_paginator("list_inference_profiles")
+        for page in paginator.paginate():
+            for summary in page.get("inferenceProfileSummaries", []):
+                profile_id = summary.get("inferenceProfileId")
+                status = summary.get("status")
+                if not profile_id or status != "ACTIVE":
+                    continue
+                if "anthropic" not in profile_id.lower():
+                    continue
+                profile_ids.append(profile_id)
+
+        return sorted(set(profile_ids))
+
+    return await hass.async_add_executor_job(_list)
+
+
 async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, aws_secret_access_key: str, aws_session_token: str | None = None, aws_region: str | None = None) -> dict[str, str] | None:
     """Validate AWS credentials by attempting to list foundation models."""
     if aws_region is None:
@@ -192,7 +235,30 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             llm_api_ids = [HOME_LLM_API_ID]
         
         current_model = self.config_entry.options.get(CONF_MODEL_ID, DEFAULT_MODEL_ID)
-        model_options = list(AVAILABLE_MODELS)
+
+        # Prefer a live list of Anthropic inference profiles. Fall back to the
+        # hardcoded AVAILABLE_MODELS on any error so the options flow always opens.
+        model_options: list[str] = []
+        try:
+            data = self.config_entry.data
+            fetched = await fetch_claude_inference_profiles(
+                self.hass,
+                data.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
+                data[CONF_AWS_ACCESS_KEY_ID],
+                data[CONF_AWS_SECRET_ACCESS_KEY],
+                data.get(CONF_AWS_SESSION_TOKEN),
+            )
+            model_options = fetched
+        except Exception as err:  # noqa: BLE001 — non-fatal; fall back below
+            _LOGGER.warning(
+                "Could not fetch Bedrock inference profiles dynamically, "
+                "falling back to built-in list: %s",
+                err,
+            )
+
+        if not model_options:
+            model_options = list(AVAILABLE_MODELS)
+
         if current_model not in model_options:
             model_options.append(current_model)
 

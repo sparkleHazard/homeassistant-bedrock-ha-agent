@@ -15,12 +15,14 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 
 ## Supported Models
 
-The options flow lets you pick from:
+The options flow populates its model dropdown by calling `bedrock:ListInferenceProfiles` at the time you open it, filtered to Anthropic entries in `ACTIVE` status. Whatever Claude inference profiles your AWS account/region has access to will appear automatically.
+
+If that API call fails (missing IAM permission, network error, etc.), the dropdown falls back to the built-in `AVAILABLE_MODELS` list in [`const.py`](custom_components/bedrock_conversation/const.py):
 
 - `us.anthropic.claude-sonnet-4-5-20250929-v1:0` — larger, more capable
 - `us.anthropic.claude-haiku-4-5-20251001-v1:0` — default, faster and cheaper
 
-These are the models declared in `AVAILABLE_MODELS` in [`const.py`](custom_components/bedrock_conversation/const.py). Other Bedrock-hosted Claude models typically work if you edit that list, but they are not officially supported.
+Custom model IDs can also be typed in manually — the dropdown accepts free-form values.
 
 ## Requirements
 
@@ -61,7 +63,8 @@ Attach a policy equivalent to:
       "Effect": "Allow",
       "Action": [
         "bedrock:InvokeModel",
-        "bedrock:ListFoundationModels"
+        "bedrock:ListFoundationModels",
+        "bedrock:ListInferenceProfiles"
       ],
       "Resource": "*"
     }
@@ -69,7 +72,7 @@ Attach a policy equivalent to:
 }
 ```
 
-`ListFoundationModels` is used by the config flow to validate credentials during setup.
+`ListFoundationModels` is used by the config flow to validate credentials during setup. `ListInferenceProfiles` is called when opening the options flow to populate the model dropdown with the Claude inference profiles actually available in your account and region — if the call is denied, the integration falls back to a built-in list.
 
 Create an access key for this user and keep the secret somewhere safe.
 
