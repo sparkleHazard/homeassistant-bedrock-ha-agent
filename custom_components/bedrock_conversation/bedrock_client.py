@@ -7,7 +7,6 @@ import logging
 from typing import Any
 from dataclasses import dataclass
 
-import boto3
 from botocore.exceptions import ClientError
 
 from homeassistant.core import HomeAssistant
@@ -25,12 +24,10 @@ from homeassistant.helpers import (
     template,
 )
 
+from .aws_session import session_from_entry_data
 from .utils import closest_color
 from .const import (
-    CONF_AWS_ACCESS_KEY_ID,
     CONF_AWS_REGION,
-    CONF_AWS_SECRET_ACCESS_KEY,
-    CONF_AWS_SESSION_TOKEN,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
     CONF_MAX_TOKENS,
     CONF_MODEL_ID,
@@ -80,22 +77,12 @@ class BedrockClient:
         options = self.entry.options
         
         # Get AWS credentials from config entry
-        aws_access_key_id = self.entry.data.get(CONF_AWS_ACCESS_KEY_ID)
-        aws_secret_access_key = self.entry.data.get(CONF_AWS_SECRET_ACCESS_KEY)
-        aws_session_token = self.entry.data.get(CONF_AWS_SESSION_TOKEN)
-        
-        # Get region - try entry.options first, then entry.data, then default
+        # Region: options override, then entry.data, then default.
         aws_region = options.get(
-            CONF_AWS_REGION, 
-            self.entry.data.get(CONF_AWS_REGION, DEFAULT_AWS_REGION))
-        
-        # Create the boto3 session
-        session = boto3.Session(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
-            region_name=aws_region,
+            CONF_AWS_REGION,
+            self.entry.data.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
         )
+        session = session_from_entry_data(self.entry.data, region_override=aws_region)
         
         bedrock_runtime = session.client('bedrock-runtime')
         _LOGGER.info("Bedrock client initialized with region %s", aws_region)

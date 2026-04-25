@@ -6,7 +6,6 @@ import re
 import time
 from typing import Any
 
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from homeassistant.components.tts import (
@@ -19,14 +18,10 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .aws_session import session_from_entry_data
 from .const import (
-    CONF_AWS_ACCESS_KEY_ID,
-    CONF_AWS_REGION,
-    CONF_AWS_SECRET_ACCESS_KEY,
-    CONF_AWS_SESSION_TOKEN,
     CONF_TTS_ENGINE,
     CONF_TTS_VOICE_ID,
-    DEFAULT_AWS_REGION,
     DEFAULT_TTS_ENGINE,
     DEFAULT_TTS_VOICE_ID,
     DOMAIN,
@@ -140,12 +135,7 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             return cached[1]
 
         def _describe() -> list[Voice]:
-            session = boto3.Session(
-                aws_access_key_id=merged[CONF_AWS_ACCESS_KEY_ID],
-                aws_secret_access_key=merged[CONF_AWS_SECRET_ACCESS_KEY],
-                aws_session_token=merged.get(CONF_AWS_SESSION_TOKEN) or None,
-                region_name=merged.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
-            )
+            session = session_from_entry_data(merged)
             polly = session.client("polly")
             voices: list[Voice] = []
             paginator = polly.get_paginator("describe_voices")
@@ -201,12 +191,7 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             return None, None
 
         def _synthesize() -> bytes:
-            session = boto3.Session(
-                aws_access_key_id=merged[CONF_AWS_ACCESS_KEY_ID],
-                aws_secret_access_key=merged[CONF_AWS_SECRET_ACCESS_KEY],
-                aws_session_token=merged.get(CONF_AWS_SESSION_TOKEN) or None,
-                region_name=merged.get(CONF_AWS_REGION, DEFAULT_AWS_REGION),
-            )
+            session = session_from_entry_data(merged)
             polly = session.client("polly")
             response = polly.synthesize_speech(
                 Engine=engine,

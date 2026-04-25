@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import boto3
 import voluptuous as vol
 from botocore.exceptions import (
     ClientError,
@@ -16,6 +15,7 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm, selector
 
+from .aws_session import build_session
 from .const import (
     AVAILABLE_MODELS,
     CONF_AWS_ACCESS_KEY_ID,
@@ -74,11 +74,11 @@ async def fetch_claude_inference_profiles(
     """
 
     def _list() -> list[str]:
-        session = boto3.Session(
+        session = build_session(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token or None,
-            region_name=aws_region,
+            aws_session_token=aws_session_token,
+            aws_region=aws_region,
         )
         client = session.client("bedrock")
 
@@ -115,11 +115,11 @@ async def fetch_polly_voices(
     """
 
     def _list() -> list[str]:
-        session = boto3.Session(
+        session = build_session(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token or None,
-            region_name=aws_region,
+            aws_session_token=aws_session_token,
+            aws_region=aws_region,
         )
         polly = session.client("polly")
         voice_ids: list[str] = []
@@ -145,11 +145,11 @@ async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, 
     try:
         # Run boto3 client creation in executor to avoid blocking
         def _create_client():
-            session = boto3.Session(
+            session = build_session(
                 aws_access_key_id=aws_access_key_id,
                 aws_secret_access_key=aws_secret_access_key,
                 aws_session_token=aws_session_token,
-                region_name=aws_region,
+                aws_region=aws_region,
             )
             return session.client("bedrock")
 

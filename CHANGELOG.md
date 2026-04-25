@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.0.50
+
+### Changed
+- Internal refactor (no behaviour change): extract shared AWS-session factory into `aws_session.py`. Collapses six duplicated `boto3.Session(...)` call sites across `bedrock_client.py`, `config_flow.py`, and `tts.py` into one `build_session()` / `session_from_entry_data()` helper. Empty session-token strings are normalised to `None` in one place (boto3 distinguishes missing-token from empty-string-token and the latter causes signing failures).
+
 ## 1.0.49
 
 ### Changed
