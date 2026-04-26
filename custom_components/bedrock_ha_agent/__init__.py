@@ -484,33 +484,48 @@ async def _async_bootstrap_automations_yaml(
             from homeassistant.util.file import write_utf8_file_atomic
             write_utf8_file_atomic(path, "[]\n")
             _LOGGER.info("bedrock_ha_agent: created empty %s", path)
-        # Best-effort scan for an include directive. We don't parse YAML here
+        # Best-effort scan for the include directive. We don't parse YAML here
         # because !include tags are custom constructors; a literal-text scan
         # is enough to avoid false warnings on correct setups.
-        include_wired = False
+        # IMPORTANT: we specifically need automations.yaml to be included,
+        # not just the automations/ directory — our writes go to that file.
+        file_included = False
+        dir_included = False
         if os.path.isfile(config_yaml):
             try:
                 with open(config_yaml, "r", encoding="utf-8") as fh:
                     text = fh.read()
-                include_wired = (
-                    "!include automations.yaml" in text
-                    or "!include_dir_merge_list automations" in text  # dir layout also works
-                )
+                file_included = "!include automations.yaml" in text
+                dir_included = "!include_dir_merge_list automations" in text
             except OSError as err:
                 _LOGGER.debug("could not read configuration.yaml: %s", err)
-                # Fall through: can't verify, notify anyway — better to warn.
-                include_wired = False
-        return existed, include_wired
+        return existed, file_included, dir_included
 
-    _existed, include_wired = await hass.async_add_executor_job(_fs_probe)
+    _existed, file_included, dir_included = await hass.async_add_executor_job(_fs_probe)
 
     import homeassistant.components.persistent_notification as pn
     notification_id = f"bedrock_config_editing_automations_yaml_{entry.entry_id}"
 
-    if not include_wired:
-        await pn.async_create(
-            hass,
-            message=(
+    if not file_included:
+        if dir_included:
+            # User has the directory form but not the file. They can keep both
+            # with named-suffix keys — HA merges them.
+            message = (
+                "Config editing is enabled. The agent writes automations to "
+                "`automations.yaml` (the file HA's UI editor uses), but your "
+                "`configuration.yaml` only includes the `automations/` "
+                "directory. To load both side-by-side, use named suffixes:\n\n"
+                "```yaml\n"
+                "automation ui: !include automations.yaml\n"
+                "automation legacy: !include_dir_merge_list automations/\n"
+                "```\n\n"
+                "HA merges entries from both keys. Your existing `automations/` "
+                "files keep loading; new agent-created automations land in "
+                "`automations.yaml` and stay UI-editable.\n\n"
+                "Restart Home Assistant after editing `configuration.yaml`."
+            )
+        else:
+            message = (
                 "Config editing is enabled, and the agent writes automations to "
                 "`automations.yaml` (the same file the UI editor uses). Your "
                 "`configuration.yaml` does not appear to include that file, so "
@@ -518,13 +533,17 @@ async def _async_bootstrap_automations_yaml(
                 "```yaml\nautomation: !include automations.yaml\n```\n\n"
                 "Restart Home Assistant after editing `configuration.yaml`. "
                 "This notice will not reappear once the include is detected."
-            ),
+            )
+        await pn.async_create(
+            hass,
+            message=message,
             title="Bedrock Home Assistant Agent: wire automations.yaml",
             notification_id=notification_id,
         )
         _LOGGER.warning(
-            "config editing enabled but configuration.yaml does not include "
-            "automations.yaml; notified user"
+            "config editing enabled but automations.yaml is not included in "
+            "configuration.yaml (dir_included=%s); notified user",
+            dir_included,
         )
     else:
         # Clear any stale notification from an earlier misconfiguration.

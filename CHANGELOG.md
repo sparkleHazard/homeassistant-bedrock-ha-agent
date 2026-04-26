@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.11 — Detect automations.yaml include specifically; coexist with the dir form
+
+### Fixed
+- The v1.1.10 bootstrap treated `!include_dir_merge_list automations/`
+  as "wired" and skipped the persistent_notification in that case,
+  even though our transport writes to `automations.yaml` and the dir
+  form does NOT load that file. Users with only the dir layout would
+  have silently-not-loaded agent automations.
+- Bootstrap now checks specifically for `!include automations.yaml`.
+  If it's missing but the dir form IS present, the notification tells
+  the user to add a named suffix so BOTH layouts coexist:
+
+  ```yaml
+  automation ui: !include automations.yaml
+  automation legacy: !include_dir_merge_list automations/
+  ```
+
+  HA merges entries from both keys into one automation list. Old
+  `automations/<id>.yaml` files keep loading; new agent-created
+  automations land in `automations.yaml` and stay UI-editable.
+
 ## 1.1.10 — Write automations to UI-editable `automations.yaml`
 
 ### Fixed
