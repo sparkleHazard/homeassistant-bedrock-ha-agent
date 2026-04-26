@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.6.0 — Labeled camera snapshots
+
+### Added
+- **Camera snapshots sent to Claude now carry a metadata label.** Each image is preceded by a one-line text block identifying the source — e.g. `Image 1 of 2. Front Door (Entryway). captured 2026-04-27 00:36 PDT. attributes: motion_detected=True, person_detected=False.`. This is Anthropic's recommended label-before-image shape for multi-image prompts and materially improves answers to questions like "is anyone at the front door?" when multiple snapshots are attached, because the model can now tell them apart instead of guessing from pixels alone.
+- New `build_camera_metadata(hass, entity_id, index, total)` helper in `vision.py`. Surfaces: image ordering, friendly name, HA area (resolved via entity_registry → device_registry → area_registry), a local-timezone capture timestamp, and a curated allowlist of detection attributes (`motion_detected`, `person_detected`, `vehicle_detected`, `animal_detected`, `package_detected`, `recording`, `is_streaming`). Everything else — stream URLs, brand codes, polling intervals — is filtered out so noise doesn't leak into the prompt.
+
+### Changed
+- `attach_image_to_last_user_message()` grew an optional `metadata_text` parameter. When provided, the label is emitted as a `text` block *before* the image block in the same `content` array. Backward compatible — omitting the argument preserves the prior image-only behavior.
+- Both vision entry points in `bedrock_client.py` (conversation-turn `auto_attach_cameras` loop and the `ask_with_image` service) now build metadata per-snapshot with accurate `(index, total)` counts.
+
+### Resilience
+- Area-registry lookups are wrapped — if the registry is unavailable for any reason, metadata falls back to friendly name alone rather than failing the vision turn. Snapshots without a cached HA state fall back to the raw entity_id.
+
+### Tests
+- New `tests/test_vision.py` — 7 tests covering metadata shape, area-registry resolution, attribute filtering (e.g. `stream_source` is excluded), backward-compatible attach shape without metadata, trailing-assistant-message fallback, registry-failure resilience, and the missing-state fallback path.
+
 ## 1.5.4 — Vision gate fails open
 
 ### Fixed

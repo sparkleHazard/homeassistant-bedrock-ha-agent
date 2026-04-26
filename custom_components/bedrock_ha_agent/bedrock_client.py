@@ -51,7 +51,11 @@ from .const import (
 )
 from .device_info import DeviceInfo, get_exposed_devices, render_devices_section
 from .messages import build_bedrock_messages, format_tools_for_bedrock
-from .vision import attach_image_to_last_user_message, fetch_camera_snapshot
+from .vision import (
+    attach_image_to_last_user_message,
+    build_camera_metadata,
+    fetch_camera_snapshot,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -310,7 +314,8 @@ class BedrockClient:
                     model_id,
                 )
             else:
-                for entity_id in attach_images_from_cameras:
+                total = len(attach_images_from_cameras)
+                for idx, entity_id in enumerate(attach_images_from_cameras, start=1):
                     try:
                         image_bytes, content_type = await fetch_camera_snapshot(
                             self.hass, entity_id
@@ -320,8 +325,11 @@ class BedrockClient:
                             "Skipping snapshot from %s: %s", entity_id, err
                         )
                         continue
+                    metadata_text = build_camera_metadata(
+                        self.hass, entity_id, idx, total
+                    )
                     messages = attach_image_to_last_user_message(
-                        messages, image_bytes, content_type
+                        messages, image_bytes, content_type, metadata_text
                     )
 
         _LOGGER.info(
@@ -495,9 +503,13 @@ class BedrockClient:
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": [{"type": "text", "text": message}]}
         ]
-        for entity_id in camera_entity_ids:
+        total = len(camera_entity_ids)
+        for idx, entity_id in enumerate(camera_entity_ids, start=1):
             image_bytes, content_type = await fetch_camera_snapshot(self.hass, entity_id)
-            messages = attach_image_to_last_user_message(messages, image_bytes, content_type)
+            metadata_text = build_camera_metadata(self.hass, entity_id, idx, total)
+            messages = attach_image_to_last_user_message(
+                messages, image_bytes, content_type, metadata_text
+            )
 
         request_body: dict[str, Any] = {
             "anthropic_version": "bedrock-2023-05-31",
