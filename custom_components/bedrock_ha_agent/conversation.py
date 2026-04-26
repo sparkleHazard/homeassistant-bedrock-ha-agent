@@ -128,6 +128,12 @@ class BedrockConversationEntity(
 
     _attr_has_entity_name = True
     _attr_name = None
+    # HA uses this only on FIRST registration to derive entity_id. Pre-v1.3.1
+    # installs registered without it and got conversation.bedrock_ha_agent_<ulid>
+    # — those installs keep their existing entity_id (the entity registry is
+    # authoritative); a one-time migration in __init__.async_setup_entry
+    # renames them to conversation.bedrock_ha_agent.
+    _attr_suggested_object_id = "bedrock_ha_agent"
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize the agent."""

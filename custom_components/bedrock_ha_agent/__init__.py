@@ -247,6 +247,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         usage=UsageTracker(),
     )
 
+    # One-time migration: v1.3.1 introduced _attr_suggested_object_id for the
+    # conversation entity. Entities created before that have entity_ids like
+    # `conversation.bedrock_ha_agent_01kq3camwwtc8g76mp5kzy5apz` (derived from
+    # the unique_id ULID). Rename them to `conversation.bedrock_ha_agent` so
+    # new and old installs converge.
+    await _async_migrate_conversation_entity_id(hass, entry)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Config-editing automations.yaml bootstrap: if the kill switch is on, make
@@ -267,6 +274,76 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.info("Bedrock setup: integration setup complete")
     return True
+
+
+async def _async_migrate_conversation_entity_id(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Rename `conversation.bedrock_ha_agent_<ulid>` to `conversation.bedrock_ha_agent`.
+
+    v1.3.1 added `_attr_suggested_object_id = "bedrock_ha_agent"` on the
+    conversation entity so new installs get a clean entity_id. This migration
+    catches pre-1.3.1 installs where HA derived the entity_id from the raw
+    ULID unique_id. Idempotent — safe to run on every setup.
+
+    Notifies the user via persistent_notification if a rename actually happens
+    so their automations can be updated.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    ent_reg = er.async_get(hass)
+    # Look up the conversation entity by this config entry's unique_id
+    existing_entity_id = ent_reg.async_get_entity_id(
+        "conversation", DOMAIN, entry.entry_id
+    )
+    if existing_entity_id is None:
+        # Never registered yet (fresh install) — suggested_object_id will handle it.
+        return
+
+    target_entity_id = "conversation.bedrock_ha_agent"
+    if existing_entity_id == target_entity_id:
+        # Already migrated (or created fresh on v1.3.1+).
+        return
+
+    # If the target id is already taken by something else, append the entry's
+    # short id so we still migrate off the raw ULID suffix. In practice this
+    # only hits users with multiple Bedrock entries — the FIRST gets the clean
+    # id, additional entries get `bedrock_ha_agent_2`, `bedrock_ha_agent_3` etc.
+    candidate = target_entity_id
+    n = 2
+    while (
+        ent_reg.async_get(candidate) is not None
+        and ent_reg.async_get(candidate).entity_id != existing_entity_id
+    ):
+        candidate = f"conversation.bedrock_ha_agent_{n}"
+        n += 1
+        if n > 10:
+            _LOGGER.warning(
+                "Conversation entity_id migration aborted: too many collisions"
+            )
+            return
+
+    _LOGGER.info(
+        "Migrating conversation entity_id: %s -> %s",
+        existing_entity_id,
+        candidate,
+    )
+    ent_reg.async_update_entity(existing_entity_id, new_entity_id=candidate)
+
+    # Surface the rename to the user so they can update automations/scripts
+    # that referenced the old id.
+    import homeassistant.components.persistent_notification as pn
+
+    pn.async_create(
+        hass,
+        message=(
+            f"The Bedrock HA Agent conversation entity was renamed from "
+            f"`{existing_entity_id}` to `{candidate}`. If you reference it "
+            f"in automations, scripts, or dashboards, please update them."
+        ),
+        title="Bedrock HA Agent: entity renamed",
+        notification_id=f"bedrock_ha_agent_entity_rename_{entry.entry_id}",
+    )
 
 
 async def _async_register_vision_service(hass: HomeAssistant) -> None:

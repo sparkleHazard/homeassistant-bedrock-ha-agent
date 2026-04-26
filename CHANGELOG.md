@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.3.1 — Clean up conversation entity_id
+
+### Changed
+- **Conversation entity_id is now `conversation.bedrock_ha_agent`** instead of the auto-derived `conversation.bedrock_ha_agent_<config-entry-ulid>`. This matches the naming pattern used by the sensors, TTS, and STT entities (which were already clean). New installs get the tidy id from the start; existing installs are renamed automatically on first startup after update and see a one-time `persistent_notification` so any automations/scripts/dashboards referencing the old id can be updated.
+
+### Migration behavior
+- Idempotent: running against an already-migrated entry is a no-op.
+- Collision-safe: if the target id is somehow taken (e.g. two Bedrock config entries), subsequent entries get `conversation.bedrock_ha_agent_2`, `_3`, etc.
+- Fresh installs: `_attr_suggested_object_id = "bedrock_ha_agent"` is set on the entity; HA uses it on first registration so no migration runs.
+
+### Tests
+- 4 new tests in `tests/test_conversation_entity_migration.py` covering rename, already-clean no-op, fresh-install short-circuit, and collision suffixing. 268 passed, 0 skipped, 1 xpassed.
+
 ## 1.3.0 — Voice-friendly diagnostics responses
 
 ### Changed (user-visible)
