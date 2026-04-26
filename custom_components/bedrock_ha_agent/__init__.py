@@ -508,21 +508,23 @@ async def _async_bootstrap_automations_yaml(
 
     if not file_included:
         if dir_included:
-            # User has the directory form but not the file. They can keep both
-            # with named-suffix keys — HA merges them.
+            # User has the directory form. HA only supports ONE `automation:`
+            # key at the top level — named suffixes like `automation ui:` are
+            # parsed as domain `automation-ui` and silently dropped. Tell the
+            # user to switch to the single-file form and migrate anything
+            # worth keeping out of automations/ by hand.
             message = (
                 "Config editing is enabled. The agent writes automations to "
                 "`automations.yaml` (the file HA's UI editor uses), but your "
-                "`configuration.yaml` only includes the `automations/` "
-                "directory. To load both side-by-side, use named suffixes:\n\n"
-                "```yaml\n"
-                "automation ui: !include automations.yaml\n"
-                "automation legacy: !include_dir_merge_list automations/\n"
-                "```\n\n"
-                "HA merges entries from both keys. Your existing `automations/` "
-                "files keep loading; new agent-created automations land in "
-                "`automations.yaml` and stay UI-editable.\n\n"
-                "Restart Home Assistant after editing `configuration.yaml`."
+                "`configuration.yaml` has `automation: !include_dir_merge_list "
+                "automations/` instead. HA only supports ONE `automation:` key "
+                "at the top level; attempts to use named suffixes like "
+                "`automation ui:` are parsed as a different domain and dropped.\n\n"
+                "Change `configuration.yaml` to:\n\n"
+                "```yaml\nautomation: !include automations.yaml\n```\n\n"
+                "If you have files under `/config/automations/` worth keeping, "
+                "merge them into `automations.yaml` by hand first (each file "
+                "becomes a list entry). Then restart Home Assistant."
             )
         else:
             message = (

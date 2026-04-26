@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.14 — Revert orphan cleanup; correct the named-suffix misadvice
+
+### Fixed
+- **Reverted the v1.1.13 orphan cleanup.** The `state=unavailable +
+  restored=true` fingerprint also matches real automations that happen
+  to be unavailable at reload time (e.g. their backing integration is
+  still booting). Field test deleted a live automation
+  (`automation.garden_scare_away_animals`) that way. The cleanup is
+  gone until HA exposes a signal that distinguishes registry stubs
+  from merely-unavailable live entities.
+
+### Changed
+- **v1.1.11 notification wording was wrong.** It suggested named-suffix
+  keys (`automation ui:` + `automation legacy:`) to run both layouts
+  side-by-side, but HA only supports ONE `automation:` key at the top
+  level — named suffixes are parsed as a different domain
+  (`automation-ui`) and silently dropped with only a warning in
+  `check_config`. The bootstrap notification now tells users to pick
+  one layout: `automation: !include automations.yaml` (UI-editable) or
+  `automation: !include_dir_merge_list automations/` (dir, not
+  UI-editable). If both are present, it instructs the user to switch
+  to the file form and migrate `/config/automations/` by hand.
+
 ## 1.1.13 — Clean orphan automation registry stubs on reload
 
 ### Fixed
