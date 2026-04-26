@@ -5,6 +5,7 @@ Verified against: .venv/lib/python3.13/site-packages/homeassistant/components/sy
 Also line 121 (get_info function returns dict[str, dict[str, Any]]).
 """
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -14,27 +15,61 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-async def system_info(hass: "HomeAssistant") -> dict[str, Any]:
-    """Return {'integrations': {domain: {'info_dict': ...}}, 'ha_version': str, ...}.
+async def system_info(
+    hass: "HomeAssistant",
+    domain: str | None = None,
+) -> dict[str, Any]:
+    """Return a slim system-health summary.
 
-    Use homeassistant.components.system_health.get_info if possible.
-    If system_health isn't loaded, return {'error':'system_health_not_loaded'}.
+    Default response (voice-pipeline friendly — no domain filter):
+        {
+          'ha_version': str,
+          'integration_count': int,
+          'ok_count': int,
+          'errors': {domain: first_error_message},  # only integrations reporting an error
+        }
+
+    When a `domain` is provided, returns the full info_dict for that one
+    integration (for follow-up detail after a summary):
+        {'ha_version': str, 'domain': str, 'info': {...}}
+
+    Drops the bulk per-integration info_dicts by default — they can be
+    paragraphs of text per integration.
     """
-    from homeassistant.components.system_health import DOMAIN
+    from homeassistant.components.system_health import DOMAIN, get_info
 
     if DOMAIN not in hass.data:
         return {"error": "system_health_not_loaded"}
 
-    # Use the system_health.get_info helper
-    from homeassistant.components.system_health import get_info
-
     try:
         info = await get_info(hass)
-        return {
-            "integrations": info,
-            "ha_version": hass.config.version,
-            "count": len(info),
-        }
-    except Exception as err:
+    except Exception as err:  # noqa: BLE001
         _LOGGER.exception("Failed to retrieve system_health info")
         return {"error": f"system_health_error: {err}"}
+
+    if domain:
+        return {
+            "ha_version": hass.config.version,
+            "domain": domain,
+            "info": info.get(domain, {"error": "not_reported"}),
+        }
+
+    errors: dict[str, str] = {}
+    ok_count = 0
+    for d, info_dict in info.items():
+        if not info_dict:
+            continue
+        inner = info_dict.get("info", info_dict) if isinstance(info_dict, dict) else {}
+        err = inner.get("error") if isinstance(inner, dict) else None
+        if err:
+            msg = str(err)
+            errors[d] = msg[:140] + ("…" if len(msg) > 140 else "")
+        else:
+            ok_count += 1
+
+    return {
+        "ha_version": hass.config.version,
+        "integration_count": len(info),
+        "ok_count": ok_count,
+        "errors": errors,
+    }

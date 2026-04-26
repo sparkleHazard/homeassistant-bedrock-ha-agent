@@ -4,6 +4,7 @@ Verified against: .venv/lib/python3.13/site-packages/homeassistant/helpers/issue
 (DATA_REGISTRY constant) and line 115 (IssueRegistry.issues attribute is dict[tuple[str, str], IssueEntry]).
 """
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -13,11 +14,24 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-async def list_issues(hass: "HomeAssistant") -> dict[str, Any]:
-    """Return {'issues': [...], 'count': N}.
+async def list_issues(
+    hass: "HomeAssistant",
+    domain: str | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Return a slim list of active Repairs issues.
 
-    Source: hass.data[homeassistant.helpers.issue_registry.DATA_REGISTRY].issues
-    (dict of (domain, issue_id) -> IssueEntry).
+    Issue shape (minimal — voice-pipeline friendly):
+        {'domain': str, 'issue_id': str, 'severity': str|None, 'active': bool}
+
+    Drops `is_fixable`, `is_persistent`, `translation_key`,
+    `translation_placeholders`, `created`, `dismissed_version` —
+    those are debug-level, not "what should I tell the user" level.
+    Agents can follow up with a specific issue lookup if needed.
+
+    Filters:
+        domain: return only issues from this integration domain.
+        limit: cap the count (default 20, prevents dashboard-wide dumps).
     """
     from homeassistant.helpers.issue_registry import DATA_REGISTRY
 
@@ -25,22 +39,18 @@ async def list_issues(hass: "HomeAssistant") -> dict[str, Any]:
     if registry is None:
         return {"issues": [], "count": 0, "reason": "repairs not loaded"}
 
-    # registry.issues is dict[(domain, issue_id), IssueEntry]
-    issues = []
-    for (domain, issue_id), issue_entry in registry.issues.items():
-        issues.append(
-            {
-                "domain": domain,
-                "issue_id": issue_id,
-                "is_fixable": issue_entry.is_fixable,
-                "is_persistent": issue_entry.is_persistent,
-                "severity": issue_entry.severity.value if issue_entry.severity else None,
-                "translation_key": issue_entry.translation_key,
-                "translation_placeholders": issue_entry.translation_placeholders,
-                "active": issue_entry.active,
-                "created": issue_entry.created.isoformat() if issue_entry.created else None,
-                "dismissed_version": issue_entry.dismissed_version,
-            }
-        )
+    issues: list[dict[str, Any]] = []
+    for (d, issue_id), issue_entry in registry.issues.items():
+        if domain and d != domain:
+            continue
+        if not issue_entry.active:
+            continue
+        issues.append({
+            "domain": d,
+            "issue_id": issue_id,
+            "severity": issue_entry.severity.value if issue_entry.severity else None,
+        })
+        if len(issues) >= limit:
+            break
 
     return {"issues": issues, "count": len(issues)}

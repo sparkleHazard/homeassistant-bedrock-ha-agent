@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.3.0 — Voice-friendly diagnostics responses
+
+### Changed (user-visible)
+- **Log diving is now ask-first.** When the user says something vague like "check the logs" or "look for errors," the agent is instructed to ask a clarifying question (level filter? specific integration? time window?) before querying. Unfiltered log fetches produce hundreds of lines that are painful over voice.
+- **Summarize, don't recite.** The api_prompt addendum now tells Claude to summarize diagnostic tool results in one or two sentences (e.g., "MQTT reported 3 errors, the latest about missing command_topic") instead of reading entries back verbatim. Individual entries are only recited on explicit request.
+- **New filter params on read tools:**
+  - `DiagnosticsSystemLogList`: `level_filter` (ERROR/WARNING/INFO/DEBUG), `logger_contains` (substring match on logger name).
+  - `DiagnosticsRepairsList`: `domain` (filter to one integration), `limit`.
+  - `DiagnosticsHealthCheck`: `domain` (drill into one integration; no-arg returns a health summary instead of the full info dict).
+- **Lower defaults:**
+  - `DiagnosticsSystemLogList.limit`: 50 → 10.
+  - `DiagnosticsLogbookRead.max_events`: 100 → 20; `hours_back`: 24 → 6.
+  - `DiagnosticsRepairsList.limit`: unbounded → 20.
+
+### Response shape trimmed
+- System log entries drop `source`, `exception`, `first_occurred`, `count`; only `{level, logger, timestamp, message}` remain.
+- Logbook events drop `context_*`, `domain`, `entity_id`, `icon`; only `{when, name, message, state}` remain.
+- Repairs entries drop `is_fixable`, `is_persistent`, `translation_key`, `translation_placeholders`, `created`, `dismissed_version`; only `{domain, issue_id, severity}` remain.
+- Per-message character cap (200 chars for system log, 160 for logbook) — long tracebacks are truncated with `…`.
+- Health check returns a summary `{ha_version, integration_count, ok_count, errors: {domain: msg}}` by default instead of every integration's full info_dict.
+
+### No production behavior change for other tools
+- Config-editing, ExtendedServiceCall, lifecycle tools unchanged. Read-only log/state tools keep their existing approval semantics (immediate execute).
+
+### Tests
+- 264 passed, 0 skipped, 1 xpassed.
+
 ## 1.2.4 — Fix AttributeError on diagnostics tool dispatch
 
 ### Fixed
