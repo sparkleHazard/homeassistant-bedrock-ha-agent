@@ -6,6 +6,7 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 
 ## Features
 
+### Core
 - Conversation agent backed by Claude on AWS Bedrock
 - Native tool-calling: the model calls Home Assistant services (`light.turn_on`, `climate.set_temperature`, etc.) directly
 - Text-to-speech via Amazon Polly (neural/long-form/generative engines), with the voice list fetched live from your account
@@ -16,6 +17,14 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 - Configurable conversation memory (turn history, per-turn prompt refresh)
 - All configuration via the Home Assistant UI — no YAML
 - Expose control: only entities you explicitly expose via `Settings → Voice assistants → Expose` are visible to the model
+- Vision input: one-shot camera-snapshot service (`bedrock_ha_agent.ask_with_image`) or auto-attach exposed cameras to every turn
+
+### Opt-in tool suites (v1.1.0+ and v1.2.0+)
+
+Two additional tool suites ship but are **off by default**. Enable them independently in the options flow when you want the model to go beyond basic device control:
+
+- **Config editing** (`CONF_ENABLE_CONFIG_EDITING`, v1.1.0+) — approval-gated natural-language editing of automations, scripts, scenes, helpers (`input_*`, `timer`, `counter`), Lovelace dashboards and cards, and the area/label/entity registries. Every proposed change is previewed as a diff and summary; the user must say "yes" / "apply" before anything writes. In-memory undo stack per conversation (20 deep, 1-hour TTL). No filesystem edits — everything routes through HA's native REST/WebSocket APIs.
+- **Diagnostics & control** (`CONF_ENABLE_DIAGNOSTICS`, v1.2.0+) — ask Claude to troubleshoot. Read-only tools for the HA system log, logbook, state history, statistics, repairs, and system_health. An `ExtendedServiceCall` tool dispatches a broader allowlist of services with per-service classification (read-safe fires immediately; state-mutating goes through the same approval gate). Approval-gated lifecycle tools for reloading integrations, enabling/disabling entities, setting logger levels, and triggering `check_config`. Responses are summarized and capped (64 KiB / 3 calls per turn) so voice answers stay short; the agent is prompted to ask clarifying questions before running an unfiltered log dump.
 
 ## Supported Models
 
@@ -25,7 +34,7 @@ If that API call fails (missing IAM permission, network error, etc.), the dropdo
 
 ## Requirements
 
-- Home Assistant 2024.x or later with HACS installed
+- **Home Assistant 2025.6.0 or later** with HACS installed. The integration depends on the `ai_task` component and the 2025.3+ chat-log streaming API; older HA versions are not supported. Users on HA 2024.12–2025.5 must stay on integration version `1.0.59`.
 - An AWS account with Bedrock access
 - An IAM user with `bedrock:InvokeModel` and `bedrock:ListFoundationModels`
 - Model access granted for your chosen Claude model in the AWS Bedrock console
@@ -124,6 +133,24 @@ After setup, use **Devices & Services → Bedrock Home Assistant Agent → Confi
 | Polly engine | `CONF_TTS_ENGINE` | `neural` | One of `standard`, `neural`, `long-form`, `generative`. Neural has the best price/quality for general use. |
 | Language | `CONF_SELECTED_LANGUAGE` | `en` | Currently only English persona/device-prompt strings ship. |
 
+### Config editing (opt-in, v1.1.0+)
+
+| Option | Constant | Default | Notes |
+|--------|----------|---------|-------|
+| Enable config editing | `CONF_ENABLE_CONFIG_EDITING` | `False` | Kill switch. When on, Claude can propose changes to automations, scripts, scenes, helpers, Lovelace, and registries — every change is gated by explicit user approval. Off by default. |
+| Undo stack depth | `CONF_CONFIG_UNDO_DEPTH` | `20` | How many applied changes the in-memory undo log keeps per conversation. Range 1–50. |
+| Undo TTL (seconds) | `CONF_CONFIG_UNDO_TTL_SECONDS` | `3600` | How long an undo entry is retained. Range 60–86400. |
+| Approval TTL (seconds) | `CONF_CONFIG_APPROVAL_TTL_SECONDS` | `300` | How long a pending change waits for user confirmation. Range 30–3600. |
+
+### Diagnostics & control (opt-in, v1.2.0+)
+
+| Option | Constant | Default | Notes |
+|--------|----------|---------|-------|
+| Enable diagnostics & control | `CONF_ENABLE_DIAGNOSTICS` | `False` | Kill switch. Registers read-only log/state/history/repairs/health tools, a broader service-call tool, and approval-gated lifecycle tools (reload integration, enable/disable entity, set logger level, check config). Off by default. |
+| Max log entries per call | `CONF_DIAGNOSTICS_LOG_MAX_LINES` | `50` | Hard cap on how many system-log entries a single tool call can return. Range 10–500. |
+| Max history lookback (hours) | `CONF_DIAGNOSTICS_HISTORY_MAX_HOURS` | `24` | Ceiling for the logbook/state-history window. Range 1–168 (one week). |
+| Diagnostic calls per turn | `CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN` | `3` | Maximum number of diagnostic tool calls Claude may make in a single response. Prevents runaway log-scan loops. Range 1–10. |
+
 ## Vision Input (camera snapshots)
 
 Two ways to get Claude to look at something:
@@ -150,6 +177,29 @@ Caveats:
 - Only the **first Bedrock call** per user turn attaches images — not every tool-calling iteration — to keep token cost sane.
 - Adds roughly 1.5K input tokens per image per turn.
 - Requires a vision-capable model. The default (`claude-haiku-4-5`) does **not** support images; switch to `claude-sonnet-4-5` if you want vision.
+
+## Services
+
+The integration registers two Home Assistant services (both via `hass.services.async_register`, so they appear in **Developer tools → Services**):
+
+### `bedrock_ha_agent.ask_with_image`
+
+One-shot question about one or more camera snapshots. See the [Vision Input](#vision-input-camera-snapshots) section above.
+
+### `bedrock_ha_agent.undo_last_config_change`
+
+Pops the undo stack and reverses the most recent applied config-editing change. Complementary to the in-chat "undo that" intent. Admin-only.
+
+```yaml
+service: bedrock_ha_agent.undo_last_config_change
+data:
+  # Optional — only needed if you have more than one Bedrock entry configured.
+  config_entry_id: "<entry_id>"
+  # Optional — disambiguates when multiple conversations have non-empty undo stacks.
+  conversation_id: "<conversation_id>"
+```
+
+Available only when `CONF_ENABLE_CONFIG_EDITING` is on. Returns `{"undone": true, "summary": "..."}` on success; `{"undone": false, "summary": "nothing to undo"}` when the stack is empty. When two conversations both have pending undos and you didn't specify `conversation_id`, it returns a structured `"ambiguous_conversation"` error listing the candidate ids.
 
 ## Text-to-Speech (Amazon Polly)
 
@@ -188,6 +238,8 @@ Pricing uses a built-in per-model rate card (see `usage_tracker.py::_PRICING`). 
 
 ## How Tool Calling Works
 
+### Core device control (always on)
+
 1. User: "Turn on the kitchen light."
 2. Claude emits a `tool_use` block naming the `HassCallService` tool with `service="light.turn_on"` and `target_device="light.kitchen"`.
 3. The integration validates the service against `SERVICE_TOOL_ALLOWED_DOMAINS` / `SERVICE_TOOL_ALLOWED_SERVICES` and calls `hass.services.async_call(..., blocking=False)`.
@@ -195,6 +247,27 @@ Pricing uses a built-in per-model rate card (see `usage_tracker.py::_PRICING`). 
 5. Claude returns a natural-language confirmation, which becomes the intent response.
 
 The allowlists live in [`const.py`](custom_components/bedrock_ha_agent/const.py) and cover lights, switches, fans, climates, covers, media players, locks, scripts, scenes, inputs, and timers.
+
+### Config editing (when `CONF_ENABLE_CONFIG_EDITING` is on)
+
+~20 additional tools register when the flag is on — e.g. `ConfigAutomationCreate`, `ConfigScriptEdit`, `ConfigSceneDelete`, `ConfigLovelaceCardAdd`, `ConfigAreaRename`, `ConfigEntityAssignArea`, `ConfigLabelCreate`, and so on. Each follows the same two-phase flow:
+
+1. Claude calls the tool. The integration validates the payload (schema + entity existence; no filesystem writes, no `check_config` side-effects) and returns `{"status": "pending_approval", "proposal_id": "...", "proposed_summary": "Would add automation 'Porch light at sunset' ...", "proposed_diff": "..."}`.
+2. Claude describes the proposal to the user and waits.
+3. User replies "yes" / "apply" / "do it". A message-boundary interceptor in `conversation.async_process` matches the intent, looks up the pending change, and calls its `apply_change()` — which goes through HA's config REST/WebSocket APIs, fires the matching `.reload` service, and pushes an `UndoEntry`.
+4. On post-apply failure (e.g. reload raises), the undo is popped automatically and the user sees a structured error.
+5. "Undo that" / "revert that" / the `bedrock_ha_agent.undo_last_config_change` service pops the undo stack and restores via the stored inverse operation.
+
+Feature-flag-off leaves the tool list and system prompt unchanged — existing automations and voice assistants are unaffected.
+
+### Diagnostics & control (when `CONF_ENABLE_DIAGNOSTICS` is on)
+
+15 more tools register when the flag is on, across four buckets:
+
+- **Read-only:** `DiagnosticsSystemLogList`, `DiagnosticsLogbookRead`, `DiagnosticsRepairsList`, `DiagnosticsHealthCheck`, `DiagnosticsStateRead`, `DiagnosticsStateHistory`, `DiagnosticsStatistics`, `DiagnosticsIntegrationList`. Execute immediately. Each response is capped at 64 KiB with a lossy-truncation marker; per-turn call budget (default 3) prevents runaway log-scan loops.
+- **Extended service calls:** `ExtendedServiceCall` dispatches a broader allowlist than `HassCallService`. Each entry is classified `read_safe` (fires immediately — `persistent_notification.*`, `system_log.clear`, `zone.reload`, `homeassistant.update_entity`) or `mutating` (routed through the same approval gate as config-editing — `automation.trigger`, `script.turn_on`, `timer.*`, `counter.*`, `input_boolean.*`). Services not on the allowlist are refused.
+- **Lifecycle (approval-gated):** `DiagnosticsReloadIntegration`, `DiagnosticsReloadConfigEntry`, `DiagnosticsEntityEnable`, `DiagnosticsEntityDisable`, `DiagnosticsLoggerSetLevel`, `DiagnosticsCheckConfig`. Entity enable/disable and logger level set have real inverse operations; reloads push a no-op undo since reload is one-way.
+- **Safety rails:** log content is wrapped in `<<UNTRUSTED>>…<<END_UNTRUSTED>>` markers and the system prompt tells Claude never to treat that content as instructions. Secrets matching `api_key`, `password`, `bearer_token`, `client_secret`, `Authorization`, JWT/AWS/OpenAI key patterns, and related keys are redacted from both request echoes and service responses. `homeassistant.restart`, `recorder.purge`, and supervisor operations are on an explicit deny list.
 
 ## Troubleshooting
 
@@ -227,11 +300,27 @@ Restart Home Assistant, reproduce the issue, then inspect `home-assistant.log`. 
 
 If you see `Bedrock API call timed out`, the network path to Bedrock is slow or the model is overloaded; retry or switch to a faster model.
 
+### "Unexpected error during intent recognition"
+
+This is HA's generic wrapper around a Python exception. The real traceback is in `home-assistant.log`; look for `ERROR homeassistant.components.assist_pipeline.pipeline`. v1.2.3/v1.2.4 fixed the two common variants (Bedrock tool-schema rejection and an `LLMContext` attribute mismatch) — make sure you're on at least v1.2.4. If you're seeing it with diagnostics enabled, a stack trace from the log is the fastest way to diagnose; open an issue with the excerpt.
+
+### "That request didn't pass the AI service's validation"
+
+Bedrock rejected the request body before Claude saw it — almost always a malformed tool `input_schema`. v1.2.3 fixed the three known variants (function-as-key, `default` in input_schema, `vol.Any(None, dict)` producing a malformed type). Upgrade to v1.2.3 or later; if it persists, capture the HA log and open an issue.
+
 ### Device not being controlled
 
 - Confirm the entity is exposed (**Settings → Voice assistants → Expose**).
 - Confirm `CONF_MAX_TOOL_CALL_ITERATIONS` is > 0.
 - Check logs for `Service domain '...' is not allowed` — that domain is not in the allowlist.
+
+### Claude keeps saying "I added the automation" but nothing happened
+
+You likely have `CONF_ENABLE_CONFIG_EDITING` on and Claude is confabulating success on a `pending_approval` response. The system prompt tells the model not to do this; a runtime detector logs `WARNING: pending proposal ... still awaiting approval; assistant text claims success` whenever it happens. Check the log for that string. Say "yes" or "apply" to approve the pending change, or "no" / "cancel that" to discard it.
+
+### Log responses are too long on voice
+
+v1.3.0 slims the diagnostics response shape and tells the model to ask before running an unfiltered log dump ("which integration? which severity?"). Upgrade to v1.3.0 or later. You can also tighten `CONF_DIAGNOSTICS_LOG_MAX_LINES` and `CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN` in the options flow.
 
 ## Documentation for Contributors
 
