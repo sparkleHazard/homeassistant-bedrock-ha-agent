@@ -108,3 +108,47 @@ async def test_budget_is_per_conversation(hass, mock_entry_with_budget, llm_cont
     for i in range(3):
         result_b = check_and_consume_budget(hass, mock_entry_with_budget, llm_context_conv_b)
         assert result_b is None, f"conv_b call {i+1} should succeed"
+
+
+async def test_real_llm_context_without_conversation_id(hass, mock_entry_with_budget):
+    """Regression guard for v1.2.4: the real HA LLMContext dataclass has no
+    `conversation_id` attribute. Budget derivation must not AttributeError
+    when given a real-shaped context — it must fall back to context.id.
+    """
+    from dataclasses import dataclass, field
+    from homeassistant.core import Context
+
+    # Mirror the real LLMContext shape exactly. Using a local dataclass so
+    # this test survives future HA changes to the real class.
+    @dataclass
+    class RealShapedLLMContext:
+        platform: str = "bedrock_ha_agent"
+        context: Context = field(default_factory=Context)
+        language: str = "en"
+        assistant: str = "conversation"
+        device_id: str | None = None
+
+    llm_ctx = RealShapedLLMContext()
+
+    # This used to raise AttributeError: 'LLMContext' object has no attribute
+    # 'conversation_id' — caught and fixed in v1.2.4.
+    result = check_and_consume_budget(hass, mock_entry_with_budget, llm_ctx)
+    assert result is None, f"Expected first call to succeed, got: {result}"
+
+    # And a second call on the SAME context still succeeds (same key).
+    result2 = check_and_consume_budget(hass, mock_entry_with_budget, llm_ctx)
+    assert result2 is None
+
+
+def test_llm_context_dataclass_has_no_conversation_id():
+    """Guard the assumption of the v1.2.4 fix: if HA ever adds `conversation_id`
+    to LLMContext, the fallback code path becomes dead and we should re-evaluate.
+    This test deliberately fails when that happens so we notice.
+    """
+    import dataclasses
+
+    field_names = {f.name for f in dataclasses.fields(llm.LLMContext)}
+    assert "conversation_id" not in field_names, (
+        "HA added LLMContext.conversation_id — re-evaluate _conv_id_from_context "
+        "in diagnostics/base.py; we may prefer the explicit field over context.id."
+    )

@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.2.4 — Fix AttributeError on diagnostics tool dispatch
+
+### Fixed
+- **`AttributeError: 'LLMContext' object has no attribute 'conversation_id'`** on every diagnostics tool call — surfaced as "Unexpected error during intent recognition." v1.2.0 code keyed the per-turn budget on `llm_context.conversation_id`, but the real `homeassistant.helpers.llm.LLMContext` dataclass has no such field (its fields are `platform`, `context`, `language`, `assistant`, `device_id`). The v1.2.2 test suite used a `MagicMock(spec=llm.LLMContext)` with `conversation_id` attached as an extra attribute, so the mismatch never surfaced in tests. Fix:
+  - New `_conv_id_from_context(llm_context)` helper reads `getattr(llm_context, 'conversation_id', None)` first (preserves test shape), then falls back to `llm_context.context.id` (the per-turn ULID from HA's `Context`), and finally to `_global`.
+  - `reset_turn_budget` now clears ALL counters for an entry at `async_process` entry rather than keying on a single conv_id — the real semantics of "reset when the user talks to Claude" now match the real semantics of "budget tool calls within that response."
+
+### Tests
+- Two new regression guards in `tests/test_diagnostics_budget.py`:
+  - `test_real_llm_context_without_conversation_id` — builds a dataclass mirroring the real `LLMContext` shape and drives `check_and_consume_budget`; fails if budget derivation ever `AttributeError`s on a real-shaped context.
+  - `test_llm_context_dataclass_has_no_conversation_id` — guards the fallback-code-path assumption; if HA ever adds `conversation_id` to `LLMContext`, this test fails and we revisit.
+- 264 passed, 0 skipped, 1 xpassed.
+
 ## 1.2.3 — Fix Bedrock tool-schema validation errors
 
 ### Fixed

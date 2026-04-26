@@ -84,6 +84,24 @@ class DiagnosticsReadTool(llm.Tool):
         raise NotImplementedError
 
 
+def _conv_id_from_context(llm_context: llm.LLMContext) -> str:
+    """Derive a stable per-turn key from LLMContext.
+
+    LLMContext has no `conversation_id` attribute on real HA (2025.6+); it
+    exposes `context: homeassistant.core.Context` whose `.id` is a per-turn
+    ULID. Tests may attach `conversation_id` directly to a MagicMock — honor
+    that first. Fall back to `_global` if neither is usable.
+    """
+    ctx_conv_id = getattr(llm_context, "conversation_id", None)
+    if isinstance(ctx_conv_id, str) and ctx_conv_id:
+        return ctx_conv_id
+    ha_context = getattr(llm_context, "context", None)
+    ha_ctx_id = getattr(ha_context, "id", None)
+    if isinstance(ha_ctx_id, str) and ha_ctx_id:
+        return ha_ctx_id
+    return "_global"
+
+
 def check_and_consume_budget(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -92,7 +110,7 @@ def check_and_consume_budget(
     """Return an error payload if this turn has exceeded the diagnostic call budget; else None (and increment)."""
     from ..runtime_data import _get_runtime_data
     rd = _get_runtime_data(hass, entry.entry_id)
-    conv_id = llm_context.conversation_id or "_global"
+    conv_id = _conv_id_from_context(llm_context)
     # Bedrock doesn't expose a stable turn_id in llm_context; key on (conv_id, context id object id)
     # For v1 we key on conv_id alone and rely on the conversation-loop resetting counters at turn start.
     key = (conv_id, "current")
@@ -108,12 +126,23 @@ def check_and_consume_budget(
     return None
 
 
-def reset_turn_budget(hass: HomeAssistant, entry: ConfigEntry, conversation_id: str | None) -> None:
-    """Called by the conversation loop at the start of each Bedrock turn."""
+def reset_turn_budget(
+    hass: HomeAssistant, entry: ConfigEntry, conversation_id: str | None = None  # noqa: ARG001
+) -> None:
+    """Reset the diagnostics tool-call counter at the start of each async_process turn.
+
+    Called once per user utterance. Clears all counters for this entry — we
+    can't align exactly on `llm_context.context.id` here (we don't have it
+    yet at async_process entry), so we clear everything. Since there's one
+    user talking to one integration at a time for a given entry, this is
+    safe: even if there are multiple parallel conversations, each new
+    async_process call resets the budget for the whole entry.
+
+    conversation_id is accepted for historical API symmetry but not used.
+    """
     from ..runtime_data import _get_runtime_data
     rd = _get_runtime_data(hass, entry.entry_id)
-    conv_id = conversation_id or "_global"
-    rd.diagnostics_turn_counts.pop((conv_id, "current"), None)
+    rd.diagnostics_turn_counts.clear()
 
 
 def _redact_value_string(s: str) -> str:

@@ -226,7 +226,8 @@ class ExtendedServiceCall(llm.Tool):
         redacted_payload = redact_secrets(
             {"service": service, "target": target, "data": data}
         )
-        conv_id = llm_context.conversation_id or "_global"
+        from .base import _conv_id_from_context
+        conv_id = _conv_id_from_context(llm_context)
         proposed_summary = f"Would call {service}" + (
             f" with target={list(target.keys())}" if target else ""
         )
