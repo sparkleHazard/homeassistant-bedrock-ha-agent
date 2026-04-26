@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-25 | Updated: 2026-04-25 -->
+<!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
 
 # custom_components
 
@@ -13,7 +13,7 @@ None at this level. The directory is a namespace container — Home Assistant wa
 
 | Directory | Purpose |
 |-----------|---------|
-| `bedrock_ha_agent/` | The AWS Bedrock conversation-agent integration (see `bedrock_ha_agent/AGENTS.md`). Domain: `bedrock_ha_agent`. |
+| `bedrock_ha_agent/` | The AWS Bedrock conversation + config-editing integration (see `bedrock_ha_agent/AGENTS.md`). Domain: `bedrock_ha_agent`. |
 
 ## For AI Agents
 

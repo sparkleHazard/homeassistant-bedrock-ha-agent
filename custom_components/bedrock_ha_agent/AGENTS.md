@@ -1,66 +1,88 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-25 | Updated: 2026-04-25 -->
+<!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
 
 # bedrock_ha_agent
 
 ## Purpose
-The AWS Bedrock conversation integration for Home Assistant. Registers a `ConversationEntity` that converts user utterances into Bedrock `InvokeModel` calls, executes tool-use blocks against Home Assistant services, and returns the model's final reply as an `IntentResponse`. Domain: `bedrock_ha_agent`. LLM API id: `bedrock_ha_agent_services`.
+The AWS Bedrock conversation integration for Home Assistant. Registers a `ConversationEntity` that converts user utterances into Bedrock `InvokeModel` calls (streaming via Anthropic Messages), executes tool-use blocks against HA services, and returns the model's reply as an `IntentResponse`. Additionally provides Amazon Polly TTS, Amazon Transcribe STT, camera-snapshot vision input, token-usage sensors, and — when `CONF_ENABLE_CONFIG_EDITING` is on — a full suite of approval-gated natural-language config-editing tools for automations, scripts, scenes, helpers, Lovelace, and registries. Domain: `bedrock_ha_agent`. LLM API id: `bedrock_ha_agent_services`.
 
 ## Key Files
 
 | File | Description |
 |------|-------------|
-| `manifest.json` | Integration metadata. **Single source of truth for the release version.** Declares `boto3` and `webcolors` as Python requirements and depends on `conversation` + `ai_task`. |
-| `__init__.py` | `async_setup_entry` wiring; registers the `BedrockServicesAPI` LLM API, constructs `BedrockClient` on `entry.runtime_data`, forwards setup to the `conversation` platform, and defines `HassServiceTool` — the single tool exposed to the model for device control. |
-| `const.py` | All config keys (`CONF_*`), defaults, allowed service/domain allowlists, `AVAILABLE_MODELS` / `RECOMMENDED_MODELS`, and the Jinja prompt fragments (`PERSONA_PROMPTS`, `CURRENT_DATE_PROMPT`, `DEVICES_PROMPT`). Edit this file when adding a new model or config knob. |
-| `bedrock_client.py` | `BedrockClient` — wraps `boto3` `bedrock-runtime`. Builds the system prompt from exposed entities, converts HA `llm.Tool` instances into Bedrock `toolSpec` schemas, translates conversation history into Bedrock messages, and calls `invoke_model` via `hass.async_add_executor_job`. Also defines the `DeviceInfo` dataclass. |
-| `conversation.py` | `BedrockConversationAgent` (HA `ConversationEntity`). Owns the tool-calling loop: generate → parse tool calls → execute via `llm.async_call_tool` → feed results back → repeat up to `CONF_MAX_TOOL_CALL_ITERATIONS`. Also handles conversation memory trimming and optional per-turn system-prompt refresh. |
-| `config_flow.py` | `BedrockConversationConfigFlow` (initial setup) and `BedrockConversationOptionsFlow` (reconfigure). `validate_aws_credentials` issues a `bedrock.list_foundation_models` call to verify credentials and maps AWS error codes to HA form errors. `fetch_claude_inference_profiles` populates the options-flow model dropdown from `bedrock:ListInferenceProfiles` (Anthropic, ACTIVE), with a fallback to `const.AVAILABLE_MODELS`. |
-| `utils.py` | `closest_color(rgb_tuple)` — nearest CSS3 color name via `webcolors`. Used by `BedrockClient` when formatting `rgb_color` attributes into device prompts. |
-| `strings.json` | Source strings for HA's translation pipeline. |
+| `manifest.json` | Integration metadata. **Single source of truth for the release version.** Declares `boto3`, `webcolors`, `amazon-transcribe` as Python requirements. Depends on `conversation` + `ai_task`. |
+| `__init__.py` | `async_setup_entry` wiring: runs `_ha_api_smoke`, constructs `BedrockClient` + `UsageTracker` into `BedrockRuntimeData`, registers the `BedrockServicesAPI` LLM API, forwards setup to conversation/tts/stt/sensor platforms, wires the `bedrock_ha_agent.undo_last` service (admin-gated), and installs the update listener for the Haiku advisory. Defines `HassServiceTool`. |
+| `runtime_data.py` | `BedrockRuntimeData` dataclass stored on `entry.runtime_data`. Fields: `pending` (per-conversation_id PendingChange), `undo` (per-conversation_id UndoStack), `last_config_editing_flag`, `last_model_warned_for`, `lovelace_mode`, `bedrock_client`, `usage`. |
+| `const.py` | All config keys (`CONF_*`), defaults, allowlists, `AVAILABLE_MODELS` / `RECOMMENDED_MODELS`, Jinja prompt fragments, approval/undo token vocabularies (`APPROVAL_TOKENS`, `UNDO_TOKENS`, `BARE_APPROVAL_UTTERANCES`, `BARE_UNDO_UTTERANCES`), and `CONF_ENABLE_CONFIG_EDITING` (kill switch, default False). |
+| `bedrock_client.py` | `BedrockClient` wraps `boto3 bedrock-runtime`. Streams responses, handles retry/backoff, records usage, substitutes prompt placeholders (both `<token>` and `{{token}}` syntaxes for back-compat). Uses `_runtime_usage_tracker(entry)` helper to read usage off `entry.runtime_data`. |
+| `conversation.py` | `BedrockConversationAgent` (HA `ConversationEntity`). Owns `async_process` + the tool-calling loop via `_stream_one_bedrock_turn`. Contains the **approval interceptor** that inspects the first-utterance of each turn for approve/undo intent (via `_lookup_pending(runtime_data, conv_id)` with `_global` fallback) and routes accordingly BEFORE the turn hits Bedrock. Also implements `_check_past_tense_vs_pending` (AC17 confabulation guard) and `_split_proposal_for_stream`. |
+| `conversation_helpers.py` | Pure helpers extracted from `conversation.py`: `BedrockResponse` dataclass, single-tool-call executor, intent-response builders. |
+| `config_flow.py` | `BedrockConversationConfigFlow` (setup) + `BedrockConversationOptionsFlow` (reconfigure). `validate_aws_credentials` probes `bedrock.list_foundation_models`. `fetch_claude_inference_profiles` populates the model dropdown from `bedrock:ListInferenceProfiles` with a fallback. Options flow surfaces `CONF_ENABLE_CONFIG_EDITING` and the Haiku advisory trigger. |
+| `aws_session.py` | Shared factory `build_session(...)` consumed by config flow, Bedrock client, Polly TTS, and Transcribe STT so they all build boto3 sessions identically. |
+| `messages.py` | Pure translation of HA `Content` objects ↔ Bedrock Anthropic-Messages shapes, and of `llm.Tool` instances into Bedrock `toolSpec`. Cache-tags the last tool. |
+| `device_info.py` | `DeviceInfo` dataclass + `get_exposed_devices(hass)` — enumerates exposed entities and formats attributes (e.g. `rgb_color` via `closest_color`). Feeds the `<devices>` / `{{devices}}` prompt placeholder. |
+| `vision.py` | Camera-snapshot capture + base64-encoding into Bedrock image blocks. JPEG/PNG/GIF/WebP only. |
+| `sensor.py` | Five sensors per entry: input-tokens-today, output-tokens-today, cached-tokens-today, cost-today (USD), cost-total (USD). Push-refreshed via `UsageTracker` callbacks. |
+| `usage_tracker.py` | `UsageTracker` + `ModelPricing`. Per-model Anthropic pricing table keyed by substring match. Daily counters auto-reset at UTC midnight; total counters persist until reload. |
+| `stt.py` | Amazon Transcribe streaming STT platform. |
+| `tts.py` | Amazon Polly TTS platform. |
+| `_ha_api_smoke.py` | Runs at integration setup AND in tests. Verifies every HA helper this integration imports exists on the installed HA version; raises `ConfigEntryNotReady` with an actionable "minimum HA version X.Y" message on mismatch. |
+| `utils.py` | `closest_color(rgb_tuple)` — nearest CSS3 color name via `webcolors`. |
+| `strings.json` | Source strings for HA's translation pipeline (config flow, options flow, service descriptions). |
 
 ## Subdirectories
 
 | Directory | Purpose |
 |-----------|---------|
-| `translations/` | Localized strings consumed by the Home Assistant frontend (see `translations/AGENTS.md`). |
+| `config_tools/` | Approval-gated config-editing tools, base class, validation, pending/undo state, diff rendering (see `config_tools/AGENTS.md`). Only mounted when `CONF_ENABLE_CONFIG_EDITING` is True. |
+| `translations/` | Localized strings for the config/options flow UI (see `translations/AGENTS.md`). |
 
 ## For AI Agents
 
 ### Working In This Directory
 
-- **Tool-calling flow**: `conversation.py` (loop) → `bedrock_client.py` (request shaping + API call) → `__init__.py::HassServiceTool` (service execution). When debugging tool calls, trace through all three.
-- **Prompt construction**: `BedrockClient._generate_system_prompt` substitutes `<persona>`, `<current_date>`, `<devices>` placeholders and then renders the result as a Jinja template with the serialized device list. If you change the template format, update `DEFAULT_PROMPT` in `const.py` **and** all `PERSONA_PROMPTS` / `DEVICES_PROMPT` entries.
-- **Allowlists are security boundaries.** `SERVICE_TOOL_ALLOWED_DOMAINS`, `SERVICE_TOOL_ALLOWED_SERVICES`, and `ALLOWED_SERVICE_CALL_ARGUMENTS` in `const.py` gate what the model can call. Don't add entries casually; an over-broad allowlist turns a prompt-injection into a real-world action.
-- **Config vs. options split**: AWS credentials and region live in `entry.data` (setup flow). Everything else — model id, prompt, temperature, memory, tool iterations — lives in `entry.options` (options flow). The conversation agent merges both (`{**entry.data, **entry.options}`) before use.
-- **Conversation history semantics**: Home Assistant's chat log supplies `SystemContent`, `UserContent`, `AssistantContent`, `ToolResultContent` objects. `_build_bedrock_messages` maps these onto Bedrock's `messages` list; system messages go in the top-level `system` field, not in `messages`. Keep that split if you add new content types.
-- **Model-family quirks**: `top_p` is only sent for non-Claude models (Claude treats `temperature` and `top_p` as mutually exclusive). Adding a new model family means deciding (and testing) which Bedrock body fields apply.
-- **Executor offload**: `invoke_model` is blocking; always call it via `hass.async_add_executor_job`. Do not `await` it directly.
-- **Version bumps**: update `manifest.json` → commit → `make release`.
+- **Two-phase config-editing contract.** Tool calls like `ConfigAutomationCreate` MUST NOT mutate state in `async_call`. The base `ConfigEditingTool.async_call` (in `config_tools/__init__.py`) builds a `PendingChange`, stores it in `runtime_data.pending[conv_id]`, and returns a `pending_approval` tool_result payload with imperative/future-tense fields (`proposed_summary`, `proposed_diff`). The user approves in the next turn; the approval interceptor in `conversation.py::async_process` fires `apply_change`. Past-tense field names are a confabulation-guard violation (AC17).
+- **Per-conversation state keyed off `conversation_id` with `_global` fallback.** HA's `llm_context` does NOT reliably thread `conversation_id` through to tool calls. `PendingChangeManager._resolve_key` falls back to a `_global` bucket, and the interceptor's `_lookup_pending` uses the same fallback on read. Keep these two paths symmetric; a divergence silently orphans pending changes.
+- **Kill switch is load-bearing.** Every config-editing code path must be reachable only when `CONF_ENABLE_CONFIG_EDITING` is True. `register_config_tools` is the only entry point; do not add setup-time side effects outside that gate. The options-flow listener re-registers tools when the flag flips; test any new tool under both True and False.
+- **Tool-arg shape is both flat and nested.** Claude Bedrock inconsistently wraps tool arguments. Use `ConfigEditingTool._extract_config(tool_args, metadata_keys)` — it accepts both `tool_args["config"]` and flat `tool_args`. Don't hand-roll this; the helper is canonical.
+- **Prompt placeholders accept both syntaxes.** `BedrockClient._generate_system_prompt` substitutes both `<current_date>` / `{{current_date}}` and `<devices>` / `{{devices}}`. Historical users have either. If you add a placeholder, support both and update `DEFAULT_PROMPT` + all `PERSONA_PROMPTS` entries.
+- **Allowlists are security boundaries.** `SERVICE_TOOL_ALLOWED_DOMAINS`, `SERVICE_TOOL_ALLOWED_SERVICES`, `ALLOWED_SERVICE_CALL_ARGUMENTS` in `const.py` gate `HassServiceTool`. Don't expand them casually.
+- **Config vs. options split.** AWS credentials + region live in `entry.data` (setup flow). Everything else lives in `entry.options` (options flow). The conversation agent merges both (`{**entry.data, **entry.options}`) before reads.
+- **Runtime data is a dataclass, not a dict.** Access it via attribute (`runtime_data.pending`, `runtime_data.usage`) — the v1.1.0 → v1.1.2 bugs were from holdover `.get("usage")` style reads. Use `_runtime_usage_tracker(entry)` if you need the UsageTracker from inside `bedrock_client.py`.
+- **Model-family quirks.** `top_p` is only sent for non-Claude models. Adding a new model family means deciding (and testing) which Bedrock body fields apply.
+- **Bedrock calls are streaming.** Use the chat_log delta-content stream API (`async_add_delta_content_stream` / `async_add_assistant_content_without_tools` — HA 2025.3+). Do not fall back to non-streaming.
+- **Version bumps:** update `manifest.json` → add CHANGELOG entry → commit → `make release`.
 
 ### Testing Requirements
 - Tests live in `../../tests/` and mock `boto3` at the client boundary — never make a real API call.
+- Config-editing tests mock at the `config_tools/ha_client/` transport boundary; validation and tool-class tests stay in-memory.
 - If you add a new `CONF_*` constant, add a test that asserts its default and that the config/options flow exposes it.
-- If you extend the service allowlist, add an integration test through `HassServiceTool.async_call` to confirm the new service is validated.
+- If you add a new config-editing tool, add tests for: (a) `pending_approval` payload shape, (b) validation-failure path, (c) apply path, (d) restore_fn correctness (inverse operation).
 
 ### Common Patterns
 - **All constants belong in `const.py`.** No `"foo"` string literals for config keys anywhere else.
-- **Dataclasses for structured HA data**: `DeviceInfo` is the template-facing shape for exposed entities. Add fields there, not ad-hoc dicts, if you want them reachable from Jinja.
-- **Raise `HomeAssistantError`** for user-visible failures from `BedrockClient`; lower-level boto3 exceptions should be caught and converted at the client boundary.
-- **Error mapping in config flow**: follow the `invalid_credentials` / `access_denied` / `cannot_connect` / `unknown` → `strings.json` key scheme. New errors need matching entries in `strings.json` and every `translations/*.json`.
+- **Dataclasses for structured HA data**: `DeviceInfo`, `BedrockRuntimeData`, `BedrockResponse`, `PendingChange`, `UndoEntry`, `ModelPricing`.
+- **Raise `HomeAssistantError`** for user-visible failures; catch and convert boto3 exceptions at the client boundary.
+- **Error mapping in config flow**: `invalid_credentials` / `access_denied` / `cannot_connect` / `unknown` → `strings.json` key scheme. New errors need matching entries in `strings.json` and every `translations/*.json`.
+- **Health sensor keys live on `UsageTracker`**, not on the entry. Sensors subscribe via the tracker's callback list.
 
 ## Dependencies
 
 ### Internal
-- `utils.closest_color` used by `bedrock_client.py`.
+- `config_tools/` — the config-editing toolset (only used when kill switch is on).
+- `utils.closest_color` used by `device_info.py`.
 - `const` imported by every other module.
-- `__init__.py::HassServiceTool` is the only tool currently wired into `BedrockServicesAPI`.
+- `runtime_data` imported by `bedrock_client`, `sensor`, `conversation`, and everything in `config_tools/`.
+- `aws_session.build_session` used by `bedrock_client`, `tts`, `stt`, `config_flow`.
 
 ### External
-- `homeassistant.components.conversation` — base `ConversationEntity` and chat-log helpers.
-- `homeassistant.helpers.llm` — `Tool`, `APIInstance`, `async_call_tool`, `async_get_api`.
-- `homeassistant.helpers.entity_registry` / `area_registry` / `template` — for device enumeration and Jinja rendering.
-- `boto3` — Bedrock runtime and control-plane clients.
+- `homeassistant.components.conversation` — base `ConversationEntity`, `ChatLog`, streaming delta API.
+- `homeassistant.helpers.llm` — `Tool`, `APIInstance`, `async_call_tool`, `async_register_api`.
+- `homeassistant.helpers.entity_registry` / `area_registry` / `label_registry` / `template` — device enumeration, Jinja rendering, registry tools.
+- `homeassistant.util.yaml` — YAML loading (returns `NodeDictClass`/`NodeStrClass` subclasses; `config_tools/diff.py::_to_plain` normalizes before dumping).
+- `homeassistant.util.file.write_utf8_file_atomic` — atomic writes in `config_tools/ha_client/{automation,script,scene}.py`.
+- `boto3` — Bedrock runtime + control-plane + Polly.
+- `amazon_transcribe` — streaming STT.
 - `webcolors` — CSS3 color-name lookup.
 
 <!-- MANUAL: -->

@@ -1,10 +1,10 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-25 | Updated: 2026-04-25 -->
+<!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
 
 # translations
 
 ## Purpose
-Service-description translations — the human-readable `name` and `description` strings Home Assistant shows in Developer Tools → Services and in the YAML editor for any services this integration might register. Distinct from the UI config-flow translations, which live at `custom_components/bedrock_ha_agent/translations/`.
+Service-description translations — the human-readable `name` and `description` strings HA shows in Developer Tools → Services and in the YAML editor for any services this integration registers (`bedrock_ha_agent.undo_last` and AWS-config-field labels). Distinct from the UI config-flow translations, which live at `custom_components/bedrock_ha_agent/translations/`.
 
 ## Key Files
 
@@ -16,13 +16,13 @@ Service-description translations — the human-readable `name` and `description`
 
 ### Working In This Directory
 
-- **Do not confuse this directory with `custom_components/bedrock_ha_agent/translations/`.** That one is config-flow UI strings (JSON) loaded by Home Assistant's integration translation system. This one is service-description metadata (YAML).
-- **File format is YAML here, JSON there.** Don't switch formats to "unify" — each is dictated by Home Assistant's translation loader for that surface.
-- **Field names here must match the config keys in `../custom_components/bedrock_ha_agent/const.py`** (`aws_region`, `model_id`, etc.). If you rename a config key, update this file too.
+- **Do not confuse this directory with `custom_components/bedrock_ha_agent/translations/`.** That one is config-flow UI strings (JSON) loaded by HA's integration translation system. This one is service-description metadata (YAML).
+- **File format is YAML here, JSON there.** Don't switch formats to "unify" — each is dictated by HA's translation loader for that surface.
+- **Field names here must match the config keys in `../custom_components/bedrock_ha_agent/const.py`** (`aws_region`, `model_id`, etc). If you rename a config key, update this file too.
 - **Adding a new language**: create `<lang>.yaml` mirroring `en.yaml`'s shape.
 
 ### Testing Requirements
-- No automated coverage. Verify by loading the integration in a Home Assistant dev instance and inspecting the relevant UI surfaces.
+- No automated coverage. Verify by loading the integration in an HA dev instance and inspecting the relevant UI surfaces.
 
 ### Common Patterns
 - Each top-level entry has `name` (short label) and `description` (longer helper text).
@@ -33,6 +33,6 @@ Service-description translations — the human-readable `name` and `description`
 - `../custom_components/bedrock_ha_agent/const.py` — `CONF_*` keys referenced here.
 
 ### External
-- Home Assistant's service-description translation loader.
+- HA's service-description translation loader.
 
 <!-- MANUAL: -->
