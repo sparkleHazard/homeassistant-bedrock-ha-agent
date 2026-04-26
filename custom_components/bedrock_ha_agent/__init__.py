@@ -12,8 +12,10 @@ import voluptuous as vol
 import logging
 import asyncio
 
+from . import aws_cache
 from .const import (
     ALLOWED_SERVICE_CALL_ARGUMENTS,
+    CONF_AWS_ACCESS_KEY_ID,
     CONF_CONFIG_UNDO_DEPTH,
     CONF_CONFIG_UNDO_TTL_SECONDS,
     CONF_ENABLE_CONFIG_EDITING,
@@ -248,6 +250,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = BedrockRuntimeData(
         bedrock_client=client,
         usage=UsageTracker(),
+        last_access_key_id=entry.data.get(CONF_AWS_ACCESS_KEY_ID),
     )
 
     # One-time migration: v1.3.1 introduced _attr_suggested_object_id for the
@@ -846,6 +849,21 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 runtime_data.pending[conv_id] = None
                 _LOGGER.info("cleared pending diagnostic proposal %s on flag-off", pending.proposal_id)
     runtime_data.last_diagnostics_flag = new_diag_flag
+
+    # If the AWS access-key-id changed, flush the shared discovery cache for
+    # the old key before reload so the post-reload options flow discovers
+    # fresh inference profiles and Polly voices for the new account.
+    new_access_key_id = entry.data.get(CONF_AWS_ACCESS_KEY_ID)
+    old_access_key_id = runtime_data.last_access_key_id
+    if (
+        old_access_key_id is not None
+        and new_access_key_id is not None
+        and old_access_key_id != new_access_key_id
+    ):
+        _LOGGER.info(
+            "Bedrock reload: AWS access key changed, flushing discovery cache"
+        )
+        aws_cache.invalidate(hass, access_key_id=old_access_key_id)
 
     _LOGGER.info("Bedrock reload: reloading due to configuration change")
     await hass.config_entries.async_reload(entry.entry_id)

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.5.3 — Shared AWS discovery cache
+
+### Changed
+- **`ListInferenceProfiles` and `DescribeVoices` are now cached at the integration level** via a new `aws_cache.py` module (`hass.data[DOMAIN]["aws_cache"]`, 1-hour TTL, keyed by access-key-id + region + api + filter). Previously every options-flow open re-hit both APIs, and `BedrockPollyTTSEntity` kept a duplicate per-instance cache. Now the three call paths (config_flow initial setup, config_flow options, TTS `async_get_supported_voices`) share one cache, so opening the options flow twice within an hour is a single AWS round-trip and HA's TTS pipeline reuses voice lists across reloads. Concurrent callers coalesce via a per-key `asyncio.Lock` so pipeline-level parallel TTS setup can't fan out into N identical calls.
+- The cache is invalidated only when the AWS access-key-id actually changes (detected in `_async_update_listener` via `runtime_data.last_access_key_id`), not on every options-save. This matters because `async_reload` fires on every options-save and would otherwise flush the cache every time.
+- `BedrockPollyTTSEntity`'s `VOICE_CACHE_TTL` constant and `self._voices_cache` instance dict are removed; the entity now delegates to `aws_cache.async_list_polly_voices`. `fetch_claude_inference_profiles` and `fetch_polly_voices` in `config_flow.py` keep their public signatures and become thin wrappers.
+
+### Tests
+- New `tests/test_aws_cache.py` — 8 tests covering TTL hit/miss, language/engine scope isolation, credential-scoped invalidation, concurrent-call coalescing, error-path non-poisoning, and cache-key redaction of secret key + session token.
+
 ## 1.5.2 — CI/CD hardening + strict typing
 
 ### Added

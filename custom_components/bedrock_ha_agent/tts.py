@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import re
-import time
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
@@ -18,10 +17,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from . import aws_cache
 from .aws_session import session_from_entry_data
 from .const import (
+    CONF_AWS_REGION,
     CONF_TTS_ENGINE,
     CONF_TTS_VOICE_ID,
+    DEFAULT_AWS_REGION,
     DEFAULT_TTS_ENGINE,
     DEFAULT_TTS_VOICE_ID,
 )
@@ -77,15 +79,10 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
     _attr_has_entity_name = True
     _attr_name = "AWS Polly"
 
-    # Cache DescribeVoices results per language for VOICE_CACHE_TTL seconds so
-    # the pipeline UI stays responsive without hammering the Polly API.
-    VOICE_CACHE_TTL = 3600
-
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize the Polly TTS entity."""
         self._config_entry = config_entry
         self._attr_unique_id = f"{config_entry.entry_id}_polly_tts"
-        self._voices_cache: dict[str, tuple[float, list[Voice]]] = {}
 
     @property
     def default_language(self) -> str:
@@ -117,42 +114,26 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
     ) -> list[Voice] | None:
         """Return the list of Polly voices available for ``language``.
 
-        Calls ``polly:DescribeVoices`` filtered by ``LanguageCode`` and
-        further filtered to voices whose ``SupportedEngines`` include the
-        currently configured engine, so the pipeline UI never offers a
-        voice + engine combo Polly would reject. Results are cached per
-        (language, engine) for ``VOICE_CACHE_TTL`` seconds. Returns ``None``
-        on failure so Home Assistant can fall back to a free-form text input.
+        Delegates to the shared ``aws_cache`` helper, which calls
+        ``polly:DescribeVoices`` filtered by ``LanguageCode`` and further
+        filtered to voices whose ``SupportedEngines`` include the currently
+        configured engine. Results are cached per (credentials, region,
+        language, engine) for ``aws_cache.CACHE_TTL_SECONDS``. Returns
+        ``None`` on failure so Home Assistant can fall back to a free-form
+        text input.
         """
         merged = {**self._config_entry.data, **self._config_entry.options}
         engine = merged.get(CONF_TTS_ENGINE, DEFAULT_TTS_ENGINE)
-
-        cache_key = f"{language}|{engine}"
-        now = time.monotonic()
-        cached = self._voices_cache.get(cache_key)
-        if cached and now - cached[0] < self.VOICE_CACHE_TTL:
-            return cached[1]
-
-        def _describe() -> list[Voice]:
-            session = session_from_entry_data(merged)
-            polly = session.client("polly")
-            voices: list[Voice] = []
-            paginator = polly.get_paginator("describe_voices")
-            for page in paginator.paginate(LanguageCode=language):
-                for entry in page.get("Voices", []):
-                    voice_id = entry.get("Id")
-                    if not voice_id:
-                        continue
-                    if engine not in (entry.get("SupportedEngines") or []):
-                        continue
-                    name = entry.get("Name", voice_id)
-                    gender = entry.get("Gender")
-                    label = f"{name} ({gender})" if gender else name
-                    voices.append(Voice(voice_id=voice_id, name=label))
-            return sorted(voices, key=lambda v: v.name.lower())
+        region = merged.get(CONF_AWS_REGION, DEFAULT_AWS_REGION)
 
         try:
-            voices = await self.hass.async_add_executor_job(_describe)
+            voice_infos = await aws_cache.async_list_polly_voices(
+                self.hass,
+                credentials=merged,
+                region=region,
+                language=language,
+                engine=engine,
+            )
         except (ClientError, BotoCoreError) as err:
             _LOGGER.warning(
                 "Could not list Polly voices for language=%s engine=%s: %s",
@@ -166,8 +147,13 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
             )
             return None
 
-        self._voices_cache[cache_key] = (now, voices)
-        return voices
+        return [
+            Voice(
+                voice_id=info.voice_id,
+                name=f"{info.name} ({info.gender})" if info.gender else info.name,
+            )
+            for info in voice_infos
+        ]
 
     async def async_get_tts_audio(
         self, message: str, language: str, options: dict[str, Any] | None = None

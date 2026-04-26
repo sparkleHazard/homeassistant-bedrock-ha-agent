@@ -29,6 +29,10 @@ class BedrockRuntimeData:
     diagnostics_turn_counts: dict[tuple[str, str], int] = field(default_factory=dict)
     # transition bookkeeping for CONF_ENABLE_DIAGNOSTICS (matches last_config_editing_flag pattern)
     last_diagnostics_flag: bool = False
+    # AWS access_key_id snapshot captured at async_setup_entry, used by the
+    # update listener to detect credential changes and flush the shared
+    # aws_cache before reload. None means "not yet initialised".
+    last_access_key_id: str | None = None
 
 
 def _get_runtime_data(hass: "HomeAssistant", entry_id: str) -> BedrockRuntimeData:

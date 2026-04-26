@@ -17,6 +17,7 @@ from homeassistant.data_entry_flow import FlowResult  # noqa: F401  # kept for b
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm, selector
 
+from . import aws_cache
 from .aws_session import build_session
 from .const import (
     AVAILABLE_IMAGE_MODELS,
@@ -107,32 +108,19 @@ async def fetch_claude_inference_profiles(
 
     Returns an empty list if the API call succeeds but no Anthropic profiles are present.
     Raises on API errors so the caller can fall back to a hardcoded list.
+
+    Delegates to ``aws_cache.async_list_inference_profiles`` for caching; the
+    public signature is preserved so existing call sites and tests need no
+    changes.
     """
-
-    def _list() -> list[str]:
-        session = build_session(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
-            aws_region=aws_region,
-        )
-        client = session.client("bedrock")
-
-        profile_ids: list[str] = []
-        paginator = client.get_paginator("list_inference_profiles")
-        for page in paginator.paginate():
-            for summary in page.get("inferenceProfileSummaries", []):
-                profile_id = summary.get("inferenceProfileId")
-                status = summary.get("status")
-                if not profile_id or status != "ACTIVE":
-                    continue
-                if "anthropic" not in profile_id.lower():
-                    continue
-                profile_ids.append(profile_id)
-
-        return sorted(set(profile_ids))
-
-    return await hass.async_add_executor_job(_list)
+    credentials = {
+        CONF_AWS_ACCESS_KEY_ID: aws_access_key_id,
+        CONF_AWS_SECRET_ACCESS_KEY: aws_secret_access_key,
+        CONF_AWS_SESSION_TOKEN: aws_session_token,
+    }
+    return await aws_cache.async_list_inference_profiles(
+        hass, credentials=credentials, region=aws_region
+    )
 
 
 async def fetch_polly_voices(
@@ -148,29 +136,20 @@ async def fetch_polly_voices(
     If ``engine`` is provided, only voices whose ``SupportedEngines`` include
     that engine are returned. Raises on API errors so callers can fall back to
     ``FALLBACK_TTS_VOICES``.
+
+    Delegates to ``aws_cache.async_list_polly_voices`` and projects the
+    ``VoiceInfo`` results back to the sorted, deduplicated list of voice IDs
+    the existing call site expects.
     """
-
-    def _list() -> list[str]:
-        session = build_session(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
-            aws_region=aws_region,
-        )
-        polly = session.client("polly")
-        voice_ids: list[str] = []
-        paginator = polly.get_paginator("describe_voices")
-        for page in paginator.paginate():
-            for voice in page.get("Voices", []):
-                voice_id = voice.get("Id")
-                if not voice_id:
-                    continue
-                if engine and engine not in (voice.get("SupportedEngines") or []):
-                    continue
-                voice_ids.append(voice_id)
-        return sorted(set(voice_ids))
-
-    return await hass.async_add_executor_job(_list)
+    credentials = {
+        CONF_AWS_ACCESS_KEY_ID: aws_access_key_id,
+        CONF_AWS_SECRET_ACCESS_KEY: aws_secret_access_key,
+        CONF_AWS_SESSION_TOKEN: aws_session_token,
+    }
+    voices = await aws_cache.async_list_polly_voices(
+        hass, credentials=credentials, region=aws_region, engine=engine
+    )
+    return sorted({voice.voice_id for voice in voices})
 
 
 async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, aws_secret_access_key: str, aws_session_token: str | None = None, aws_region: str | None = None) -> dict[str, str] | None:
