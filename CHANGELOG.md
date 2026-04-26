@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.5.1 — Bundled brand icons
+
+### Added
+- `custom_components/bedrock_ha_agent/brand/icon.png` (256×256) and `brand/logo.png` (512×512), picked up automatically by HA 2026.3.0+ via the [Brands Proxy API](https://developers.home-assistant.io/blog/2026/02/24/brands-proxy-api). The integration card in *Settings → Devices & services* now shows the Bedrock logo instead of the generic puzzle-piece placeholder. No manifest changes needed. On HA < 2026.3 the placeholder remains until the upstream `home-assistant/brands` repo ships an entry.
+
 ## 1.5.0 — AI Task image generation (`ai_task.generate_image`)
 
 ### Added
