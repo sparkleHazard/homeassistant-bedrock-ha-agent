@@ -65,6 +65,10 @@ jobs:
   test:
     name: Tests (HA floor)
     runs-on: ubuntu-latest
+    permissions:
+      # Codecov's tokenless upload via `use_oidc: true` needs this scope.
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -16,8 +16,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) co
 - **443 → 0 mypy errors** across 37 files. Almost all fixes were real type annotations (function return types, dict/list generics, narrow `isinstance` assertions before dict lookups). A handful of genuine defects were uncovered and fixed along the way — notably `RestoreFn = Callable[[], Awaitable[None]]` was widened to `Callable[[], Awaitable[None | dict[str, Any]]]` to match what `diagnostics/lifecycle.py`'s reload-undo functions actually return, and `_async_bootstrap_automations_yaml` had its return tuple annotation bumped from `tuple[bool, bool]` to `tuple[bool, bool, bool]` to match the 3-value unpack at the caller. Config flow return types now declare `ConfigFlowResult` instead of the parent-incompatible `FlowResult`.
 - **Ruff auto-fix** removed 27 unused imports across the test suite and fixed a few other minor pyflakes issues. No runtime code affected.
 
+### Fixed (driven out by hassfest / HACS)
+- **manifest.json** now declares `issue_tracker` (required by HACS) and adds the previously-undeclared but imported-at-module-load components `logbook`, `logger`, `lovelace`, `recorder` to `after_dependencies`.
+- **hacs.json** drops the invalid `domains` key (HACS schema rejects it for integrations that aren't in a `custom_integrations/` subdir).
+- **services.yaml** added: documents the `bedrock_ha_agent.ask_with_image` and `bedrock_ha_agent.undo_last_config_change` services with field descriptions and selectors. Required by hassfest for any integration that registers services.
+- **strings.json + translations/en.json** had custom top-level `notifications` and `conversation_responses` blocks that weren't part of HA's strings schema and weren't referenced in Python. Removed. Stale tests in `test_translations.py` that asserted their presence were updated to match.
+- Codecov upload job gained the `id-token: write` permission needed for OIDC tokenless uploads on public repos.
+
 ### Tests
-- 294 passing (3 skipped, 1 xpassed). Ruff + mypy both clean.
+- 292 passing (3 skipped, 1 xpassed). Ruff + mypy both clean.
 
 ## 1.5.1 — Bundled brand icons
 

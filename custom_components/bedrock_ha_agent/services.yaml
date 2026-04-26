@@ -1,0 +1,62 @@
+ask_with_image:
+  name: Ask with image
+  description: >
+    One-shot Bedrock vision call. Captures a snapshot from one or more exposed
+    cameras and passes it to a vision-capable Claude model along with the prompt
+    text. Returns the model's text reply. Requires a vision-capable model
+    configured on the integration (Claude Sonnet 4.5 or similar).
+  fields:
+    message:
+      name: Message
+      description: The prompt/question to send to Claude along with the image.
+      required: true
+      example: "What do you see in this picture?"
+      selector:
+        text:
+          multiline: true
+    camera_entity_id:
+      name: Camera entity
+      description: >
+        One camera entity_id, or a list of entity_ids, whose current snapshot(s)
+        should be attached to the request.
+      required: true
+      example: camera.front_door
+      selector:
+        entity:
+          domain: camera
+          multiple: true
+    config_entry_id:
+      name: Config entry
+      description: >
+        Which Bedrock integration config entry to use. Optional when only one is
+        configured.
+      required: false
+      example: "01ABCDEFGH12345JKLMN"
+      selector:
+        text:
+
+undo_last_config_change:
+  name: Undo last config change
+  description: >
+    Revert the most recent config change made by the conversation agent. Uses
+    an in-memory undo stack that is cleared on Home Assistant restart. Admin
+    only.
+  fields:
+    config_entry_id:
+      name: Config entry
+      description: >
+        Which Bedrock integration config entry to target. Optional when only
+        one is configured.
+      required: false
+      example: "01ABCDEFGH12345JKLMN"
+      selector:
+        text:
+    conversation_id:
+      name: Conversation ID
+      description: >
+        Which conversation's undo stack to pop. Optional unless more than one
+        conversation has pending undo state.
+      required: false
+      example: "conv-1234"
+      selector:
+        text:

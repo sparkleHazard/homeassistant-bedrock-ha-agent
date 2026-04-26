@@ -26,23 +26,6 @@
       "unknown": "Unknown error occurred"
     }
   },
-  "notifications": {
-    "haiku_config_advisory": {
-      "title": "Bedrock Home Assistant Agent: Model advisory",
-      "message": "Config editing works best on Claude Sonnet 4.5 or Opus; Haiku may truncate large dashboards."
-    }
-  },
-  "conversation_responses": {
-    "approval_applied": "Done — {summary}",
-    "approval_rejected": "OK, cancelled that proposal.",
-    "approval_expired": "That change expired; please ask again if you still want it.",
-    "undo_success": "Undone: {summary}",
-    "undo_nothing_to_undo": "Nothing to undo.",
-    "undo_nothing_to_undo_for_conversation": "Nothing to undo for this conversation.",
-    "undo_ambiguous": "I have pending undo history in more than one conversation. Pass `conversation_id` to disambiguate.",
-    "apply_failed_restored": "Sorry — that change failed to apply and I've rolled it back. Error: {error}",
-    "validation_failed": "I can't make that change: {errors}"
-  },
   "services": {
     "undo_last_config_change": {
       "name": "Undo last config change",
