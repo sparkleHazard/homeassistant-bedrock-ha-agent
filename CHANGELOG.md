@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.5.0 — AI Task image generation (`ai_task.generate_image`)
+
+### Added
+- **`GENERATE_IMAGE` support on the AI Task entity.** Automations and scripts can now call `ai_task.generate_image` against the Bedrock entity to produce a PNG, which HA stores in the `ai_task` media source and returns as a signed URL. Routed through the same `BedrockAITaskEntity` that already handles `generate_data`.
+- **Three Bedrock image-generation model families** are supported, dispatched automatically by the new `image_model_family()` helper in `const.py`:
+  - **Amazon Nova Canvas** (`amazon.nova-canvas-v1:0`) — `taskType: TEXT_IMAGE` body schema.
+  - **Amazon Titan Image Generator G1 v1 / v2** — same `taskType` schema as Nova Canvas.
+  - **Stability AI** (SD3.5 Large, Stable Image Core, Stable Image Ultra) — `mode: text-to-image` body schema. `CONTENT_FILTERED` finish reasons surface as a friendly `HomeAssistantError`.
+- **New `CONF_IMAGE_MODEL_ID` option** in the options flow — a dropdown seeded with the curated list above, `custom_value=True` so power users can paste any future model id. Leaving it empty keeps image generation inert (the service call returns a clear "no image model selected" error).
+- **New `BedrockClient.async_generate_image(prompt, options)`** — one-shot `invoke_model` path with the same retry / timeout / error-mapping plumbing as `async_generate_vision`. 60-second timeout (images take longer than text turns). Returns a `GeneratedImage` dataclass with raw bytes, mime type, width, height, and model id.
+
+### Architecture
+- No new entity, no new subentry type, no entity_id migration — the existing `ai_task.bedrock_ai_task` just advertises `GENERATE_IMAGE` in its supported-features mask after upgrade.
+- Image models don't report token usage; `async_generate_image` wires `record_error` for failure paths but skips the per-token `tracker.record(...)` success path. A per-image cost counter is a follow-up.
+
+### Tests
+- `test_ai_task_entity_feature_flags` updated: `GENERATE_IMAGE` is now asserted present, not absent.
+- New `tests/test_ai_task_image.py` covers `image_model_family` routing, per-family body shape, base64 decode round-trip, the content-filter error path, and the "no image model selected" guard.
+
 ## 1.4.1 — Fix AI Task entity naming
 
 ### Fixed

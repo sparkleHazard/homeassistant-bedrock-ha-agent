@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util.json import json_loads
 
-from .const import DOMAIN
+from .const import CONF_IMAGE_MODEL_ID, DOMAIN
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry, ConfigSubentry
@@ -50,6 +50,7 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
     _attr_supported_features = (
         ai_task.AITaskEntityFeature.GENERATE_DATA
         | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
+        | ai_task.AITaskEntityFeature.GENERATE_IMAGE
     )
 
     def __init__(
@@ -287,4 +288,38 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
             tool_calls=tool_calls,
             assistant_content=assistant_content,
             tool_results=tool_results,
+        )
+
+    async def _async_generate_image(
+        self,
+        task: ai_task.GenImageTask,
+        chat_log: conversation.ChatLog,
+    ) -> ai_task.GenImageTaskResult:
+        """Generate a single image via the configured Bedrock image model."""
+        client = self._config_entry.runtime_data.bedrock_client
+        if client is None:
+            raise HomeAssistantError("Bedrock client not initialized")
+
+        options = {**self._config_entry.data, **self._config_entry.options}
+        if not options.get(CONF_IMAGE_MODEL_ID):
+            raise HomeAssistantError(
+                "No image model selected. Pick one in the Bedrock integration options."
+            )
+
+        _LOGGER.info(
+            "AI Task image: model=%s prompt_len=%d",
+            options.get(CONF_IMAGE_MODEL_ID),
+            len(task.instructions or ""),
+        )
+
+        generated = await client.async_generate_image(task.instructions, options)
+
+        return ai_task.GenImageTaskResult(
+            conversation_id=chat_log.conversation_id,
+            image_data=generated.image_bytes,
+            mime_type=generated.mime_type,
+            width=generated.width,
+            height=generated.height,
+            model=generated.model,
+            revised_prompt=None,
         )

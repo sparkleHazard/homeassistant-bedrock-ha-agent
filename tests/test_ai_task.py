@@ -21,12 +21,11 @@ pytest_plugins = ["pytest_homeassistant_custom_component"]
 
 
 def test_ai_task_entity_feature_flags():
-    """Verify BedrockAITaskEntity declares GENERATE_DATA | SUPPORT_ATTACHMENTS.
+    """Verify BedrockAITaskEntity declares all three AI Task feature flags.
 
-    Assert that GENERATE_IMAGE is NOT set (intentionally excluded since
-    Bedrock Claude doesn't image-generate).
+    v1.5.0 added GENERATE_IMAGE support (routed to Nova Canvas / Titan /
+    Stability via the new CONF_IMAGE_MODEL_ID option).
     """
-    # Instantiate an entity to access the feature flags
     entry = MagicMock()
     entry.entry_id = "test_id"
     subentry = SimpleNamespace(subentry_id="sub_id", title="Bedrock AI Task")
@@ -34,26 +33,24 @@ def test_ai_task_entity_feature_flags():
     entity = BedrockAITaskEntity(entry, subentry)
     supported = entity.supported_features
 
-    # Check both bits are set
     assert (supported & ai_task.AITaskEntityFeature.GENERATE_DATA) != 0, (
         "GENERATE_DATA feature flag missing"
     )
     assert (supported & ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS) != 0, (
         "SUPPORT_ATTACHMENTS feature flag missing"
     )
+    assert (supported & ai_task.AITaskEntityFeature.GENERATE_IMAGE) != 0, (
+        "GENERATE_IMAGE feature flag missing (added in v1.5.0)"
+    )
 
-    # Verify the value equals the bitwise OR
     expected = (
         ai_task.AITaskEntityFeature.GENERATE_DATA
         | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
+        | ai_task.AITaskEntityFeature.GENERATE_IMAGE
     )
     assert supported == expected, (
-        f"Expected {expected} (GENERATE_DATA | SUPPORT_ATTACHMENTS), got {supported}"
-    )
-
-    # Guard: GENERATE_IMAGE should NOT be set
-    assert (supported & ai_task.AITaskEntityFeature.GENERATE_IMAGE) == 0, (
-        "GENERATE_IMAGE should not be set (Bedrock Claude doesn't image-generate)"
+        f"Expected {expected} (GENERATE_DATA | SUPPORT_ATTACHMENTS | "
+        f"GENERATE_IMAGE), got {supported}"
     )
 
 

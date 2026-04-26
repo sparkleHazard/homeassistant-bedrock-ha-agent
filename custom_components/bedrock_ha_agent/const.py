@@ -109,6 +109,42 @@ def model_supports_vision(model_id: str | None) -> bool:
         return False
     return any(substr in model_id for substr in VISION_CAPABLE_MODELS)
 
+
+# Image generation (Nova Canvas / Stability / Titan) ---------------------------
+CONF_IMAGE_MODEL_ID: Final = "image_model_id"
+DEFAULT_IMAGE_MODEL_ID: Final = ""  # unset = no image generation
+
+AVAILABLE_IMAGE_MODELS: Final = [
+    "amazon.nova-canvas-v1:0",
+    "amazon.titan-image-generator-v2:0",
+    "amazon.titan-image-generator-v1",
+    "stability.sd3-5-large-v1:0",
+    "stability.stable-image-core-v1:1",
+    "stability.stable-image-ultra-v1:1",
+]
+
+IMAGE_MODEL_FAMILIES: Final[tuple[tuple[str, str], ...]] = (
+    ("nova-canvas", "nova"),
+    ("stability.sd3", "stability"),
+    ("stability.stable", "stability"),
+    ("titan-image", "titan"),
+)
+
+
+def image_model_family(model_id: str | None) -> str | None:
+    """Return the request-body family for ``model_id``.
+
+    Returns "nova", "stability", "titan", or None for unknown ids.
+    Nova Canvas and Titan share a body schema (``taskType: TEXT_IMAGE``);
+    Stability uses its own ``mode: text-to-image`` schema.
+    """
+    if not model_id:
+        return None
+    for substr, family in IMAGE_MODEL_FAMILIES:
+        if substr in model_id:
+            return family
+    return None
+
 # Text-to-speech (Amazon Polly)
 CONF_TTS_VOICE_ID: Final = "tts_voice_id"
 CONF_TTS_ENGINE: Final = "tts_engine"

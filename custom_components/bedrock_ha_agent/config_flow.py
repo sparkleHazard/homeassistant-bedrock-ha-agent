@@ -18,6 +18,7 @@ from homeassistant.helpers import llm, selector
 
 from .aws_session import build_session
 from .const import (
+    AVAILABLE_IMAGE_MODELS,
     AVAILABLE_MODELS,
     CONF_AWS_ACCESS_KEY_ID,
     CONF_AWS_REGION,
@@ -31,6 +32,7 @@ from .const import (
     CONF_DIAGNOSTICS_LOG_MAX_LINES,
     CONF_ENABLE_CONFIG_EDITING,
     CONF_ENABLE_DIAGNOSTICS,
+    CONF_IMAGE_MODEL_ID,
     CONFIG_APPROVAL_TTL_MAX,
     CONFIG_APPROVAL_TTL_MIN,
     CONFIG_UNDO_DEPTH_MAX,
@@ -45,6 +47,7 @@ from .const import (
     DEFAULT_DIAGNOSTICS_LOG_MAX_LINES,
     DEFAULT_ENABLE_CONFIG_EDITING,
     DEFAULT_ENABLE_DIAGNOSTICS,
+    DEFAULT_IMAGE_MODEL_ID,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
     CONF_LLM_HASS_API,
     CONF_MAX_TOKENS,
@@ -435,6 +438,18 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=model_options,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
+            vol.Optional(
+                CONF_IMAGE_MODEL_ID,
+                default=self.config_entry.options.get(
+                    CONF_IMAGE_MODEL_ID, DEFAULT_IMAGE_MODEL_ID
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(AVAILABLE_IMAGE_MODELS),
                     mode=selector.SelectSelectorMode.DROPDOWN,
                     custom_value=True,
                 )

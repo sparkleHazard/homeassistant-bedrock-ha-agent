@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from botocore.exceptions import ClientError
@@ -24,6 +27,7 @@ from .const import (
     CONF_DEVICE_PROMPT_MODE,
     CONF_EXPOSE_AREAS_ONLY,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
+    CONF_IMAGE_MODEL_ID,
     CONF_MAX_PROMPT_TOKENS,
     CONF_MAX_TOKENS,
     CONF_MODEL_ID,
@@ -42,6 +46,7 @@ from .const import (
     DEVICE_PROMPT_MODE_FULL,
     DEVICES_PROMPT,
     PERSONA_PROMPTS,
+    image_model_family,
     model_supports_vision,
 )
 from .device_info import DeviceInfo, get_exposed_devices, render_devices_section
@@ -68,6 +73,11 @@ _RETRYABLE_ERROR_CODES = frozenset(
 )
 _RETRY_DELAYS_S = (0.5, 1.0, 2.0)  # 3 attempts max (initial + 2 retries after first)
 
+# Defensive cap on image-response body size. Bedrock typically returns
+# ~1-3 MiB per PNG at 1024x1024; 32 MiB leaves plenty of headroom while
+# preventing a pathological or spoofed response from OOM'ing HA.
+_IMAGE_RESPONSE_MAX_BYTES = 32 * 1024 * 1024
+
 
 def _friendly_error_message(err: ClientError) -> str:
     """Translate a boto3 ClientError into a voice-friendly sentence."""
@@ -87,7 +97,18 @@ def _friendly_error_message(err: ClientError) -> str:
 
 
 # Re-exported for backward compatibility with earlier imports / tests.
-__all__ = ["BedrockClient", "DeviceInfo"]
+__all__ = ["BedrockClient", "DeviceInfo", "GeneratedImage"]
+
+
+@dataclass(slots=True)
+class GeneratedImage:
+    """Result of a Bedrock image-generation call."""
+
+    image_bytes: bytes
+    mime_type: str
+    width: int
+    height: int
+    model: str
 
 
 def _runtime_usage_tracker(entry: ConfigEntry):
@@ -519,6 +540,128 @@ class BedrockClient:
             if block.get("type") == "text":
                 text_parts.append(block.get("text", ""))
         return "".join(text_parts).strip()
+
+    async def async_generate_image(
+        self,
+        prompt: str,
+        options: dict[str, Any],
+        *,
+        width: int = 1024,
+        height: int = 1024,
+    ) -> GeneratedImage:
+        """One-shot Bedrock image generation.
+
+        Dispatches on model family (Nova Canvas, Stability, Titan) and returns
+        raw PNG bytes plus metadata suitable for ``ai_task.GenImageTaskResult``.
+        """
+        await self._ensure_client()
+        model_id = options.get(CONF_IMAGE_MODEL_ID) or ""
+        if not model_id:
+            raise HomeAssistantError(
+                "No image model selected. Pick one in the Bedrock integration options."
+            )
+        family = image_model_family(model_id)
+        if family is None:
+            raise HomeAssistantError(
+                f"Unknown image model family for {model_id!r}. Supported prefixes: "
+                "amazon.nova-canvas, amazon.titan-image, stability.sd3, stability.stable."
+            )
+
+        if family in ("nova", "titan"):
+            request_body: dict[str, Any] = {
+                "taskType": "TEXT_IMAGE",
+                "textToImageParams": {"text": prompt},
+                "imageGenerationConfig": {
+                    "numberOfImages": 1,
+                    "width": int(width),
+                    "height": int(height),
+                    "cfgScale": 6.5,
+                    "seed": 0,
+                },
+            }
+        else:  # stability
+            request_body = {
+                "prompt": prompt,
+                "mode": "text-to-image",
+                "aspect_ratio": "1:1",
+                "output_format": "png",
+            }
+
+        def invoke_and_read() -> dict[str, Any]:
+            response = self._bedrock_runtime.invoke_model(
+                modelId=model_id, body=json.dumps(request_body)
+            )
+            body_stream = response["body"]
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = body_stream.read(8192)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > _IMAGE_RESPONSE_MAX_BYTES:
+                    raise HomeAssistantError(
+                        "Bedrock image response exceeded the 32 MiB size cap."
+                    )
+                chunks.append(chunk)
+            return json.loads(b"".join(chunks).decode("utf-8"))
+
+        try:
+            async with asyncio.timeout(60.0):
+                response_body = await self._retry_blocking(invoke_and_read)
+        except asyncio.TimeoutError as err:
+            tracker = _runtime_usage_tracker(self.entry)
+            if tracker is not None:
+                tracker.record_error("Bedrock image request timed out after 60 seconds")
+            raise HomeAssistantError(
+                "Bedrock image request timed out after 60 seconds"
+            ) from err
+        except ClientError as err:
+            friendly = _friendly_error_message(err)
+            tracker = _runtime_usage_tracker(self.entry)
+            if tracker is not None:
+                tracker.record_error(friendly)
+            raise HomeAssistantError(friendly) from err
+        except HomeAssistantError:
+            raise
+        except Exception as err:
+            _LOGGER.exception("Unexpected error generating image")
+            tracker = _runtime_usage_tracker(self.entry)
+            if tracker is not None:
+                tracker.record_error(str(err))
+            raise HomeAssistantError(f"Unexpected error: {err}") from err
+
+        # Stability-specific safety filter — check every slot in case the
+        # API ever returns multiple images and only some are filtered.
+        finish_reasons = response_body.get("finish_reasons") or []
+        if "CONTENT_FILTERED" in finish_reasons:
+            raise HomeAssistantError(
+                "Image was filtered by the model's safety policy."
+            )
+        # Nova Canvas returns {"error": "<message>"} on refusal.
+        nova_error = response_body.get("error")
+        if nova_error:
+            raise HomeAssistantError(f"Image generation failed: {nova_error}")
+
+        images = response_body.get("images") or []
+        if not images or not isinstance(images[0], str):
+            raise HomeAssistantError(
+                "Bedrock image response had no image data."
+            )
+        try:
+            image_bytes = base64.b64decode(images[0], validate=True)
+        except (binascii.Error, ValueError) as err:
+            raise HomeAssistantError(
+                f"Bedrock returned malformed image data: {err}"
+            ) from err
+
+        return GeneratedImage(
+            image_bytes=image_bytes,
+            mime_type="image/png",
+            width=int(width),
+            height=int(height),
+            model=model_id,
+        )
 
     async def _retry_blocking(self, fn, *args):
         """Call a blocking ``fn`` via the executor with retry on transient errors.
