@@ -28,8 +28,7 @@ from homeassistant.const import CURRENCY_DOLLAR
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
-from .usage_tracker import UsageCounters, UsageTracker
+from .usage_tracker import UsageTracker
 
 
 @dataclass(frozen=True)

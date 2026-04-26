@@ -24,7 +24,6 @@ from .const import (
     CONF_TTS_VOICE_ID,
     DEFAULT_TTS_ENGINE,
     DEFAULT_TTS_VOICE_ID,
-    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
