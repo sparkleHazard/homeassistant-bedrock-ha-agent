@@ -11,14 +11,6 @@ from datetime import UTC, datetime, timedelta
 
 
 @pytest.fixture
-def mock_hass():
-    """Create a mock Home Assistant instance."""
-    hass = Mock()
-    hass.data = {"bedrock_ha_agent": {}}
-    return hass
-
-
-@pytest.fixture
 def entry_id():
     """Return test entry ID."""
     return "test_entry_123"
@@ -30,8 +22,11 @@ def conversation_id():
     return "conv_456"
 
 
-def test_past_tense_also_prepends_correction_to_speech(mock_hass, entry_id, conversation_id):
+def test_past_tense_also_prepends_correction_to_speech(entry_id, conversation_id):
     """Test that past-tense detection returns correction text (M3 fix)."""
+    mock_hass = Mock()
+    mock_hass.data = {"bedrock_ha_agent": {}}
+
     # Set up runtime data with a pending change
     runtime_data = BedrockRuntimeData()
     pending = PendingChange(
@@ -71,8 +66,11 @@ def test_past_tense_also_prepends_correction_to_speech(mock_hass, entry_id, conv
     assert "haven't applied" in correction
 
 
-def test_past_tense_no_pending_returns_none(mock_hass, entry_id, conversation_id):
+def test_past_tense_no_pending_returns_none(entry_id, conversation_id):
     """Test that no correction is returned when there's no pending change."""
+    mock_hass = Mock()
+    mock_hass.data = {"bedrock_ha_agent": {}}
+
     # Set up runtime data with NO pending change
     runtime_data = BedrockRuntimeData()
     runtime_data.pending[conversation_id] = None

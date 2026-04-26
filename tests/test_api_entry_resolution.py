@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock, patch
 
-import pytest
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -15,18 +14,13 @@ from custom_components.bedrock_ha_agent.const import DOMAIN
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
 
-@pytest.fixture
-def mock_hass():
-    """Create a mock HomeAssistant instance."""
-    hass = MagicMock(spec=HomeAssistant)
-    hass.config_entries = MagicMock()
-    hass.data = {}
-    return hass
-
-
-def test_resolve_via_device_registry_hit(mock_hass):
+def test_resolve_via_device_registry_hit():
     """Test §3.j: device_id in llm_context resolves via device_registry."""
-    from homeassistant.helpers import device_registry as dr
+
+    # Create mock hass
+    mock_hass = MagicMock(spec=HomeAssistant)
+    mock_hass.config_entries = MagicMock()
+    mock_hass.data = {}
 
     # Create mock device registry
     mock_dev_reg = MagicMock()
@@ -58,8 +52,12 @@ def test_resolve_via_device_registry_hit(mock_hass):
     mock_dev_reg.async_get.assert_called_once_with("test_device_123")
 
 
-def test_resolve_fallback_single_entry(mock_hass):
+def test_resolve_fallback_single_entry():
     """Test §3.j: no device_id, single loaded entry resolves silently."""
+    mock_hass = MagicMock(spec=HomeAssistant)
+    mock_hass.config_entries = MagicMock()
+    mock_hass.data = {}
+
     bedrock_entry = MockConfigEntry(
         domain=DOMAIN,
         entry_id="bedrock_entry_1",
@@ -76,8 +74,12 @@ def test_resolve_fallback_single_entry(mock_hass):
     assert result == bedrock_entry
 
 
-def test_resolve_fallback_multi_entry_warns(mock_hass, caplog):
+def test_resolve_fallback_multi_entry_warns(caplog):
     """Test §3.j: multiple loaded entries, no device_id → returns first AND logs warning."""
+    mock_hass = MagicMock(spec=HomeAssistant)
+    mock_hass.config_entries = MagicMock()
+    mock_hass.data = {}
+
     bedrock_entry_1 = MockConfigEntry(
         domain=DOMAIN,
         entry_id="bedrock_entry_1",
@@ -114,8 +116,12 @@ def test_resolve_fallback_multi_entry_warns(mock_hass, caplog):
     )
 
 
-def test_resolve_no_loaded_entries_returns_none(mock_hass):
+def test_resolve_no_loaded_entries_returns_none():
     """Test: no loaded entries returns None."""
+    mock_hass = MagicMock(spec=HomeAssistant)
+    mock_hass.config_entries = MagicMock()
+    mock_hass.data = {}
+
     mock_hass.config_entries.async_entries.return_value = []
 
     llm_context = Mock(spec=llm.LLMContext)
@@ -126,9 +132,12 @@ def test_resolve_no_loaded_entries_returns_none(mock_hass):
     assert result is None
 
 
-def test_resolve_device_not_found_falls_back(mock_hass):
+def test_resolve_device_not_found_falls_back():
     """Test: device_id provided but not found in registry → falls back to single entry."""
-    from homeassistant.helpers import device_registry as dr
+
+    mock_hass = MagicMock(spec=HomeAssistant)
+    mock_hass.config_entries = MagicMock()
+    mock_hass.data = {}
 
     mock_dev_reg = MagicMock()
     mock_dev_reg.async_get.return_value = None  # Device not found

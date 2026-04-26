@@ -17,15 +17,6 @@ pytest_plugins = ["pytest_homeassistant_custom_component"]
 
 
 @pytest.fixture
-def mock_hass():
-    """Create a mock HomeAssistant instance."""
-    hass = MagicMock()
-    hass.services = MagicMock()
-    hass.services.async_call = AsyncMock()
-    return hass
-
-
-@pytest.fixture
 def mock_entry():
     """Create a mock config entry."""
     entry = MagicMock()
@@ -46,8 +37,12 @@ def llm_context():
 
 
 @pytest.mark.asyncio
-async def test_script_create_golden_path(mock_hass, llm_context):
+async def test_script_create_golden_path(llm_context):
     """Test AC7 - script create golden path returns pending_approval, apply fires create + reload."""
+    mock_hass = MagicMock()
+    mock_hass.services = MagicMock()
+    mock_hass.services.async_call = AsyncMock()
+
     tool = ConfigScriptCreate()
 
     # Mock ha_client functions
@@ -55,7 +50,7 @@ async def test_script_create_golden_path(mock_hass, llm_context):
         "custom_components.bedrock_ha_agent.config_tools.script.ha_script.get_script",
         new_callable=AsyncMock,
         return_value=None,
-    ) as mock_get, patch(
+    ), patch(
         "custom_components.bedrock_ha_agent.config_tools.script.ha_script.create_or_update_script",
         new_callable=AsyncMock,
     ) as mock_create, patch(
@@ -117,8 +112,12 @@ async def test_script_create_golden_path(mock_hass, llm_context):
 
 
 @pytest.mark.asyncio
-async def test_script_edit_diff_shows_both_sides(mock_hass, llm_context):
+async def test_script_edit_diff_shows_both_sides(llm_context):
     """Test that script edit diff shows both before and after states."""
+    mock_hass = MagicMock()
+    mock_hass.services = MagicMock()
+    mock_hass.services.async_call = AsyncMock()
+
     tool = ConfigScriptEdit()
 
     existing_script = {
@@ -151,8 +150,12 @@ async def test_script_edit_diff_shows_both_sides(mock_hass, llm_context):
 
 
 @pytest.mark.asyncio
-async def test_script_delete_unknown_object_id(mock_hass, llm_context):
+async def test_script_delete_unknown_object_id(llm_context):
     """Test that deleting unknown script returns validation_failed with unknown_script code."""
+    mock_hass = MagicMock()
+    mock_hass.services = MagicMock()
+    mock_hass.services.async_call = AsyncMock()
+
     tool = ConfigScriptDelete()
 
     # v1.1.15: unknown_entry_error consults hass.states.get — simulate a real
@@ -181,8 +184,12 @@ async def test_script_delete_unknown_object_id(mock_hass, llm_context):
 
 
 @pytest.mark.asyncio
-async def test_script_sequence_with_unknown_entity_fails(mock_hass, llm_context):
+async def test_script_sequence_with_unknown_entity_fails(llm_context):
     """Test that script with unknown entity in sequence fails validation."""
+    mock_hass = MagicMock()
+    mock_hass.services = MagicMock()
+    mock_hass.services.async_call = AsyncMock()
+
     tool = ConfigScriptCreate()
 
     with patch(
@@ -230,8 +237,12 @@ async def test_script_sequence_with_unknown_entity_fails(mock_hass, llm_context)
             assert any(e.code == "unknown_entity" for e in result.errors)
 
 
-def test_get_tools_returns_three_instances(mock_hass, mock_entry):
+def test_get_tools_returns_three_instances(mock_entry):
     """Test that get_tools returns exactly three tool instances."""
+    mock_hass = MagicMock()
+    mock_hass.services = MagicMock()
+    mock_hass.services.async_call = AsyncMock()
+
     tools = get_tools(mock_hass, mock_entry)
 
     assert len(tools) == 3

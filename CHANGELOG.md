@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.2.2 — Integrate pytest-homeassistant async hass fixture (tests only)
+
+### Tests
+- Removed the synchronous `MagicMock`-based `mock_hass` fixture from `tests/conftest.py`. All tests that needed it now use the real async `hass` fixture from `pytest-homeassistant-custom-component` via `pytest_plugins = ["pytest_homeassistant_custom_component"]`, or construct their own inline `MagicMock` when only a stand-in object is required.
+- Unblocked **7 previously-skipped tests** that had been waiting on real `hass` infrastructure:
+  - 5 tests in `test_extended_service_call.py` covering read_safe immediate execution, mutating approval creation, denied-service refusal, unlisted-service refusal, and entity_id-required validation (ACs D44, D45, D48).
+  - 1 test in `test_diagnostics_reload_undo.py` locking in the no-op undo contract (`{"restored": False, "reason": "reload is one-way"}`) for `DiagnosticsReloadIntegration`. Added a twin test for `DiagnosticsReloadConfigEntry`.
+  - 1 end-to-end test in `test_bedrock_tool_schema.py::test_api_instance_end_to_end` that builds a real `BedrockServicesAPI` via `async_get_api_instance` and verifies every tool spec passes through `format_tools_for_bedrock` with a valid non-empty `input_schema` — this is the exact shape that would have caught the v1.2.1 bug pre-release.
+- Ported 4 test files off the removed `mock_hass` fixture (`test_api_entry_resolution.py`, `test_automation_object_id.py`, `test_config_editing_lovelace.py`, `test_config_editing_script.py`, `test_past_tense_correction.py`) to inline `MagicMock()` per test.
+- Tightened assertions on all 7 unblocked tests: they now check deterministic contract fields (exact status strings, specific error codes, exact restore-fn return dicts, invariant that mutating services DO NOT fire before approval) rather than permissive OR-of-many-strings matches.
+
+### No production code changes
+- Test suite: **259 passed, 0 skipped, 1 xpassed** (was 251 passed, 7 skipped). Runtime 1.07s (was 3.44s).
+
 ## 1.2.1 — Fix Bedrock tool-schema conversion
 
 ### Fixed

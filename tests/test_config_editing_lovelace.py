@@ -1,7 +1,7 @@
 """Tests for Lovelace config editing tools."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from custom_components.bedrock_ha_agent.config_tools.lovelace import (
     ConfigLovelaceCardAdd,
@@ -15,14 +15,6 @@ pytest_plugins = ["pytest_homeassistant_custom_component"]
 
 
 # Fixtures
-
-@pytest.fixture
-def mock_hass():
-    """Create a mock HomeAssistant instance."""
-    hass = MagicMock()
-    hass.data = {}
-    return hass
-
 
 @pytest.fixture
 def mock_entry():
@@ -66,8 +58,11 @@ def sample_dashboard():
 # Test ConfigLovelaceCardAdd
 
 @pytest.mark.asyncio
-async def test_add_card_golden_path(mock_hass, mock_entry, mock_llm_context, sample_dashboard):
+async def test_add_card_golden_path(mock_entry, mock_llm_context, sample_dashboard):
     """Test AC8: add card to storage-mode dashboard."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceCardAdd()
 
     new_card = {"type": "weather-forecast", "entity": "weather.home"}
@@ -122,8 +117,11 @@ async def test_add_card_golden_path(mock_hass, mock_entry, mock_llm_context, sam
 
 
 @pytest.mark.asyncio
-async def test_add_card_yaml_mode_rejected(mock_hass, mock_entry, mock_llm_context, sample_dashboard):
+async def test_add_card_yaml_mode_rejected(mock_entry, mock_llm_context, sample_dashboard):
     """Test AC18: YAML-mode dashboard rejects card add."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceCardAdd()
 
     new_card = {"type": "button", "entity": "switch.test"}
@@ -159,8 +157,11 @@ async def test_add_card_yaml_mode_rejected(mock_hass, mock_entry, mock_llm_conte
 
 
 @pytest.mark.asyncio
-async def test_add_card_unknown_view_rejected(mock_hass, mock_llm_context, sample_dashboard):
+async def test_add_card_unknown_view_rejected(mock_llm_context, sample_dashboard):
     """Test: unknown view path is rejected."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceCardAdd()
 
     new_card = {"type": "button", "entity": "switch.test"}
@@ -192,8 +193,11 @@ async def test_add_card_unknown_view_rejected(mock_hass, mock_llm_context, sampl
 
 
 @pytest.mark.asyncio
-async def test_add_card_missing_type_rejected(mock_hass, mock_llm_context, sample_dashboard):
+async def test_add_card_missing_type_rejected(mock_llm_context, sample_dashboard):
     """Test: card without 'type' field is rejected."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceCardAdd()
 
     # Card missing 'type'
@@ -225,8 +229,11 @@ async def test_add_card_missing_type_rejected(mock_hass, mock_llm_context, sampl
 # Test ConfigLovelaceCardRemove
 
 @pytest.mark.asyncio
-async def test_remove_card_golden_path(mock_hass, mock_llm_context, sample_dashboard):
+async def test_remove_card_golden_path(mock_llm_context, sample_dashboard):
     """Test: remove card from dashboard."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceCardRemove()
 
     tool_input = llm.ToolInput(
@@ -263,8 +270,11 @@ async def test_remove_card_golden_path(mock_hass, mock_llm_context, sample_dashb
 
 
 @pytest.mark.asyncio
-async def test_remove_card_index_out_of_range_rejected(mock_hass, mock_llm_context, sample_dashboard):
+async def test_remove_card_index_out_of_range_rejected(mock_llm_context, sample_dashboard):
     """Test: card index out of range is rejected."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceCardRemove()
 
     tool_input = llm.ToolInput(
@@ -296,8 +306,11 @@ async def test_remove_card_index_out_of_range_rejected(mock_hass, mock_llm_conte
 # Test ConfigLovelaceDashboardCreate
 
 @pytest.mark.asyncio
-async def test_dashboard_create_golden_path(mock_hass, mock_llm_context):
+async def test_dashboard_create_golden_path(mock_llm_context):
     """Test: create new dashboard."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tool = ConfigLovelaceDashboardCreate()
 
     tool_input = llm.ToolInput(
@@ -338,8 +351,11 @@ async def test_dashboard_create_golden_path(mock_hass, mock_llm_context):
 
 
 @pytest.mark.asyncio
-async def test_get_tools_returns_three_instances(mock_hass, mock_entry):
+async def test_get_tools_returns_three_instances(mock_entry):
     """Test: get_tools returns three tool instances."""
+    mock_hass = MagicMock()
+    mock_hass.data = {}
+
     tools = get_tools(mock_hass, mock_entry)
     assert len(tools) == 3
     assert isinstance(tools[0], ConfigLovelaceCardAdd)

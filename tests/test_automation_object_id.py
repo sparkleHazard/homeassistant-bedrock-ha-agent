@@ -8,12 +8,6 @@ from custom_components.bedrock_ha_agent.config_tools.automation import ConfigAut
 
 
 @pytest.fixture
-def mock_hass():
-    """Create a mock Home Assistant instance."""
-    return Mock()
-
-
-@pytest.fixture
 def tool():
     """Create a ConfigAutomationCreate tool instance."""
     return ConfigAutomationCreate()
@@ -34,9 +28,11 @@ def tool_input():
 
 
 @pytest.mark.asyncio
-async def test_create_collision_appends_suffix(mock_hass, tool, tool_input):
+async def test_create_collision_appends_suffix(tool, tool_input):
     """Test that object_id collision appends numeric suffix (M2 fix)."""
     from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
+
+    mock_hass = Mock()
 
     # Mock existing automation with object_id="morning_routine"
     existing_automation = {"alias": "Morning Routine", "trigger": [], "action": []}
@@ -59,9 +55,11 @@ async def test_create_collision_appends_suffix(mock_hass, tool, tool_input):
 
 
 @pytest.mark.asyncio
-async def test_create_sanitizes_object_id(mock_hass, tool):
+async def test_create_sanitizes_object_id(tool):
     """Test that invalid object_id is sanitized (M2 fix)."""
     from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
+
+    mock_hass = Mock()
 
     # Mock no existing automations
     ha_automation.get_automation = AsyncMock(return_value=None)
@@ -88,9 +86,11 @@ async def test_create_sanitizes_object_id(mock_hass, tool):
 
 
 @pytest.mark.asyncio
-async def test_summary_includes_object_id(mock_hass, tool):
+async def test_summary_includes_object_id(tool):
     """Test that proposed_summary includes object_id (M2 fix)."""
     from custom_components.bedrock_ha_agent.config_tools.ha_client import automation as ha_automation
+
+    mock_hass = Mock()
 
     # Mock no existing automations
     ha_automation.get_automation = AsyncMock(return_value=None)

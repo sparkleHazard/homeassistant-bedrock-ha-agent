@@ -1,6 +1,6 @@
 """Test fixtures for bedrock_ha_agent."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 
 # Register custom markers used by new tests.
@@ -24,24 +24,4 @@ def mock_unload_entry():
 
 
 # The real `hass` fixture is provided by pytest-homeassistant-custom-component
-# (declared as pytest_plugins in tests that need it). Tests that only need a
-# lightweight mock should request `mock_hass` instead of `hass`.
-@pytest.fixture
-def mock_hass():
-    """Lightweight synchronous MagicMock stand-in for HA.
-
-    Prefer the real `hass` fixture from pytest-homeassistant-custom-component for
-    anything that exercises HA internals (entity_registry, area_registry, storage,
-    lovelace, etc.). Use this mock for narrowly-scoped tests that only need to
-    stub `hass.data` / `hass.services` / `hass.states`.
-    """
-    mock = MagicMock()
-    mock.data = {}
-    mock.services = MagicMock()
-    mock.states = MagicMock()
-    mock.config = MagicMock()
-    mock.config.config_dir = "/tmp/ha-test"
-    mock.loop = None
-    mock.async_add_executor_job = AsyncMock()
-    mock.async_create_task = AsyncMock()
-    return mock
+# via pytest_plugins declaration in individual test files.
