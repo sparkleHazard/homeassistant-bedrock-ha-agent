@@ -8,6 +8,7 @@ Distributed as a [HACS](https://hacs.xyz/) custom integration — **not** a Home
 
 ### Core
 - Conversation agent backed by Claude on AWS Bedrock
+- **AI Task entity** (v1.4.0+) — `ai_task.generate_data` service so automations can ask Claude for text or structured JSON without going through the voice pipeline. Attachments supported for multimodal prompts
 - Native tool-calling: the model calls Home Assistant services (`light.turn_on`, `climate.set_temperature`, etc.) directly
 - Text-to-speech via Amazon Polly (neural/long-form/generative engines), with the voice list fetched live from your account
 - Speech-to-text via Amazon Transcribe streaming (PCM 16 kHz mono), covering English variants, major European languages, and CJK
@@ -223,6 +224,59 @@ data:
 An STT entity (`stt.aws_transcribe`) is created alongside the conversation agent and TTS entity. Wire it into **Settings → Voice assistants → Add Assistant** by setting the **Speech-to-text** provider to *AWS Transcribe*.
 
 Input format: 16 kHz, 16-bit PCM, mono. Home Assistant's voice pipeline already produces audio in this shape, so no extra conversion is needed.
+
+## AI Task (`ai_task.generate_data`)
+
+An `ai_task` entity (`ai_task.bedrock_ha_agent_ai_task`) is registered alongside the conversation agent, TTS, and STT. It implements HA's [AI Task building block](https://www.home-assistant.io/integrations/ai_task/), so any automation or script can ask Claude for text or structured JSON via the `ai_task.generate_data` service — no voice pipeline involved.
+
+### Text response
+
+```yaml
+action: ai_task.generate_data
+data:
+  task_name: summarize_morning
+  entity_id: ai_task.bedrock_ha_agent_ai_task
+  instructions: >
+    Summarize today's weather forecast in one sentence for a voice announcement.
+    Forecast JSON: {{ state_attr('weather.home', 'forecast') | tojson }}
+response_variable: summary
+```
+
+Result lands in `summary.data` as a string.
+
+### Structured JSON response
+
+Pass `structure` to force Claude to return a dict matching your schema:
+
+```yaml
+action: ai_task.generate_data
+data:
+  task_name: grocery_items
+  entity_id: ai_task.bedrock_ha_agent_ai_task
+  instructions: "Extract the grocery items from this whiteboard photo."
+  attachments:
+    - "/media/local/fridge_list.jpg"
+  structure:
+    items:
+      selector:
+        object:
+          fields:
+            name:
+              selector: {text: {}}
+            quantity:
+              selector: {number: {}}
+response_variable: result
+```
+
+Result lands in `result.data` as a parsed dict. If Claude returns malformed JSON the service raises `HomeAssistantError` and the automation fails fast.
+
+### Attachments (vision)
+
+The entity declares `SUPPORT_ATTACHMENTS`, so images and media from `media-source://` URIs or local paths are attached to the prompt. The selected model must support vision — Sonnet 4.5 works, default Haiku does not. See [Vision Input](#vision-input-camera-snapshots) for model guidance.
+
+### Tool access
+
+The AI Task entity receives the same `llm_api` as the conversation entity — meaning Claude can call `HassCallService`, config-editing tools (if enabled), and diagnostics tools (if enabled) from within an `ai_task.generate_data` invocation. Keep this in mind when writing automations: an AI Task that fetches weather data won't touch anything, but one you prompt with "turn off the lights if it's sunny" will try to. Use `CONF_LLM_HASS_API: null` in the options flow to disable tool access across both the conversation and AI Task entities.
 
 ## Usage & Cost Sensors
 

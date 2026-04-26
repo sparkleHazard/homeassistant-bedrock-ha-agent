@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.4.0 — AI Task entity (`ai_task.generate_data`)
+
+### Added
+- **AI Task entity** implementing HA's [AI Task building block](https://www.home-assistant.io/integrations/ai_task/). Any automation or script can now ask Claude for text or structured JSON via `ai_task.generate_data` without going through the voice-assistant pipeline. The entity is `ai_task.bedrock_ha_agent_ai_task` and registers automatically alongside the conversation, TTS, STT, and sensor entities.
+- **`GENERATE_DATA` + `SUPPORT_ATTACHMENTS`** supported features: plain-text prompts, structured responses (pass a `structure` schema), and multimodal attachments (images via `media-source://` URIs or local paths — requires a vision-capable model). `GENERATE_IMAGE` is not shipped; Claude on Bedrock does not generate images, so there is no provider.
+- Tool access parity: the AI Task entity receives the same `llm_api` as the conversation entity, so `HassCallService`, config-editing tools (if enabled), and diagnostics tools (if enabled) are all reachable from `ai_task.generate_data` invocations. Use `CONF_LLM_HASS_API: null` in the options flow to disable tool access on both entities at once.
+- **Subentry auto-provisioning:** on first setup after update, an `ai_task_data` subentry is created for each existing Bedrock config entry (idempotent — no duplicates on subsequent restarts). New installs create the subentry during initial setup. The config flow exposes `async_get_supported_subentry_types` so HA's UI can add additional AI Task entities per config entry if needed.
+
+### Architecture
+- New file `ai_task.py` (~300 LOC). Entity subclasses `ai_task.AITaskEntity + RestoreEntity`. `_async_generate_data` drives a minimal Bedrock tool-loop that mirrors the conversation entity's streaming path but skips the conversation-specific pre-turn logic (approval interceptor, past-tense check, diagnostics budget reset, history trimming).
+- `Platform.AI_TASK` added to `PLATFORMS` tuple; no changes to conversation/TTS/STT/sensor platforms.
+- `_attr_suggested_object_id = "bedrock_ha_agent_ai_task"` so new installs get a clean entity_id. No entity_id migration needed — the entity is new.
+
+### Tests
+- 7 new tests in `tests/test_ai_task.py` locking in: feature flags, base-class inheritance, unique_id scheme, subentry auto-creation (idempotent), platform subentry filtering, config-flow subentry registration, Platform.AI_TASK in PLATFORMS. 3 further tests (deep `_async_generate_data` paths requiring a mocked Bedrock streaming client) documented as skips for a future uplift.
+- 275 passed, 3 skipped, 1 xpassed.
+
 ## 1.3.1 — Clean up conversation entity_id
 
 ### Changed

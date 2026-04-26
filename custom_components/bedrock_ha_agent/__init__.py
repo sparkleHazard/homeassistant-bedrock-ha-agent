@@ -33,7 +33,7 @@ from ._ha_api_smoke import check_required_ha_apis
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.CONVERSATION, Platform.SENSOR, Platform.STT, Platform.TTS]
+PLATFORMS = [Platform.AI_TASK, Platform.CONVERSATION, Platform.SENSOR, Platform.STT, Platform.TTS]
 
 
 class HassServiceTool(llm.Tool):
@@ -254,6 +254,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # new and old installs converge.
     await _async_migrate_conversation_entity_id(hass, entry)
 
+    # Ensure the AI Task subentry exists (idempotent).
+    await _async_ensure_ai_task_subentry(hass, entry)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Config-editing automations.yaml bootstrap: if the kill switch is on, make
@@ -274,6 +277,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.info("Bedrock setup: integration setup complete")
     return True
+
+
+async def _async_ensure_ai_task_subentry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Idempotent: create the AI Task subentry if it doesn't exist."""
+    from homeassistant.config_entries import ConfigSubentry
+
+    if any(s.subentry_type == "ai_task_data" for s in entry.subentries.values()):
+        return
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data={},  # parent entry owns all config; subentry is identity only
+            subentry_type="ai_task_data",
+            title="Bedrock AI Task",
+            unique_id=None,
+        ),
+    )
+    _LOGGER.info("Created default AI Task subentry for entry %s", entry.entry_id)
 
 
 async def _async_migrate_conversation_entity_id(

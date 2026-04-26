@@ -12,6 +12,7 @@ from botocore.exceptions import (
 )
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm, selector
 
@@ -327,6 +328,13 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.OptionsFlow:
         """Get the options flow for this handler."""
         return BedrockConversationOptionsFlow()
+
+    @classmethod
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return supported subentry types."""
+        return {"ai_task_data": BedrockAITaskSubentryFlow}
 
 
 class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
@@ -652,4 +660,26 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=options_schema
+        )
+
+
+class BedrockAITaskSubentryFlow(ConfigSubentryFlow):
+    """Config subentry flow for AI Task entities."""
+
+    async def async_step_user(self, user_input=None):
+        """Handle AI Task subentry creation."""
+        return await self.async_step_set_options(user_input)
+
+    async def async_step_set_options(self, user_input=None):
+        """Configure AI Task subentry options."""
+        if user_input is not None:
+            return self.async_create_entry(
+                title=user_input.get("name", "Bedrock AI Task"),
+                data={},
+            )
+        return self.async_show_form(
+            step_id="set_options",
+            data_schema=vol.Schema({
+                vol.Optional("name", default="Bedrock AI Task"): str,
+            }),
         )
