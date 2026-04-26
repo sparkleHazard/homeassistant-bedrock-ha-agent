@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.7 — Per-file-per-object transport for automations, scripts, scenes
+
+### Fixed
+- Config-editing apply paths silently succeeded but never created entities.
+  Root cause: the transport wrote to `/config/automations.yaml` (and
+  `scripts.yaml`, `scenes.yaml`) but setups using the common
+  `automation: !include_dir_merge_list automations/` pattern don't load
+  that flat file at all — HA only scans the `automations/` directory.
+  The write succeeded, HA fired `automation.reload`, nothing got picked up.
+- Transport rewritten to write one file per object into the matching
+  directory: `automations/<object_id>.yaml`, `scripts/<object_id>.yaml`,
+  `scenes/<object_id>.yaml`. `create_or_update_*` creates the directory
+  if missing, writes atomically via HA's `write_utf8_file_atomic`, and
+  fires the matching `.reload` service. `delete_*` unlinks the file.
+  `list_*` walks the directory; `get_*` reads the single file for an
+  object_id directly (no scan).
+- Matches the HA-standard directory-based config layout and cleanly
+  coexists with hand-authored files. Our writes are isolated from
+  whatever else is in those directories.
+
+### Notes
+- Users on the single-file layout (`automation: !include automations.yaml`)
+  may need to switch to `!include_dir_merge_list automations/` for
+  config-editing to work. Most HA installations that have grown past
+  5-10 automations already use the directory form.
+
 ## 1.1.6 — Diagnostic logging in the apply path
 
 ### Changed
