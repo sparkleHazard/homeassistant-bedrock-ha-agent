@@ -4,7 +4,7 @@
 # ha_client
 
 ## Purpose
-Transport layer for HA config APIs. **No schema, no approval gating, no tool classes** — pure I/O against Home Assistant's filesystem YAML, registries, and WebSocket APIs. Every mutating operation that `config_tools/` runs from `apply_change` or a `restore_fn` lands here. Keeping this layer thin lets the tool-class layer stay side-effect-free in `async_call`, and lets tests mock at the transport boundary instead of the filesystem.
+Transport layer for HA config APIs. **No schema, no approval gating, no tool classes** — pure I/O against Home Assistant's filesystem YAML, registries, and WebSocket APIs. Every mutating operation that `config_tools/` runs from `apply_change` or a `restore_fn` lands here. Keeping this layer thin lets the tool-class layer stay side-effect-free in `async_call`, and lets tests mock at the transport boundary instead of the filesystem. v1.2.0 adds six read-only diagnostic transport modules (system_log, logbook, history, states, repairs, health) which are in-memory/API reads rather than filesystem writes.
 
 ## Key Files
 
@@ -17,6 +17,12 @@ Transport layer for HA config APIs. **No schema, no approval gating, no tool cla
 | `helper.py` | Helper entities (`input_boolean`, `input_number`, `input_select`, `input_text`, `input_datetime`, `input_button`, `timer`, `counter`). `SUPPORTED_HELPER_DOMAINS` is the canonical allowlist. Helpers are created via HA services / storage collections, not YAML files. |
 | `registry.py` | Area, label, and entity-registry access via `homeassistant.helpers.area_registry` / `label_registry` / `entity_registry`. List/get/create/update/delete for areas + labels; rename/relabel/expose/unexpose for entities. |
 | `lovelace.py` | Dashboards + cards via WebSocket commands: `lovelace/dashboards`, `lovelace/config`, `lovelace/config/save`, `lovelace/dashboards/create`, `lovelace/dashboards/update`, `lovelace/dashboards/delete`. Rejected for YAML-mode installs; caller must check `runtime_data.lovelace_mode` before invoking. |
+| `system_log.py` | Recent HA log entries via `homeassistant.components.system_log.LogErrorHandler.records.to_list()`. Also wraps `system_log.clear` service. Returns `{"entries": [...], "count": N}` with level/timestamp/logger/message/source fields. Graceful when component not loaded. |
+| `logbook.py` | Logbook events via `homeassistant.components.logbook.processor.EventProcessor.get_events(start, end)`, wrapped via `recorder.get_instance(hass).async_add_executor_job` (processor is sync). Single entity_id per call in v1. |
+| `history.py` | Significant-state history via `homeassistant.components.recorder.history.get_significant_states`. Returns `{"states": [...], "count": N}`. Time range clamped by caller. |
+| `states.py` | In-memory state reads via `hass.states.get(entity_id)`. `DiagnosticsStateRead` variant strips `context.user_id`, and for `person.*`/`device_tracker.*` also strips `latitude`, `longitude`, `gps_accuracy`, `elevation`, `altitude`, `ssid`, `mac_address`, `ip` from attributes. `list_states` supports `domain` and `area_id` filters. |
+| `repairs.py` | Reads the user-surfaced repairs via `homeassistant.helpers.issue_registry.async_get(hass).issues`. Returns `{"issues": [...], "count": N}`. |
+| `health.py` | System-health component info via `homeassistant.components.system_health.get_info`. Returns the per-integration info dict. Graceful when `system_health` not loaded. |
 
 ## For AI Agents
 
@@ -29,6 +35,7 @@ Transport layer for HA config APIs. **No schema, no approval gating, no tool cla
 - **Read path uses HA's YAML loader.** `homeassistant.util.yaml.load_yaml` returns `NodeDictClass`/`NodeStrClass`/`NodeListClass` subclasses tagged with source-file+line. These aren't safe to hand to `yaml.safe_dump`; `config_tools/diff.py::_to_plain` normalizes them before dumping.
 - **WebSocket ops need a `hass.components.websocket_api` connection.** Lovelace operations go through `hass.data["lovelace"].async_ws_*` or the WS command registry — see `lovelace.py` for the exact command names verified against HA ≥2024.12.0.
 - **Registries are async but in-memory.** `area_registry.async_get(hass).async_create(...)` is non-blocking. Don't wrap these in executor jobs — they're not filesystem ops despite the `async_` prefix.
+- **Diagnostic read modules are different from write modules.** `system_log`, `logbook`, `history`, `states`, `repairs`, `health` are pure read wrappers — no atomic write, no `.reload` service call, no pathing. They should never cause state changes and must return `{"error": "component_not_loaded"}` when the backing HA component isn't loaded (graceful degradation).
 
 ### Testing Requirements
 - Tests mock `homeassistant.util.yaml.load_yaml`, `homeassistant.util.file.write_utf8_file_atomic`, and registry factory functions. No real filesystem.
@@ -52,5 +59,10 @@ None — this is the lowest layer.
 - `homeassistant.const.CONF_ID` — canonical id key.
 - `homeassistant.helpers.area_registry` / `label_registry` / `entity_registry` — registry ops.
 - `homeassistant.components.websocket_api` — Lovelace WS commands.
+- `homeassistant.components.logbook.processor.EventProcessor` — logbook events (HA 2025.3+).
+- `homeassistant.components.system_log.LogErrorHandler` — log ring buffer.
+- `homeassistant.components.recorder` — `get_instance`, `statistics`, `history.get_significant_states`.
+- `homeassistant.components.system_health.get_info` — integration self-reports.
+- `homeassistant.helpers.issue_registry` — user-surfaced repairs.
 
 <!-- MANUAL: -->

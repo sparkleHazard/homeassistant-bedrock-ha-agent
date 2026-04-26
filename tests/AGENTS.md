@@ -1,5 +1,6 @@
 <!-- Parent: ../AGENTS.md -->
 <!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
+<!-- MANUAL: -->
 
 # tests
 
@@ -38,6 +39,15 @@ Automated pytest suite for the `bedrock_ha_agent` integration. Uses `pytest-home
 | `test_config_editing_usage.py` | Usage tracker increments on config-editing tool calls. |
 | `test_past_tense_correction.py` | AC17 confabulation guard — past-tense words in a pending summary trigger the correction path. |
 | `test_phase3_wiring.py` | `register_config_tools` respects the kill switch; re-registration on options-flow flip. |
+| | **Diagnostics (v1.2.0)** |
+| `test_diagnostics_flag_off.py` | Invisibility (AC D1): `get_tools` returns `[]` when `CONF_ENABLE_DIAGNOSTICS=False`; full 15-tool list when on. |
+| `test_diagnostics_ha_api_smoke.py` | HA-API smoke (AC D46): imports every HA symbol the diagnostics plan depends on (`EventProcessor`, `LogErrorHandler`, `statistics_during_period`, `SERVICE_SET_LEVEL_SCHEMA`, `async_check_ha_config_file`, etc.) and asserts each resolves at the installed HA. |
+| `test_diagnostics_redact_and_cap.py` | `redact_secrets` substring + regex coverage; `enforce_byte_cap` truncation with metadata (`rows_returned` / `rows_available_estimate`). |
+| `test_diagnostics_budget.py` | AC D47 per-turn budget: allow N, reject N+1, reset clears counter, per-conversation isolation. |
+| `test_extended_service_call.py` | Classification-table sanity (1 passing test + 5 skipped tests documenting full-pipeline coverage needed: read_safe immediate, mutating pending, denied refusal, unlisted refusal, entity_id-required refusal). |
+| `test_diagnostics_reload_undo.py` | AC D43: reload UndoEntry's `restore_fn` is a no-op AND the summary/warnings contain "reload is one-way" (currently skipped pending ConfigEditingTool infrastructure in tests). |
+| `test_past_tense_tokens.py` | AC D49: both `config_tools/pending.py::_PAST_TENSE_TOKENS` AND `conversation.py::_PAST_TENSE_REGEX` include the widened lifecycle tokens (`reloaded`, `restarted`, `disabled`, `enabled`). |
+| `test_diagnostics_config_editing_nonregression.py` | Smoke test asserting existing config-editing test modules still import cleanly. |
 | `test_automation_object_id.py` | Slugification, collision suffix, 64-char cap. |
 | `test_api_entry_resolution.py` | `_get_runtime_data` resolution + error paths. |
 | `test_concurrent_voice.py` | Multiple concurrent voice sessions don't cross-contaminate runtime state. |
@@ -55,6 +65,7 @@ Automated pytest suite for the `bedrock_ha_agent` integration. Uses `pytest-home
 - **Coverage target is `custom_components.bedrock_ha_agent`.** Tests that import from other paths won't contribute to coverage and won't gate `make release`.
 - **`make test-simple` is the curated fast subset** (`test_bedrock_client.py`, `test_config_flow.py`, `test_init.py`, `test_utils.py`). `make release` uses this — it's the release gate. The larger config-editing suite runs under `make test` but not `make release`. Be aware which bucket your test lands in.
 - **Regression guards exist for every post-port bug** (v1.1.1 through v1.1.9). When fixing a bug, add or extend the matching `test_*.py` — don't let a silent fix ship without a test.
+- **Some diagnostics tests are skipped pending HA integration fixtures.** `test_extended_service_call.py` skips 5 and `test_diagnostics_reload_undo.py` skips 1 because the `hass` MagicMock in `conftest.py` doesn't reproduce `hass.services` registration realistically enough to drive the full PendingChange pipeline. Promote these to integration-style tests (using `pytest-homeassistant-custom-component`'s real `hass` fixture and `SessionMaker` from recorder) when v1.2.1+ uplift lands.
 
 ### Testing Requirements
 - Use `pytest.mark.asyncio` for async tests.

@@ -3,7 +3,7 @@
 # homeassistant-bedrock-ha-agent
 
 ## Purpose
-A Home Assistant **custom integration** that turns AWS Bedrock foundation models (Anthropic Claude, Meta Llama, Mistral) into a full conversation agent for HA. It supports device control, streaming responses, token-usage sensors, Amazon Polly TTS, Amazon Transcribe STT, camera-snapshot vision input, and — when explicitly enabled — approval-gated natural-language editing of automations, scripts, scenes, helpers, Lovelace dashboards, and the area/label/entity registries. Distributed via HACS and installed into a Home Assistant instance's `config/custom_components/` directory.
+A Home Assistant **custom integration** that turns AWS Bedrock foundation models (Anthropic Claude, Meta Llama, Mistral) into a full conversation agent for HA. It supports device control, streaming responses, token-usage sensors, Amazon Polly TTS, Amazon Transcribe STT, camera-snapshot vision input, and — when explicitly enabled — two opt-in tool suites: approval-gated natural-language editing of automations/scripts/scenes/helpers/Lovelace/registries (`CONF_ENABLE_CONFIG_EDITING`, v1.1.0+), and a diagnostics & control suite for log diving, state/history reads, broader service calls with per-service classification, and lifecycle operations like integration reload and entity enable/disable (`CONF_ENABLE_DIAGNOSTICS`, v1.2.0+). Distributed via HACS and installed into a Home Assistant instance's `config/custom_components/` directory.
 
 ## Key Files
 

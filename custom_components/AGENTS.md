@@ -13,7 +13,7 @@ None at this level. The directory is a namespace container — Home Assistant wa
 
 | Directory | Purpose |
 |-----------|---------|
-| `bedrock_ha_agent/` | The AWS Bedrock conversation + config-editing integration (see `bedrock_ha_agent/AGENTS.md`). Domain: `bedrock_ha_agent`. |
+| `bedrock_ha_agent/` | The AWS Bedrock conversation + config-editing + diagnostics integration (see `bedrock_ha_agent/AGENTS.md`). Domain: `bedrock_ha_agent`. |
 
 ## For AI Agents
 
