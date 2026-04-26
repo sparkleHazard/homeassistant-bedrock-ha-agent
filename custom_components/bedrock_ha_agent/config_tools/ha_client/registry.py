@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 
-async def list_areas(hass: "HomeAssistant") -> list[dict]:
+async def list_areas(hass: "HomeAssistant") -> list[dict[str, Any]]:
     """List all areas."""
     from homeassistant.helpers import area_registry as ar
 
@@ -48,7 +48,7 @@ async def delete_area(hass: "HomeAssistant", area_id: str) -> None:
     registry.async_delete(area_id)
 
 
-async def list_labels(hass: "HomeAssistant") -> list[dict]:
+async def list_labels(hass: "HomeAssistant") -> list[dict[str, Any]]:
     """List all labels."""
     from homeassistant.helpers import label_registry as lr
 
@@ -91,7 +91,7 @@ async def delete_label(hass: "HomeAssistant", label_id: str) -> None:
 
 async def get_entity_registry_entry(
     hass: "HomeAssistant", entity_id: str
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Get entity registry entry, or None if not registered."""
     from homeassistant.helpers import entity_registry as er
 
@@ -112,7 +112,7 @@ async def get_entity_registry_entry(
 
 async def update_entity_registry(
     hass: "HomeAssistant", entity_id: str, **updates: Any
-) -> dict:
+) -> dict[str, Any]:
     """Update an entity registry record. Returns the new state dict.
 
     Caveat: `disabled_by` is WS-restricted to USER origin (see plan §3.c).

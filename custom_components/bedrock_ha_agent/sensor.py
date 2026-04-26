@@ -145,7 +145,7 @@ class BedrockUsageSensor(SensorEntity):
         self.async_on_remove(self._tracker.add_listener(self._handle_update))
 
     @property
-    def native_value(self):
+    def native_value(self) -> float | int | str | datetime | None:
         return self._spec.getter(self._tracker)
 
     @callback

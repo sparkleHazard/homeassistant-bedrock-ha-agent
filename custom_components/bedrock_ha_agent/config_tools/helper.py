@@ -11,12 +11,12 @@ Phase-3 interceptor after user approval.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import llm, config_validation as cv
 
-from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool
+from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool, RestoreFn
 from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
@@ -42,13 +42,13 @@ _LOGGER = logging.getLogger(__name__)
 # Shared schema fragments
 _HELPER_CREATE_SCHEMA = vol.Schema({
     vol.Required("domain"): vol.In(sorted(SUPPORTED_HELPER_DOMAINS)),
-    vol.Required("config"): dict,  # type-specific; validation.validate_helper does the heavy lifting
+    vol.Required("config"): dict[str, Any],  # type-specific; validation.validate_helper does the heavy lifting
 })
 
 _HELPER_EDIT_SCHEMA = vol.Schema({
     vol.Required("domain"): vol.In(sorted(SUPPORTED_HELPER_DOMAINS)),
     vol.Required("object_id"): cv.string,
-    vol.Required("config"): dict,
+    vol.Required("config"): dict[str, Any],
 })
 
 _HELPER_DELETE_SCHEMA = vol.Schema({
@@ -69,17 +69,17 @@ class ConfigHelperCreate(ConfigEditingTool):
     )
     parameters = _HELPER_CREATE_SCHEMA
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         # Create has no pre-state.
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         domain = tool_input.tool_args["domain"]
         config = self._extract_config(tool_input.tool_args, ("domain", "object_id"))
         config["_domain"] = domain  # convenience for apply_change; stripped before validation
         return config
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if proposed is None:
             return ValidationResult.failure([ValidationError(code="missing_payload", message="No proposed config")])
 
@@ -91,7 +91,7 @@ class ConfigHelperCreate(ConfigEditingTool):
         payload_without_marker = {k: v for k, v in proposed.items() if k != "_domain"}
         return validate_helper(domain, payload_without_marker)
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         domain = (proposed or {}).get("_domain", "helper")
         name = (proposed or {}).get("name", "a new helper")
         return render_spoken_summary(
@@ -99,11 +99,11 @@ class ConfigHelperCreate(ConfigEditingTool):
             f"{domain} {name!r}",
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         clean = {k: v for k, v in (proposed or {}).items() if k != "_domain"}
         return render_unified_diff(None, clean)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         domain = (proposed or {}).get("_domain")
 
         async def _restore() -> None:
@@ -119,8 +119,9 @@ class ConfigHelperCreate(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         domain = (proposed or {}).get("_domain")
+        assert isinstance(domain, str), "_domain must be set by validate()"
         payload = {k: v for k, v in (proposed or {}).items() if not k.startswith("_")}
         object_id = await ha_helper.create_helper(hass, domain, payload)
         await ha_helper.reload_helper_domain(hass, domain)
@@ -140,15 +141,15 @@ class ConfigHelperEdit(ConfigEditingTool):
     )
     parameters = _HELPER_EDIT_SCHEMA
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         domain = tool_input.tool_args["domain"]
         object_id = tool_input.tool_args["object_id"]
         current = await ha_helper.get_helper(hass, domain, object_id)
         if current is None:
             return None  # validate() will catch this
-        return {"domain": domain, "object_id": object_id, "config": dict(current)}
+        return {"domain": domain, "object_id": object_id, "config": dict[str, Any](current)}
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         domain = tool_input.tool_args["domain"]
         object_id = tool_input.tool_args["object_id"]
         config = self._extract_config(tool_input.tool_args, ("domain", "object_id"))
@@ -157,7 +158,7 @@ class ConfigHelperEdit(ConfigEditingTool):
         config["_object_id"] = object_id
         return config
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([ValidationError(
                 code="unknown_helper",
@@ -165,22 +166,24 @@ class ConfigHelperEdit(ConfigEditingTool):
                 path="object_id",
             )])
         domain = (proposed or {}).get("_domain")
+        assert isinstance(domain, str), "_domain must be populated before validate()"
         payload_without_marker = {k: v for k, v in (proposed or {}).items() if not k.startswith("_")}
         return validate_helper(domain, payload_without_marker)
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         domain = (proposed or {}).get("_domain") or (pre_state or {}).get("domain", "helper")
         name = (proposed or {}).get("name") or (pre_state or {}).get("config", {}).get("name", "helper")
         return render_spoken_summary("Would update", f"{domain} {name!r}")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         clean = {k: v for k, v in (proposed or {}).items() if not k.startswith("_")}
         old_config = (pre_state or {}).get("config", {})
         return render_unified_diff(old_config, clean)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         if pre_state is None:
-            async def _noop(): return None
+            async def _noop() -> None:
+                return None
             return _noop
 
         domain = pre_state.get("domain")
@@ -193,7 +196,7 @@ class ConfigHelperEdit(ConfigEditingTool):
                 await ha_helper.reload_helper_domain(hass, domain)
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         domain = (proposed or {}).get("_domain")
         object_id = (proposed or {}).get("_object_id")
         if domain is None or object_id is None:
@@ -215,19 +218,19 @@ class ConfigHelperDelete(ConfigEditingTool):
     )
     parameters = _HELPER_DELETE_SCHEMA
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         domain = tool_input.tool_args["domain"]
         object_id = tool_input.tool_args["object_id"]
         current = await ha_helper.get_helper(hass, domain, object_id)
         if current is None:
             return None
-        return {"domain": domain, "object_id": object_id, "config": dict(current)}
+        return {"domain": domain, "object_id": object_id, "config": dict[str, Any](current)}
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         # Delete has no post-state — None is the "after" so that the diff shows pure removal.
         return None
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([ValidationError(
                 code="unknown_helper",
@@ -236,26 +239,27 @@ class ConfigHelperDelete(ConfigEditingTool):
             )])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         domain = (pre_state or {}).get("domain", "helper")
         name = (pre_state or {}).get("config", {}).get("name", "a helper")
         return render_spoken_summary("Would delete", f"{domain} {name!r}")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         # Diff shows the full pre_state being removed.
         old_config = (pre_state or {}).get("config", {})
         return render_unified_diff(old_config, None)
 
-    def tool_warnings(self, proposed, pre_state) -> list[str]:
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         """Warn about id regeneration on undo."""
         return [
             "Note: if undone, the helper's content will be restored but the internal "
             "id may differ if Home Assistant assigns a new auto-generated id."
         ]
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         if pre_state is None:
-            async def _noop(): return None
+            async def _noop() -> None:
+                return None
             return _noop
 
         domain = pre_state.get("domain")
@@ -267,17 +271,18 @@ class ConfigHelperDelete(ConfigEditingTool):
                 await ha_helper.reload_helper_domain(hass, domain)
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         if pre_state is None:
             raise RuntimeError("apply_change called without pre_state (validation should have blocked)")
         domain = pre_state.get("domain")
         object_id = pre_state.get("object_id")
+        assert isinstance(domain, str) and isinstance(object_id, str), "pre_state must carry domain + object_id"
         await ha_helper.delete_helper(hass, domain, object_id)
         await ha_helper.reload_helper_domain(hass, domain)
         return {"status": "applied", "domain": domain, "object_id": object_id, "deleted_name": pre_state.get("config", {}).get("name")}
 
 
-def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list:
+def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list[llm.Tool]:
     """Factory called by register_config_tools when the kill switch is on."""
     return [
         ConfigHelperCreate(),

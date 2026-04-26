@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -65,8 +65,8 @@ class PendingChange:
     entry_id: str
     conversation_id: str
     tool_name: str
-    proposed_payload: dict
-    pre_state: dict | None
+    proposed_payload: dict[str, Any]
+    pre_state: dict[str, Any] | None
     proposed_summary: str
     proposed_diff: str
     created_at: datetime
@@ -107,14 +107,14 @@ class ApprovalOutcomeResult:
     intercepted: bool
     user_message: str
     proposal_id: str | None = None
-    tool_result: dict | None = None
+    tool_result: dict[str, Any] | None = None
 
     def __init__(
         self,
         outcome: ApprovalOutcome,
         user_message: str,
         proposal_id: str | None = None,
-        tool_result: dict | None = None,
+        tool_result: dict[str, Any] | None = None,
     ) -> None:
         """Initialize with derived intercepted flag."""
         self.outcome = outcome
@@ -157,8 +157,8 @@ class PendingChangeManager:
     def create(
         self,
         tool_name: str,
-        proposed_payload: dict,
-        pre_state: dict | None,
+        proposed_payload: dict[str, Any],
+        pre_state: dict[str, Any] | None,
         proposed_summary: str,
         proposed_diff: str,
         approval_ttl_seconds: int = 300,

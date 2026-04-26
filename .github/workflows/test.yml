@@ -1,35 +1,114 @@
-name: Test
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  test:
+  lint:
+    name: Ruff
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        # HA 2025.2+ requires Python 3.13.2+. Our manifest targets 2025.6.0 via
-        # hacs.json, and the integration imports `homeassistant.helpers.llm`
-        # (landed in HA 2024.6), so we pin to Python 3.13 to match the runtime
-        # contract rather than drift on 3.11.
-        python-version: "3.13"
-    - name: Install system libraries
-      # PyTurboJPEG (required by HA's camera component, which our vision.py
-      # imports transitively) is a ctypes wrapper around libturbojpeg.so. The
-      # python wheel doesn't bundle the native library, so we install it via
-      # apt here. PyAV bundles its own ffmpeg build inside the wheel, so we
-      # don't need to apt-install ffmpeg separately.
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends libturbojpeg0-dev
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements-test.txt
-    - name: Run tests
-      run: pytest tests/ --cov
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - name: Install ruff
+        run: pip install "ruff>=0.5.0"
+      - name: Ruff check
+        run: ruff check .
+
+  typecheck:
+    name: Mypy (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - name: Install system libraries
+        # PyTurboJPEG (needed by HA's camera component that our vision.py imports) is a
+        # ctypes wrapper around libturbojpeg; the Python wheel doesn't bundle the native lib.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libturbojpeg0-dev
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-test.txt
+      - name: Mypy (strict)
+        run: mypy custom_components/bedrock_ha_agent/
+
+  hassfest:
+    name: HA hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs-validate:
+    name: HACS validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
+  test:
+    name: Tests (HA floor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libturbojpeg0-dev
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-test.txt
+      - name: Run tests with coverage
+        run: pytest tests/ --cov=custom_components.bedrock_ha_agent --cov-report=xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+          use_oidc: true
+
+  test-latest:
+    name: Tests (HA latest) [non-blocking]
+    runs-on: ubuntu-latest
+    # Signals drift against HA's nightly without blocking merges — reviewer
+    # investigates if this goes red.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libturbojpeg0-dev
+      - name: Install dependencies (override HA to latest)
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-test.txt
+          pip install --upgrade homeassistant pytest-homeassistant-custom-component
+      - name: Run tests
+        run: pytest tests/ -q

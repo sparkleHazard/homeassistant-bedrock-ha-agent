@@ -73,7 +73,9 @@ def _vol_type_to_json(validator: Any) -> dict[str, Any]:
 
     # vol.In([...])
     if isinstance(validator, vol.In):
-        vals = list(validator.container)
+        # validator.container is a Container (set, list, etc.) — convert to list for JSON
+        container = validator.container
+        vals: list[Any] = list(container) if hasattr(container, '__iter__') else []  # type: ignore[call-overload]  # voluptuous Container is iterable
         return {"enum": vals}
 
     # vol.Any(None, dict) or vol.Any(str, list) — pick the first concrete

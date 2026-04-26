@@ -48,7 +48,7 @@ def _automations_path(hass: "HomeAssistant") -> str:
     return hass.config.path(_AUTOMATIONS_FILE)
 
 
-def _load_list(hass: "HomeAssistant") -> list[dict]:
+def _load_list(hass: "HomeAssistant") -> list[dict[str, Any]]:
     """Load automations.yaml as a list-of-dicts. Missing/empty → []."""
     from homeassistant.util.yaml import load_yaml
 
@@ -77,7 +77,7 @@ def _load_list(hass: "HomeAssistant") -> list[dict]:
     return []
 
 
-def _save_list(hass: "HomeAssistant", items: list[dict]) -> None:
+def _save_list(hass: "HomeAssistant", items: list[dict[str, Any]]) -> None:
     """Atomically write items to automations.yaml as a YAML list."""
     from homeassistant.util.file import write_utf8_file_atomic
     from homeassistant.util.yaml import dump
@@ -113,12 +113,12 @@ def _to_plain(obj: Any) -> Any:
     return str(obj)
 
 
-async def list_automations(hass: "HomeAssistant") -> list[dict]:
+async def list_automations(hass: "HomeAssistant") -> list[dict[str, Any]]:
     """Return every automation config in automations.yaml."""
     return await hass.async_add_executor_job(_load_list, hass)
 
 
-async def get_automation(hass: "HomeAssistant", object_id: str) -> dict | None:
+async def get_automation(hass: "HomeAssistant", object_id: str) -> dict[str, Any] | None:
     """Return the stored config for a given automation id, or None if absent.
 
     ``object_id`` is matched against the ``id`` field of each entry (HA's UI
@@ -126,7 +126,7 @@ async def get_automation(hass: "HomeAssistant", object_id: str) -> dict | None:
     """
     from homeassistant.const import CONF_ID
 
-    def _find() -> dict | None:
+    def _find() -> dict[str, Any] | None:
         items = _load_list(hass)
         for item in items:
             if item.get(CONF_ID) == object_id:
@@ -137,7 +137,7 @@ async def get_automation(hass: "HomeAssistant", object_id: str) -> dict | None:
 
 
 async def create_or_update_automation(
-    hass: "HomeAssistant", object_id: str, config: dict
+    hass: "HomeAssistant", object_id: str, config: dict[str, Any]
 ) -> None:
     """Upsert the automation into automations.yaml keyed by ``id``.
 

@@ -1,7 +1,7 @@
 "Utility functions for the Bedrock Home Assistant Agent integration."
 import webcolors
 
-def closest_color(rgb_tuple):
+def closest_color(rgb_tuple: tuple[int, int, int]) -> str:
     """Find the closest CSS3 color name for a given RGB tuple."""
     min_colors = {}
     for name in webcolors.names('css3'):
@@ -16,4 +16,4 @@ def closest_color(rgb_tuple):
         gd = (g_c - rgb_tuple[1]) ** 2
         bd = (b_c - rgb_tuple[2]) ** 2
         min_colors[(rd + gd + bd)] = name
-    return min_colors[min(min_colors.keys())]
+    return str(min_colors[min(min_colors.keys())])

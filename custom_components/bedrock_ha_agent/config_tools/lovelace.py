@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
@@ -37,13 +37,13 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
         {
             vol.Optional("url_path"): vol.Any(None, cv.string),
             vol.Required("view_path"): cv.string,
-            vol.Required("card"): dict,
+            vol.Required("card"): dict[str, Any],
         }
     )
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Load the full dashboard config before the change."""
         url_path = tool_input.tool_args.get("url_path")
         dashboard_config = await lovelace.load_dashboard(hass, url_path)
@@ -51,7 +51,7 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build the proposed dashboard config with the new card added."""
         url_path = tool_input.tool_args.get("url_path")
         view_path = tool_input.tool_args["view_path"]
@@ -94,7 +94,7 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
         return proposed
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate the card addition."""
         if proposed is None:
@@ -141,7 +141,7 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
         return ValidationResult.success()
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build the spoken summary."""
         if proposed is None:
@@ -159,7 +159,7 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
             f"a {card_type} card to {dashboard_label} / {view_path}",
         )
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build the unified diff."""
         # Remove metadata before diffing
         clean_proposed = None
@@ -168,21 +168,23 @@ class ConfigLovelaceCardAdd(ConfigEditingTool):
         return render_unified_diff(pre_state, clean_proposed)
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Build the undo function."""
         url_path = proposed.get("_url_path") if proposed else None
+        pre_state_safe: dict[str, Any] = pre_state if pre_state is not None else {}
 
         async def restore() -> None:
-            await lovelace.save_dashboard(hass, url_path, pre_state)
+            await lovelace.save_dashboard(hass, url_path, pre_state_safe)
 
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Apply the card addition."""
-        url_path = proposed.get("_url_path") if proposed else None
+        assert proposed is not None, "apply_change called with no proposed payload"
+        url_path = proposed.get("_url_path")
         # Remove metadata before saving
         clean_proposed = {k: v for k, v in proposed.items() if not k.startswith("_")}
         await lovelace.save_dashboard(hass, url_path, clean_proposed)
@@ -204,14 +206,14 @@ class ConfigLovelaceCardRemove(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Load the full dashboard config."""
         url_path = tool_input.tool_args.get("url_path")
         return await lovelace.load_dashboard(hass, url_path)
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build the dashboard config with the card removed."""
         url_path = tool_input.tool_args.get("url_path")
         view_path = tool_input.tool_args["view_path"]
@@ -251,7 +253,7 @@ class ConfigLovelaceCardRemove(ConfigEditingTool):
         return proposed
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate the card removal."""
         if proposed is None:
@@ -303,7 +305,7 @@ class ConfigLovelaceCardRemove(ConfigEditingTool):
         return ValidationResult.success()
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build the spoken summary."""
         view_path = proposed.get("_view_path", "a view") if proposed else "a view"
@@ -313,7 +315,7 @@ class ConfigLovelaceCardRemove(ConfigEditingTool):
             f"card at index {card_index} from {view_path}",
         )
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build the unified diff."""
         clean_proposed = None
         if proposed:
@@ -321,21 +323,23 @@ class ConfigLovelaceCardRemove(ConfigEditingTool):
         return render_unified_diff(pre_state, clean_proposed)
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Build the undo function."""
         url_path = proposed.get("_url_path") if proposed else None
+        pre_state_safe: dict[str, Any] = pre_state if pre_state is not None else {}
 
         async def restore() -> None:
-            await lovelace.save_dashboard(hass, url_path, pre_state)
+            await lovelace.save_dashboard(hass, url_path, pre_state_safe)
 
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Apply the card removal."""
-        url_path = proposed.get("_url_path") if proposed else None
+        assert proposed is not None, "apply_change called with no proposed payload"
+        url_path = proposed.get("_url_path")
         clean_proposed = {k: v for k, v in proposed.items() if not k.startswith("_")}
         await lovelace.save_dashboard(hass, url_path, clean_proposed)
         return {"status": "success", "url_path": url_path}
@@ -358,13 +362,13 @@ class ConfigLovelaceDashboardCreate(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """No pre-state for creation."""
         return None
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build the dashboard creation payload."""
         payload = {
             "url_path": tool_input.tool_args["url_path"],
@@ -378,7 +382,7 @@ class ConfigLovelaceDashboardCreate(ConfigEditingTool):
         return payload
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate the dashboard creation."""
         if proposed is None:
@@ -403,18 +407,18 @@ class ConfigLovelaceDashboardCreate(ConfigEditingTool):
         return ValidationResult.success()
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build the spoken summary."""
         title = (proposed or {}).get("title", "a dashboard")
         return render_spoken_summary("Would create", f"the dashboard '{title}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build the unified diff."""
         return render_unified_diff(pre_state, proposed)
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Build the undo function."""
         url_path = (proposed or {}).get("url_path")
@@ -426,9 +430,10 @@ class ConfigLovelaceDashboardCreate(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Apply the dashboard creation."""
+        assert proposed is not None, "apply_change called with no proposed payload"
         url_path = await lovelace.create_dashboard(hass, proposed)
         return {"url_path": url_path, "status": "success"}
 

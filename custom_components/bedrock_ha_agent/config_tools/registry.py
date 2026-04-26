@@ -13,9 +13,9 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import llm, config_validation as cv
 
-from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool
+from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool, RestoreFn
 from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
@@ -49,13 +49,13 @@ class ConfigAreaCreate(ConfigEditingTool):
         vol.Required("name"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"name": tool_input.tool_args["name"]}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if not proposed or not proposed.get("name"):
             return ValidationResult.failure([
                 ValidationError(code="missing_name", message="Area name is required")
@@ -73,14 +73,14 @@ class ConfigAreaCreate(ConfigEditingTool):
                 ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         name = (proposed or {}).get("name", "new area")
         return render_spoken_summary("Would add", f"area {name!r}")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(None, proposed)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         # Pattern: shared dict to capture area_id at apply-time
         apply_result: dict[str, Any] = {}
 
@@ -93,14 +93,14 @@ class ConfigAreaCreate(ConfigEditingTool):
                     _LOGGER.warning("undo of area create failed: %s", err)
 
         # Stash the dict so apply_change can write to it
-        self._apply_result = apply_result  # type: ignore[attr-defined]
+        self._apply_result = apply_result
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         name = (proposed or {}).get("name", "")
         area_id = await ha_registry.create_area(hass, name)
         # Capture the new area_id for restore_fn
-        self._apply_result["area_id"] = area_id  # type: ignore[attr-defined]
+        self._apply_result["area_id"] = area_id
         return {"status": "applied", "area_id": area_id, "name": name}
 
 
@@ -117,7 +117,7 @@ class ConfigAreaRename(ConfigEditingTool):
         vol.Required("new_name"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         area_id = tool_input.tool_args["area_id"]
         areas = await ha_registry.list_areas(hass)
         for area in areas:
@@ -125,13 +125,13 @@ class ConfigAreaRename(ConfigEditingTool):
                 return area
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {
             "area_id": tool_input.tool_args["area_id"],
             "name": tool_input.tool_args["new_name"],
         }
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -159,7 +159,7 @@ class ConfigAreaRename(ConfigEditingTool):
                 ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         old_name = (pre_state or {}).get("name", "area")
         new_name = (proposed or {}).get("name", "new name")
         return render_spoken_summary(
@@ -167,10 +167,10 @@ class ConfigAreaRename(ConfigEditingTool):
             f"area {old_name!r} to {new_name!r}"
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(pre_state, proposed)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         area_id = (proposed or {}).get("area_id")
         old_name = (pre_state or {}).get("name")
 
@@ -183,9 +183,10 @@ class ConfigAreaRename(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         area_id = (proposed or {}).get("area_id")
         new_name = (proposed or {}).get("name")
+        assert isinstance(area_id, str) and isinstance(new_name, str)
         await ha_registry.update_area(hass, area_id, name=new_name)
         return {"status": "applied", "area_id": area_id, "name": new_name}
 
@@ -202,7 +203,7 @@ class ConfigAreaDelete(ConfigEditingTool):
         vol.Required("area_id"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         area_id = tool_input.tool_args["area_id"]
         areas = await ha_registry.list_areas(hass)
         for area in areas:
@@ -210,10 +211,10 @@ class ConfigAreaDelete(ConfigEditingTool):
                 return area
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return None
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -224,17 +225,17 @@ class ConfigAreaDelete(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         name = (pre_state or {}).get("name", "area")
         return render_spoken_summary(
             "Would delete",
             f"area {name!r} — NOTE: undoing this will re-create with a new area_id"
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(pre_state, None)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         area_name = (pre_state or {}).get("name")
 
         async def _restore() -> None:
@@ -246,12 +247,13 @@ class ConfigAreaDelete(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         area_id = (pre_state or {}).get("area_id")
+        assert isinstance(area_id, str)
         await ha_registry.delete_area(hass, area_id)
         return {"status": "applied", "area_id": area_id}
 
-    def tool_warnings(self, proposed, pre_state):
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         return [
             "Undoing an area delete re-creates the area with a new area_id; "
             "entity references to the old id may need to be re-linked."
@@ -273,13 +275,13 @@ class ConfigLabelCreate(ConfigEditingTool):
         vol.Required("name"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"name": tool_input.tool_args["name"]}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if not proposed or not proposed.get("name"):
             return ValidationResult.failure([
                 ValidationError(code="missing_name", message="Label name is required")
@@ -297,14 +299,14 @@ class ConfigLabelCreate(ConfigEditingTool):
                 ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         name = (proposed or {}).get("name", "new label")
         return render_spoken_summary("Would add", f"label {name!r}")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(None, proposed)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         # Pattern: shared dict to capture label_id at apply-time
         apply_result: dict[str, Any] = {}
 
@@ -316,13 +318,13 @@ class ConfigLabelCreate(ConfigEditingTool):
                 except Exception as err:
                     _LOGGER.warning("undo of label create failed: %s", err)
 
-        self._apply_result = apply_result  # type: ignore[attr-defined]
+        self._apply_result = apply_result
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         name = (proposed or {}).get("name", "")
         label_id = await ha_registry.create_label(hass, name)
-        self._apply_result["label_id"] = label_id  # type: ignore[attr-defined]
+        self._apply_result["label_id"] = label_id
         return {"status": "applied", "label_id": label_id, "name": name}
 
 
@@ -339,7 +341,7 @@ class ConfigLabelRename(ConfigEditingTool):
         vol.Required("new_name"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         label_id = tool_input.tool_args["label_id"]
         labels = await ha_registry.list_labels(hass)
         for label in labels:
@@ -347,13 +349,13 @@ class ConfigLabelRename(ConfigEditingTool):
                 return label
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {
             "label_id": tool_input.tool_args["label_id"],
             "name": tool_input.tool_args["new_name"],
         }
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -381,7 +383,7 @@ class ConfigLabelRename(ConfigEditingTool):
                 ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         old_name = (pre_state or {}).get("name", "label")
         new_name = (proposed or {}).get("name", "new name")
         return render_spoken_summary(
@@ -389,10 +391,10 @@ class ConfigLabelRename(ConfigEditingTool):
             f"label {old_name!r} to {new_name!r}"
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(pre_state, proposed)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         label_id = (proposed or {}).get("label_id")
         old_name = (pre_state or {}).get("name")
 
@@ -405,9 +407,10 @@ class ConfigLabelRename(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         label_id = (proposed or {}).get("label_id")
         new_name = (proposed or {}).get("name")
+        assert isinstance(label_id, str) and isinstance(new_name, str)
         await ha_registry.update_label(hass, label_id, name=new_name)
         return {"status": "applied", "label_id": label_id, "name": new_name}
 
@@ -424,7 +427,7 @@ class ConfigLabelDelete(ConfigEditingTool):
         vol.Required("label_id"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         label_id = tool_input.tool_args["label_id"]
         labels = await ha_registry.list_labels(hass)
         for label in labels:
@@ -432,10 +435,10 @@ class ConfigLabelDelete(ConfigEditingTool):
                 return label
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return None
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -446,17 +449,17 @@ class ConfigLabelDelete(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         name = (pre_state or {}).get("name", "label")
         return render_spoken_summary(
             "Would delete",
             f"label {name!r} — NOTE: undoing this cannot automatically re-link references"
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(pre_state, None)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         label_name = (pre_state or {}).get("name")
 
         async def _restore() -> None:
@@ -468,12 +471,13 @@ class ConfigLabelDelete(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         label_id = (pre_state or {}).get("label_id")
+        assert isinstance(label_id, str)
         await ha_registry.delete_label(hass, label_id)
         return {"status": "applied", "label_id": label_id}
 
-    def tool_warnings(self, proposed, pre_state):
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         return [
             "Undoing a label delete will re-create the label but any entity/device "
             "references will need to be re-linked manually."
@@ -496,18 +500,18 @@ class ConfigEntityRename(ConfigEditingTool):
         vol.Required("new_name"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         entity_id = tool_input.tool_args["entity_id"]
         entry = await ha_registry.get_entity_registry_entry(hass, entity_id)
         return entry
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {
             "entity_id": tool_input.tool_args["entity_id"],
             "name": tool_input.tool_args["new_name"],
         }
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -523,7 +527,7 @@ class ConfigEntityRename(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         entity_id = (proposed or {}).get("entity_id", "entity")
         old_name = (pre_state or {}).get("name") or (pre_state or {}).get("original_name", "entity")
         new_name = (proposed or {}).get("name", "new name")
@@ -532,10 +536,10 @@ class ConfigEntityRename(ConfigEditingTool):
             f"entity {entity_id!r} from {old_name!r} to {new_name!r}"
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(pre_state, proposed)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         entity_id = (proposed or {}).get("entity_id")
         old_name = (pre_state or {}).get("name")
 
@@ -548,9 +552,10 @@ class ConfigEntityRename(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         entity_id = (proposed or {}).get("entity_id")
         new_name = (proposed or {}).get("name")
+        assert isinstance(entity_id, str), "entity_id must be a string"
         await ha_registry.update_entity_registry(hass, entity_id, name=new_name)
         return {"status": "applied", "entity_id": entity_id, "name": new_name}
 
@@ -568,18 +573,18 @@ class ConfigEntityAssignArea(ConfigEditingTool):
         vol.Optional("area_id"): vol.Any(cv.string, None),
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         entity_id = tool_input.tool_args["entity_id"]
         entry = await ha_registry.get_entity_registry_entry(hass, entity_id)
         return entry
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {
             "entity_id": tool_input.tool_args["entity_id"],
             "area_id": tool_input.tool_args.get("area_id"),
         }
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -602,7 +607,7 @@ class ConfigEntityAssignArea(ConfigEditingTool):
                 ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         entity_id = (proposed or {}).get("entity_id", "entity")
         area_id = (proposed or {}).get("area_id")
         if area_id:
@@ -616,10 +621,10 @@ class ConfigEntityAssignArea(ConfigEditingTool):
                 f"entity {entity_id!r} from its area"
             )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(pre_state, proposed)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         entity_id = (proposed or {}).get("entity_id")
         old_area_id = (pre_state or {}).get("area_id")
 
@@ -632,14 +637,15 @@ class ConfigEntityAssignArea(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         entity_id = (proposed or {}).get("entity_id")
         area_id = (proposed or {}).get("area_id")
+        assert isinstance(entity_id, str), "entity_id must be a string"
         await ha_registry.update_entity_registry(hass, entity_id, area_id=area_id)
         return {"status": "applied", "entity_id": entity_id, "area_id": area_id}
 
 
-def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list:
+def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list[llm.Tool]:
     """Factory called by register_config_tools when the kill switch is on."""
     return [
         ConfigAreaCreate(),

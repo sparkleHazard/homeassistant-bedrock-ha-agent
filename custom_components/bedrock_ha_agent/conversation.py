@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
@@ -62,7 +62,7 @@ _PAST_TENSE_REGEX = re.compile(
 )
 
 
-def _split_proposal_for_stream(tool_result: dict) -> tuple[str | None, dict]:
+def _split_proposal_for_stream(tool_result: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
     """Return (spoken_text, structured_payload_for_chat_log).
 
     For pending_approval results, spoken_text is ONLY `proposed_summary`;
@@ -75,7 +75,7 @@ def _split_proposal_for_stream(tool_result: dict) -> tuple[str | None, dict]:
     return None, tool_result
 
 
-def _lookup_pending(runtime_data, conversation_id: str):
+def _lookup_pending(runtime_data: Any, conversation_id: str) -> Any:
     """Return the non-expired pending change visible to this conversation.
 
     Checks `conversation_id` first, then falls back to the ``"_global"`` key
@@ -121,8 +121,7 @@ def _check_past_tense_vs_pending(
 
 
 class BedrockConversationEntity(
-    conversation.ConversationEntity,
-    conversation.AbstractConversationAgent,
+    conversation.ConversationEntity, conversation.AbstractConversationAgent  # type: ignore[name-defined,misc]
 ):
     """Bedrock conversation agent entity."""
 
@@ -139,7 +138,7 @@ class BedrockConversationEntity(
         """Initialize the agent."""
         self.hass = hass
         self.entry = entry
-        self.history = {}
+        self.history: dict[str, Any] = {}
         self.client: BedrockClient = entry.runtime_data.bedrock_client
         self._attr_unique_id = entry.entry_id
         self._attr_device_info = None
@@ -227,8 +226,9 @@ class BedrockConversationEntity(
 
             # Approval-turn interceptor (Phase 3 Step 3.2)
             if options.get(CONF_ENABLE_CONFIG_EDITING, False) or options.get(CONF_ENABLE_DIAGNOSTICS, False):
+                conv_id = user_input.conversation_id or "_global"
                 manager = PendingChangeManager.for_entry_conv(
-                    self.hass, self.entry.entry_id, user_input.conversation_id
+                    self.hass, self.entry.entry_id, conv_id
                 )
                 outcome = manager.handle_approval_intent(user_input.text)
 
@@ -245,7 +245,7 @@ class BedrockConversationEntity(
                         # ConfigEditingTool may have written if
                         # llm_context didn't carry a conversation_id.
                         runtime_data = _get_runtime_data(self.hass, self.entry.entry_id)
-                        pending = _lookup_pending(runtime_data, user_input.conversation_id)
+                        pending = _lookup_pending(runtime_data, conv_id)
 
                         if pending is not None:
                             _LOGGER.info(
@@ -254,7 +254,7 @@ class BedrockConversationEntity(
                             )
                             try:
                                 # Execute apply_fn
-                                apply_result = await pending.apply_fn(  # type: ignore[attr-defined]
+                                apply_result = await pending.apply_fn(
                                     self.hass, pending.proposed_payload, pending.pre_state
                                 )
                                 _LOGGER.info(
@@ -266,7 +266,7 @@ class BedrockConversationEntity(
                                 undo_stack = get_or_create_stack(
                                     self.hass,
                                     self.entry.entry_id,
-                                    user_input.conversation_id,
+                                    conv_id,
                                     max_depth=int(
                                         options.get(
                                             CONF_CONFIG_UNDO_DEPTH, DEFAULT_CONFIG_UNDO_DEPTH
@@ -282,12 +282,12 @@ class BedrockConversationEntity(
 
                                 undo_entry = UndoEntry(
                                     entry_id=self.entry.entry_id,
-                                    conversation_id=user_input.conversation_id,
+                                    conversation_id=conv_id,
                                     proposal_id=pending.proposal_id,
                                     tool_name=pending.tool_name,
                                     before_state=pending.pre_state,
                                     after_state=pending.proposed_payload,
-                                    restore_fn=pending.restore_fn,  # type: ignore[attr-defined]
+                                    restore_fn=pending.restore_fn,
                                     timestamp=datetime.now(UTC),
                                     ttl=undo_stack.ttl,
                                     warnings=getattr(pending, "warnings", []),
@@ -333,7 +333,7 @@ class BedrockConversationEntity(
                         undo_stack = get_or_create_stack(
                             self.hass,
                             self.entry.entry_id,
-                            user_input.conversation_id,
+                            conv_id,
                             max_depth=int(
                                 options.get(CONF_CONFIG_UNDO_DEPTH, DEFAULT_CONFIG_UNDO_DEPTH)
                             ),
@@ -344,14 +344,15 @@ class BedrockConversationEntity(
                                 )
                             ),
                         )
-                        undo_entry = undo_stack.pop_latest()
+                        undo_entry_or_none = undo_stack.pop_latest()
 
-                        if undo_entry is None:
+                        if undo_entry_or_none is None:
                             assistant_content = conversation.AssistantContent(
                                 agent_id=user_input.agent_id or DOMAIN,
                                 content="Nothing to undo in this conversation.",
                             )
                         else:
+                            undo_entry = undo_entry_or_none
                             try:
                                 await undo_entry.restore_fn()
 
@@ -376,9 +377,9 @@ class BedrockConversationEntity(
                     # Append to chat_log and return
                     chat_log.async_add_assistant_content_without_tools(assistant_content)
                     return speech_result(
-                        user_input.conversation_id,
+                        user_input.conversation_id or "_global",
                         user_input.language,
-                        assistant_content.content,
+                        assistant_content.content or "",
                     )
 
             # Get message history
@@ -481,10 +482,11 @@ class BedrockConversationEntity(
 
                         # Check for past-tense claims vs pending (AC17 + M3)
                         if options.get(CONF_ENABLE_CONFIG_EDITING, False) or options.get(CONF_ENABLE_DIAGNOSTICS, False):
+                            conv_id_for_check = user_input.conversation_id or "_global"
                             correction = _check_past_tense_vs_pending(
                                 self.hass,
                                 self.entry.entry_id,
-                                user_input.conversation_id,
+                                conv_id_for_check,
                                 final_text,
                             )
                             if correction:
@@ -537,12 +539,12 @@ class BedrockConversationEntity(
         self,
         *,
         chat_log: conversation.ChatLog,
-        message_history,
-        llm_api,
-        options,
+        message_history: Any,
+        llm_api: Any,
+        options: Any,
         agent_id: str,
         attach_images_from_cameras: list[str] | None = None,
-    ):
+    ) -> Any:
         """Stream one Bedrock turn into ``chat_log`` and return final state.
 
         Returns a small object with:
@@ -556,7 +558,7 @@ class BedrockConversationEntity(
         from types import SimpleNamespace
 
         # Per-index buffers for incremental tool_use blocks from the stream.
-        pending_tool_use: dict[int, dict] = {}
+        pending_tool_use: dict[int, dict[str, Any]] = {}
         pending_tool_use_json: dict[int, list[str]] = {}
         full_text: list[str] = []
         stop_reason: str | None = None
@@ -566,7 +568,7 @@ class BedrockConversationEntity(
             attach_images_from_cameras=attach_images_from_cameras,
         )
 
-        async def delta_stream():
+        async def delta_stream() -> Any:
             """Translate Bedrock stream events into chat_log deltas."""
             nonlocal stop_reason
             # Yield the role starter so chat_log opens a new assistant entry.
@@ -607,7 +609,7 @@ class BedrockConversationEntity(
                                 )
                                 args = {}
                             tool_input = llm.ToolInput(
-                                tool_name=meta.get("name"),
+                                tool_name=meta.get("name") or "",
                                 tool_args=args,
                             )
                             tool_inputs.append(tool_input)

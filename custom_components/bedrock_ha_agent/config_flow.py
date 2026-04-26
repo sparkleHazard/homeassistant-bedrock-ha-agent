@@ -12,7 +12,8 @@ from botocore.exceptions import (
 )
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigSubentryFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlowResult, ConfigSubentryFlow
+from homeassistant.data_entry_flow import FlowResult  # noqa: F401  # kept for backward-compat re-export
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import llm, selector
 
@@ -179,7 +180,7 @@ async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, 
     
     try:
         # Run boto3 client creation in executor to avoid blocking
-        def _create_client():
+        def _create_client() -> object:  # boto3 client
             session = build_session(
                 aws_access_key_id=aws_access_key_id,
                 aws_secret_access_key=aws_secret_access_key,
@@ -191,7 +192,7 @@ async def validate_aws_credentials(hass: HomeAssistant, aws_access_key_id: str, 
         bedrock_client = await hass.async_add_executor_job(_create_client)
         
         # Try to list foundation models to verify credentials work
-        await hass.async_add_executor_job(bedrock_client.list_foundation_models)
+        await hass.async_add_executor_job(bedrock_client.list_foundation_models)  # type: ignore[attr-defined]  # boto3 client method
         return None
         
     except NoCredentialsError as e:
@@ -229,7 +230,7 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> ConfigFlowResult:
         """Step 1: collect and validate AWS credentials."""
         errors: dict[str, str] = {}
 
@@ -288,7 +289,7 @@ class BedrockConversationConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_model(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> ConfigFlowResult:
         """Step 2: pick a Bedrock model."""
         if user_input is not None:
             title = f"Bedrock Home Assistant Agent ({self._credentials[CONF_AWS_REGION]})"
@@ -345,7 +346,7 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
+    ) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
             # Clamp max_tokens to the chosen model's known limit.
@@ -358,7 +359,7 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             # NumberSelector returns floats — coerce the int-semantic one.
             if CONF_MAX_PROMPT_TOKENS in user_input:
                 user_input[CONF_MAX_PROMPT_TOKENS] = int(user_input[CONF_MAX_PROMPT_TOKENS])
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data=user_input)  # type: ignore[return-value]  # HA FlowResult type variance
 
         # Get available LLM APIs
         llm_api_ids = [
@@ -672,7 +673,7 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
             ),
         })
 
-        return self.async_show_form(
+        return self.async_show_form(  # type: ignore[return-value]  # HA FlowResult type variance
             step_id="init",
             data_schema=options_schema
         )
@@ -681,18 +682,18 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
 class BedrockAITaskSubentryFlow(ConfigSubentryFlow):
     """Config subentry flow for AI Task entities."""
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle AI Task subentry creation."""
         return await self.async_step_set_options(user_input)
 
-    async def async_step_set_options(self, user_input=None):
+    async def async_step_set_options(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure AI Task subentry options."""
         if user_input is not None:
-            return self.async_create_entry(
+            return self.async_create_entry(  # type: ignore[return-value]  # HA SubentryFlowResult type variance
                 title=user_input.get("name", "Bedrock AI Task"),
                 data={},
             )
-        return self.async_show_form(
+        return self.async_show_form(  # type: ignore[return-value]  # HA SubentryFlowResult type variance
             step_id="set_options",
             data_schema=vol.Schema({
                 vol.Optional("name", default="Bedrock AI Task"): str,

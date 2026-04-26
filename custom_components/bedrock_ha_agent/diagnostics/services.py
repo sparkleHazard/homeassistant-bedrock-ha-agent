@@ -62,7 +62,7 @@ class ExtendedServiceCall(llm.Tool):
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
         llm_context: llm.LLMContext,
-    ) -> Mapping[str, Any]:
+    ) -> dict[str, Any]:
         """Validate and dispatch service call (immediate or pending)."""
         # 0. budget
         budget_err = check_and_consume_budget(self.hass, self.entry, llm_context)
@@ -183,9 +183,9 @@ class ExtendedServiceCall(llm.Tool):
     async def _execute_immediate(
         self,
         service: str,
-        target: dict,
-        data: dict,
-    ) -> Mapping[str, Any]:
+        target: dict[str, Any],
+        data: dict[str, Any],
+    ) -> dict[str, Any]:
         """Execute a read_safe service immediately."""
         domain, svc = service.split(".", 1)
         try:
@@ -216,10 +216,10 @@ class ExtendedServiceCall(llm.Tool):
     async def _create_pending(
         self,
         service: str,
-        target: dict,
-        data: dict,
+        target: dict[str, Any],
+        data: dict[str, Any],
         llm_context: llm.LLMContext,
-    ) -> Mapping[str, Any]:
+    ) -> dict[str, Any]:
         """Create a PendingChange for a mutating service call."""
         from ..config_tools.pending import PendingChangeManager
 
@@ -237,8 +237,8 @@ class ExtendedServiceCall(llm.Tool):
 
         # Build apply_fn that runs the service call when user approves.
         async def _apply_fn(
-            hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-        ) -> dict:
+            hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+        ) -> dict[str, Any]:
             domain_inner, svc_inner = service.split(".", 1)
             await hass.services.async_call(
                 domain_inner,
@@ -301,6 +301,6 @@ class ExtendedServiceCall(llm.Tool):
         }
 
 
-def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list:
+def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list[Any]:
     """Return the diagnostic tools provided by this module."""
     return [ExtendedServiceCall(hass, entry)]

@@ -112,7 +112,7 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
         """Return list of supported options."""
         return [ATTR_VOICE, "engine"]
 
-    async def async_get_supported_voices(
+    async def async_get_supported_voices(  # type: ignore[override]  # HA base class is sync but framework handles async methods at runtime
         self, language: str
     ) -> list[Voice] | None:
         """Return the list of Polly voices available for ``language``.
@@ -199,7 +199,8 @@ class BedrockPollyTTSEntity(TextToSpeechEntity):
                 VoiceId=voice,
             )
             with response["AudioStream"] as stream:
-                return stream.read()
+                # AudioStream.read() returns bytes; boto3 types are incomplete
+                return stream.read()  # type: ignore[no-any-return]
 
         try:
             audio = await self.hass.async_add_executor_job(_synthesize)

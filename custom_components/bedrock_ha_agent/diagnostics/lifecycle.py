@@ -13,12 +13,12 @@ Tools:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
 
-from ..config_tools import ConfigEditingTool
+from ..config_tools import ConfigEditingTool, RestoreFn
 from ..config_tools.validation import (
     ValidationError,
     ValidationResult,
@@ -48,7 +48,7 @@ class DiagnosticsReloadIntegration(ConfigEditingTool):
     )
     parameters = vol.Schema({vol.Required("domain"): cv.string})
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         domain = tool_input.tool_args["domain"]
         entries = hass.config_entries.async_entries(domain)
         return {
@@ -57,10 +57,12 @@ class DiagnosticsReloadIntegration(ConfigEditingTool):
             "entry_count": len(entries),
         }
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"domain": tool_input.tool_args["domain"]}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
+        if proposed is None or pre_state is None:
+            return ValidationResult.failure([ValidationError(code="missing_data", message="Missing proposed or pre_state")])
         # Guard: refuse self-reload of our own integration
         if proposed["domain"] == "bedrock_ha_agent":
             return ValidationResult.failure([
@@ -79,7 +81,9 @@ class DiagnosticsReloadIntegration(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "Would reload (invalid state)"
         domain = proposed["domain"]
         count = pre_state["entry_count"]
         return render_spoken_summary(
@@ -87,7 +91,9 @@ class DiagnosticsReloadIntegration(ConfigEditingTool):
             f"integration '{domain}' ({count} {'entry' if count == 1 else 'entries'})",
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "N/A"
         domain = proposed["domain"]
         entry_ids = pre_state["entry_ids"]
         return render_unified_diff(
@@ -95,13 +101,15 @@ class DiagnosticsReloadIntegration(ConfigEditingTool):
             {"domain": domain, "entry_ids": entry_ids, "_action": "reload"},
         )
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
-        async def _noop_restore():
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
+        async def _noop_restore() -> dict[str, Any]:
             _LOGGER.info("reload is one-way; no state was restored")
             return {"restored": False, "reason": "reload is one-way"}
         return _noop_restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
+        if proposed is None or pre_state is None:
+            raise ValueError("Cannot apply change with missing data")
         for entry_id in pre_state["entry_ids"]:
             await hass.config_entries.async_reload(entry_id)
         return {
@@ -110,7 +118,7 @@ class DiagnosticsReloadIntegration(ConfigEditingTool):
             "reloaded_entry_ids": pre_state["entry_ids"],
         }
 
-    def tool_warnings(self, proposed, pre_state):
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         return ["This undo is a no-op; reload cannot be reversed."]
 
 
@@ -124,7 +132,7 @@ class DiagnosticsReloadConfigEntry(ConfigEditingTool):
     )
     parameters = vol.Schema({vol.Required("entry_id"): cv.string})
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         entry_id = tool_input.tool_args["entry_id"]
         entry = hass.config_entries.async_get_entry(entry_id)
         if entry is None:
@@ -135,10 +143,12 @@ class DiagnosticsReloadConfigEntry(ConfigEditingTool):
             "title": entry.title,
         }
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"entry_id": tool_input.tool_args["entry_id"]}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
+        if proposed is None or pre_state is None:
+            return ValidationResult.failure([ValidationError(code="missing_data", message="Missing data")])
         if pre_state.get("entry") is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -157,7 +167,9 @@ class DiagnosticsReloadConfigEntry(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if pre_state is None:
+            return "Would reload (invalid state)"
         title = pre_state.get("title", "config entry")
         domain = pre_state.get("domain", "unknown")
         return render_spoken_summary(
@@ -165,27 +177,31 @@ class DiagnosticsReloadConfigEntry(ConfigEditingTool):
             f"config entry '{title}' (domain: {domain})",
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if pre_state is None:
+            return "N/A"
         return render_unified_diff(
             {"entry_id": pre_state["entry_id"], "domain": pre_state.get("domain")},
             {"entry_id": pre_state["entry_id"], "domain": pre_state.get("domain"), "_action": "reload"},
         )
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
-        async def _noop_restore():
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
+        async def _noop_restore() -> dict[str, Any]:
             _LOGGER.info("reload is one-way; no state was restored")
             return {"restored": False, "reason": "reload is one-way"}
         return _noop_restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
+        if proposed is None:
+            raise ValueError("Cannot apply change with no proposed data")
         await hass.config_entries.async_reload(proposed["entry_id"])
         return {
             "status": "applied",
             "entry_id": proposed["entry_id"],
-            "domain": pre_state.get("domain"),
+            "domain": pre_state.get("domain") if pre_state else None,
         }
 
-    def tool_warnings(self, proposed, pre_state):
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         return ["This undo is a no-op; reload cannot be reversed."]
 
 
@@ -199,7 +215,7 @@ class DiagnosticsEntityEnable(ConfigEditingTool):
     )
     parameters = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         entity_id = tool_input.tool_args["entity_id"]
         entry = await registry.get_entity_registry_entry(hass, entity_id)
         if entry is None:
@@ -210,10 +226,12 @@ class DiagnosticsEntityEnable(ConfigEditingTool):
             "name": entry.get("name") or entry.get("original_name"),
         }
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"entity_id": tool_input.tool_args["entity_id"], "disabled_by": None}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
+        if proposed is None or pre_state is None:
+            return ValidationResult.failure([ValidationError(code="missing_data", message="Missing data")])
         if pre_state.get("entry") is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -240,21 +258,27 @@ class DiagnosticsEntityEnable(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "Would enable (invalid state)"
         name = pre_state.get("name") or proposed["entity_id"]
         return render_spoken_summary("Would enable", f"entity '{name}'")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "N/A"
         return render_unified_diff(
             {"entity_id": pre_state["entity_id"], "disabled_by": pre_state.get("disabled_by")},
             {"entity_id": proposed["entity_id"], "disabled_by": None},
         )
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
+        if pre_state is None:
+            raise ValueError("Cannot build restore function without pre_state")
         entity_id = pre_state["entity_id"]
         original_disabled_by = pre_state.get("disabled_by")
 
-        async def _restore():
+        async def _restore() -> None:
             # Restore to previous disabled_by state
             await registry.update_entity_registry(hass, entity_id, disabled_by=original_disabled_by)
             _LOGGER.info(
@@ -264,7 +288,9 @@ class DiagnosticsEntityEnable(ConfigEditingTool):
             )
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
+        if proposed is None:
+            raise ValueError("Cannot apply change without proposed data")
         await registry.update_entity_registry(hass, proposed["entity_id"], disabled_by=None)
         return {
             "status": "applied",
@@ -283,7 +309,7 @@ class DiagnosticsEntityDisable(ConfigEditingTool):
     )
     parameters = vol.Schema({vol.Required("entity_id"): cv.entity_id})
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         entity_id = tool_input.tool_args["entity_id"]
         entry = await registry.get_entity_registry_entry(hass, entity_id)
         if entry is None:
@@ -294,10 +320,12 @@ class DiagnosticsEntityDisable(ConfigEditingTool):
             "name": entry.get("name") or entry.get("original_name"),
         }
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"entity_id": tool_input.tool_args["entity_id"], "disabled_by": "user"}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
+        if proposed is None or pre_state is None:
+            return ValidationResult.failure([ValidationError(code="missing_data", message="Missing data")])
         if pre_state.get("entry") is None:
             return ValidationResult.failure([
                 ValidationError(
@@ -324,21 +352,27 @@ class DiagnosticsEntityDisable(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "Would disable (invalid state)"
         name = pre_state.get("name") or proposed["entity_id"]
         return render_spoken_summary("Would disable", f"entity '{name}'")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "N/A"
         return render_unified_diff(
             {"entity_id": pre_state["entity_id"], "disabled_by": pre_state.get("disabled_by")},
             {"entity_id": proposed["entity_id"], "disabled_by": "user"},
         )
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
+        if pre_state is None:
+            raise ValueError("Cannot build restore function without pre_state")
         entity_id = pre_state["entity_id"]
         original_disabled_by = pre_state.get("disabled_by")
 
-        async def _restore():
+        async def _restore() -> None:
             # Restore to previous state (likely None = enabled)
             await registry.update_entity_registry(hass, entity_id, disabled_by=original_disabled_by)
             _LOGGER.info(
@@ -348,7 +382,9 @@ class DiagnosticsEntityDisable(ConfigEditingTool):
             )
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
+        if proposed is None:
+            raise ValueError("Cannot apply change without proposed data")
         await registry.update_entity_registry(hass, proposed["entity_id"], disabled_by="user")
         return {
             "status": "applied",
@@ -372,7 +408,7 @@ class DiagnosticsLoggerSetLevel(ConfigEditingTool):
         extra=vol.ALLOW_EXTRA,
     )
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         """Snapshot current logger overrides and Python effective levels."""
         from homeassistant.components.logger.helpers import DATA_LOGGER
 
@@ -392,15 +428,15 @@ class DiagnosticsLoggerSetLevel(ConfigEditingTool):
             }
         return {"loggers": loggers_snapshot}
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         # Convert level strings to int via logging levels
         proposed = {}
         for logger_name, level_str in tool_input.tool_args.items():
             proposed[logger_name] = getattr(logging, level_str.upper())
         return proposed
 
-    async def validate(self, hass, proposed, pre_state):
-        if pre_state.get("no_logger_integration"):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
+        if pre_state is not None and pre_state.get("no_logger_integration"):
             return ValidationResult.failure([
                 ValidationError(
                     code="logger_not_loaded",
@@ -410,7 +446,9 @@ class DiagnosticsLoggerSetLevel(ConfigEditingTool):
         # Schema already validated by parameters; just success
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None:
+            return "Would set log level (invalid state)"
         logger_count = len(proposed)
         logger_names = ", ".join(proposed.keys())
         return render_spoken_summary(
@@ -418,25 +456,29 @@ class DiagnosticsLoggerSetLevel(ConfigEditingTool):
             f"{logger_count} {'logger' if logger_count == 1 else 'loggers'} ({logger_names})",
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
+        if proposed is None or pre_state is None:
+            return "N/A"
         # Show before/after levels
-        before = {}
-        after = {}
+        before: dict[str, Any] = {}
+        after: dict[str, Any] = {}
         for logger_name, level_int in proposed.items():
             old_override = pre_state["loggers"].get(logger_name, {}).get("override")
             before[logger_name] = logging.getLevelName(old_override) if old_override else "NOTSET"
             after[logger_name] = logging.getLevelName(level_int)
         return render_unified_diff(before, after)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         """Restore prior logger levels."""
+        if pre_state is None:
+            raise ValueError("Cannot build restore function without pre_state")
         loggers_snapshot = pre_state["loggers"]
 
-        async def _restore():
+        async def _restore() -> None:
             from homeassistant.components.logger.helpers import set_log_levels
 
             # Build restore payload: {logger_name: old_level_int}
-            restore_payload = {}
+            restore_payload: dict[str, int] = {}
             for logger_name, snapshot in loggers_snapshot.items():
                 old_override = snapshot.get("override")
                 if old_override is not None:
@@ -450,10 +492,12 @@ class DiagnosticsLoggerSetLevel(ConfigEditingTool):
             _LOGGER.info("Logger levels restored: %s", restore_payload)
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         """Apply logger level changes via logger.set_level service."""
         from homeassistant.components.logger.helpers import set_log_levels
 
+        if proposed is None:
+            raise ValueError("Cannot apply change without proposed data")
         set_log_levels(hass, proposed)
         return {
             "status": "applied",
@@ -471,29 +515,28 @@ class DiagnosticsCheckConfig(ConfigEditingTool):
     )
     parameters = vol.Schema({})
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"action": "check_config"}
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         return {"action": "check_config"}
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         # Always valid
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_spoken_summary("Would run", "configuration check")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         return render_unified_diff(None, {"action": "check_config"})
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
-        async def _noop_restore():
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
+        async def _noop_restore() -> None:
             _LOGGER.info("check_config is a read-ish check; no state was restored")
-            return {"restored": False, "reason": "reload is one-way"}
         return _noop_restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         """Call homeassistant.check_config with return_response=True."""
         result = await hass.services.async_call(
             "homeassistant",
@@ -506,7 +549,7 @@ class DiagnosticsCheckConfig(ConfigEditingTool):
             "result": result,
         }
 
-    def tool_warnings(self, proposed, pre_state):
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         return ["This undo is a no-op; check_config is a read-ish operation."]
 
 

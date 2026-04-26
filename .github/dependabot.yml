@@ -1,0 +1,53 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+    groups:
+      home-assistant:
+        patterns:
+          - "homeassistant"
+          - "pytest-homeassistant-custom-component"
+          - "hassil"
+          - "home-assistant-intents"
+      pytest:
+        patterns:
+          - "pytest*"
+      tooling:
+        patterns:
+          - "ruff"
+          - "mypy"
+          - "black"
+          - "isort"
+          - "flake8"
+      aws:
+        patterns:
+          - "boto3"
+          - "botocore"
+          - "amazon-transcribe"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"

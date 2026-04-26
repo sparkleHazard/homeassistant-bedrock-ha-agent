@@ -15,7 +15,7 @@ from __future__ import annotations
 from difflib import unified_diff
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]  # yaml stubs not installed
 
 _DIFF_MARKER_PREFIXES = ("--- ", "+++ ", "@@")
 
@@ -47,7 +47,9 @@ def _dump_yaml(obj: Any) -> str:
     """Deterministic YAML for diffing. `None` → empty string."""
     if obj is None:
         return ""
-    return yaml.safe_dump(_to_plain(obj), sort_keys=True, default_flow_style=False).rstrip() + "\n"
+    # yaml.safe_dump returns str; boto3/yaml stubs may be incomplete
+    result: str = yaml.safe_dump(_to_plain(obj), sort_keys=True, default_flow_style=False)
+    return result.rstrip() + "\n"
 
 
 def render_unified_diff(

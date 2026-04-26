@@ -66,8 +66,8 @@ async def async_setup_entry(
 class _TranscriptCollector(TranscriptResultStreamHandler):
     """Accumulate final transcript segments from the streaming response."""
 
-    def __init__(self, output_stream) -> None:
-        super().__init__(output_stream)
+    def __init__(self, output_stream: object) -> None:  # amazon_transcribe types are incomplete
+        super().__init__(output_stream)  # type: ignore[arg-type]  # amazon_transcribe types are incomplete
         self.segments: list[str] = []
 
     async def handle_transcript_event(self, transcript_event: TranscriptEvent) -> None:
@@ -150,10 +150,10 @@ class BedrockTranscribeSTTEntity(SpeechToTextEntity):
                             audio_chunk=chunk
                         )
             finally:
-                await transcribe_stream.input_stream.end_stream()
+                await transcribe_stream.input_stream.end_stream()  # type: ignore[no-untyped-call]
 
         try:
-            await asyncio.gather(_pump_audio(), collector.handle_events())
+            await asyncio.gather(_pump_audio(), collector.handle_events())  # type: ignore[no-untyped-call]
         except Exception:  # noqa: BLE001
             _LOGGER.exception("Transcribe streaming error")
             return SpeechResult(None, SpeechResultState.ERROR)

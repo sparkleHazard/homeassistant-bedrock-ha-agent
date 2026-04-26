@@ -51,7 +51,7 @@ async def list_states(
     limit: int = 200,
 ) -> dict[str, Any]:
     """Return {'states': [...], 'count': N}. Cap at `limit`."""
-    from homeassistant.helpers import area_registry as ar, entity_registry as er
+    from homeassistant.helpers import entity_registry as er
 
     all_states = hass.states.async_all()
 
@@ -61,8 +61,9 @@ async def list_states(
 
     # Filter by area_id if specified
     if area_id:
+        from homeassistant.helpers import device_registry as dr
         ent_reg = er.async_get(hass)
-        area_reg = ar.async_get(hass)
+        dev_reg = dr.async_get(hass)
 
         # Get entities in the area (both directly and via device)
         entities_in_area = set()
@@ -70,8 +71,8 @@ async def list_states(
             if entity.area_id == area_id:
                 entities_in_area.add(entity.entity_id)
             elif entity.device_id:
-                device = area_reg.async_get_device_area(entity.device_id)
-                if device == area_id:
+                device = dev_reg.async_get(entity.device_id)
+                if device and device.area_id == area_id:
                     entities_in_area.add(entity.entity_id)
 
         all_states = [s for s in all_states if s.entity_id in entities_in_area]

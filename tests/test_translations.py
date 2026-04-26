@@ -2,7 +2,6 @@
 import json
 from pathlib import Path
 
-import pytest
 
 
 STRINGS_PATH = Path("custom_components/bedrock_ha_agent/strings.json")

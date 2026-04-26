@@ -66,7 +66,7 @@ class DiagnosticsStatistics(DiagnosticsReadTool):
 
     async def _fetch(self, hass: HomeAssistant, **kwargs: Any) -> dict[str, Any]:
         """Fetch statistics."""
-        from homeassistant.components.recorder import get_instance
+        from homeassistant.components.recorder import get_instance  # type: ignore[attr-defined]  # not in __all__ but exists
         from homeassistant.components.recorder.statistics import statistics_during_period
 
         end = datetime.now(timezone.utc)

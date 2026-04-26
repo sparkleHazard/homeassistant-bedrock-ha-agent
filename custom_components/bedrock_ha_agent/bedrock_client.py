@@ -111,7 +111,7 @@ class GeneratedImage:
     model: str
 
 
-def _runtime_usage_tracker(entry: ConfigEntry):
+def _runtime_usage_tracker(entry: ConfigEntry) -> Any:
     """Resolve `entry.runtime_data.usage` defensively.
 
     `runtime_data` is a `BedrockRuntimeData` dataclass in the shipping
@@ -131,8 +131,8 @@ class BedrockClient:
         """Initialize the client."""
         self.hass = hass
         self.entry = entry
-        self._bedrock_runtime = None
-        self._client_lock = None
+        self._bedrock_runtime: Any | None = None
+        self._client_lock: asyncio.Lock | None = None
 
     def _create_bedrock_client(self) -> Any:
         """Create the AWS Bedrock client (runs in executor)."""
@@ -156,6 +156,8 @@ class BedrockClient:
             if self._client_lock is None:
                 self._client_lock = asyncio.Lock()
 
+            # mypy can't track the lock assignment above; assert it's non-None here
+            assert self._client_lock is not None
             async with self._client_lock:
                 # Double-check after acquiring lock
                 if self._bedrock_runtime is None:
@@ -375,7 +377,8 @@ class BedrockClient:
             _LOGGER.info("Calling Bedrock model: %s", model_id)
             
             # Define a function that does both the invoke AND the read in the executor
-            def invoke_and_read():
+            def invoke_and_read() -> dict[str, Any]:
+                assert self._bedrock_runtime is not None  # ensured by _ensure_client
                 response = self._bedrock_runtime.invoke_model(
                     modelId=model_id,
                     body=json.dumps(request_body)
@@ -411,8 +414,8 @@ class BedrockClient:
                         # Also log the character codes to check for corruption
                         char_codes = [ord(c) for c in text_preview[:50]]
                         _LOGGER.debug("Character codes: %s", char_codes)
-                
-                return parsed_response
+
+                return parsed_response  # type: ignore[no-any-return]  # boto3 response shape is polymorphic
             
             # Add timeout protection for Bedrock API calls + retry on transient errors.
             try:
@@ -451,7 +454,7 @@ class BedrockClient:
                 _LOGGER.warning("Bedrock response missing 'stop_reason' field. Full response keys: %s", list(response_body.keys()))
                 _LOGGER.debug("Full response body: %s", response_body)
 
-            return response_body
+            return response_body  # type: ignore[no-any-return]  # boto3 response shape verified at runtime
             
         except ClientError as err:
             _LOGGER.error("AWS Bedrock error: %s", err, exc_info=True)
@@ -504,6 +507,7 @@ class BedrockClient:
         }
 
         def invoke_and_read() -> dict[str, Any]:
+            assert self._bedrock_runtime is not None  # ensured by _ensure_client
             response = self._bedrock_runtime.invoke_model(
                 modelId=model_id, body=json.dumps(request_body)
             )
@@ -514,7 +518,8 @@ class BedrockClient:
                 if not chunk:
                     break
                 chunks.append(chunk)
-            return json.loads(b"".join(chunks).decode("utf-8"))
+            parsed: dict[str, Any] = json.loads(b"".join(chunks).decode("utf-8"))
+            return parsed
 
         try:
             async with asyncio.timeout(30.0):
@@ -588,6 +593,7 @@ class BedrockClient:
             }
 
         def invoke_and_read() -> dict[str, Any]:
+            assert self._bedrock_runtime is not None  # ensured by _ensure_client
             response = self._bedrock_runtime.invoke_model(
                 modelId=model_id, body=json.dumps(request_body)
             )
@@ -604,7 +610,8 @@ class BedrockClient:
                         "Bedrock image response exceeded the 32 MiB size cap."
                     )
                 chunks.append(chunk)
-            return json.loads(b"".join(chunks).decode("utf-8"))
+            parsed: dict[str, Any] = json.loads(b"".join(chunks).decode("utf-8"))
+            return parsed
 
         try:
             async with asyncio.timeout(60.0):
@@ -663,7 +670,7 @@ class BedrockClient:
             model=model_id,
         )
 
-    async def _retry_blocking(self, fn, *args):
+    async def _retry_blocking(self, fn: Any, *args: Any) -> Any:
         """Call a blocking ``fn`` via the executor with retry on transient errors.
 
         Retryable ``ClientError`` codes are listed in ``_RETRYABLE_ERROR_CODES``;
@@ -697,7 +704,7 @@ class BedrockClient:
         options: dict[str, Any],
         *,
         attach_images_from_cameras: list[str] | None = None,
-    ):
+    ) -> Any:
         """Yield normalized events from ``invoke_model_with_response_stream``.
 
         Events (as ``(kind, payload)`` tuples):
@@ -719,12 +726,13 @@ class BedrockClient:
         )
 
         loop = asyncio.get_running_loop()
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: asyncio.Queue[tuple[str, Any] | object] = asyncio.Queue()
         SENTINEL = object()
 
         # Open the stream with retry; once we have an EventStream the pump
         # just iterates events on the executor.
-        def _open_stream():
+        def _open_stream() -> Any:
+            assert self._bedrock_runtime is not None  # ensured by _ensure_client
             return self._bedrock_runtime.invoke_model_with_response_stream(
                 modelId=model_id, body=json.dumps(request_body)
             )
@@ -766,6 +774,10 @@ class BedrockClient:
                 item = await queue.get()
                 if item is SENTINEL:
                     break
+                # mypy can't narrow the union after the SENTINEL check; cast explicitly
+                assert isinstance(item, tuple), "non-SENTINEL items are tuples"
+                kind: str
+                payload: Any
                 kind, payload = item
                 if kind == "error":
                     if isinstance(payload, ClientError):

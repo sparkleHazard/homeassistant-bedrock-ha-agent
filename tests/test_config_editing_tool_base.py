@@ -1,9 +1,7 @@
 """Tests for ConfigEditingTool base class."""
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from typing import Any, Awaitable, Callable
-from unittest.mock import Mock
 
 import pytest
 import voluptuous as vol

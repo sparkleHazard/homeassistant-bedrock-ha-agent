@@ -1,6 +1,5 @@
 "Test the config flow for Bedrock Home Assistant Agent."
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 from botocore.exceptions import NoCredentialsError
 
 from homeassistant.core import HomeAssistant

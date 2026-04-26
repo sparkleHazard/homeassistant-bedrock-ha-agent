@@ -55,13 +55,13 @@ class DiagnosticsReadTool(llm.Tool):
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
         llm_context: llm.LLMContext,
-    ) -> Mapping[str, Any]:
+    ) -> dict[str, Any]:
         # 1. budget check
         budget_err = check_and_consume_budget(
             self.hass, self.entry, llm_context,
         )
         if budget_err:
-            return budget_err
+            return dict(budget_err)  # Convert Mapping to dict for return type
 
         # 2. fetch
         try:
@@ -106,7 +106,7 @@ def check_and_consume_budget(
     hass: HomeAssistant,
     entry: ConfigEntry,
     llm_context: llm.LLMContext,
-) -> Mapping[str, Any] | None:
+) -> dict[str, Any] | None:
     """Return an error payload if this turn has exceeded the diagnostic call budget; else None (and increment)."""
     from ..runtime_data import _get_runtime_data
     rd = _get_runtime_data(hass, entry.entry_id)

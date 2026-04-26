@@ -1,9 +1,7 @@
 """Tests for PendingChangeManager."""
 from __future__ import annotations
 
-import time
 from datetime import UTC, datetime, timedelta
-from unittest.mock import Mock
 
 import pytest
 

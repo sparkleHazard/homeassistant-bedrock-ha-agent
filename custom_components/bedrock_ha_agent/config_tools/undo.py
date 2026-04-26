@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, UTC
-from typing import TYPE_CHECKING, Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -23,8 +23,8 @@ class UndoEntry:
     conversation_id: str
     proposal_id: str           # same proposal_id as the PendingChange that spawned it
     tool_name: str
-    before_state: dict | None  # None if the original op was a "create" (restore = delete)
-    after_state: dict | None   # None if the original op was a "delete" (restore = create)
+    before_state: dict[str, Any] | None  # None if the original op was a "create" (restore = delete)
+    after_state: dict[str, Any] | None   # None if the original op was a "delete" (restore = create)
     restore_fn: RestoreFn      # async callable invoked by pop to reverse the mutation
     timestamp: datetime        # UTC
     ttl: timedelta             # expiry window; stale entries are swept on every access

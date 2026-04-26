@@ -5,20 +5,17 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock, patch
 
 import pytest
-from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.bedrock_ha_agent import BedrockServicesAPI
-from custom_components.bedrock_ha_agent.config_tools import register_config_tools
 from custom_components.bedrock_ha_agent.config_tools.pending import (
     ApprovalOutcome,
-    PendingChange,
     PendingChangeManager,
 )
-from custom_components.bedrock_ha_agent.config_tools.undo import UndoEntry, UndoStack
+from custom_components.bedrock_ha_agent.config_tools.undo import UndoEntry
 from custom_components.bedrock_ha_agent.const import (
     CONF_ENABLE_CONFIG_EDITING,
     CONF_MODEL_ID,

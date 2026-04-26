@@ -1,8 +1,11 @@
 """Bedrock Home Assistant Agent integration."""
 
+from types import MappingProxyType
+from typing import Any
+
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform, ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError, Unauthorized
 from homeassistant.helpers import llm
 import voluptuous as vol
@@ -61,7 +64,7 @@ class HassServiceTool(llm.Tool):
 
     async def async_call(
         self, hass: HomeAssistant, tool_input: llm.ToolInput, llm_context: llm.LLMContext
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Call the Home Assistant service."""
         service = tool_input.tool_args.get("service")
         target_device = tool_input.tool_args.get("target_device")
@@ -176,7 +179,7 @@ class BedrockServicesAPI(llm.API):
         if entry is not None and entry.options.get(CONF_ENABLE_CONFIG_EDITING, False):
             # Append config-editing tools
             config_tools = register_config_tools(self.hass, entry)
-            tools.extend(config_tools)
+            tools.extend(config_tools)  # type: ignore[arg-type]  # Tool variance: list[Tool] covariant with list[HassServiceTool]
 
             # Append system-prompt addendum
             api_prompt += (
@@ -189,7 +192,7 @@ class BedrockServicesAPI(llm.API):
 
         if entry is not None and entry.options.get(CONF_ENABLE_DIAGNOSTICS, False):
             from .diagnostics import get_tools as get_diagnostics_tools
-            tools.extend(get_diagnostics_tools(self.hass, entry))
+            tools.extend(get_diagnostics_tools(self.hass, entry))  # type: ignore[arg-type]  # Tool variance
 
             # Append diagnostics-specific addendum
             api_prompt += (
@@ -213,7 +216,7 @@ class BedrockServicesAPI(llm.API):
             api=self,
             api_prompt=api_prompt,
             llm_context=llm_context,
-            tools=tools,
+            tools=tools,  # type: ignore[arg-type]  # HA's APIInstance accepts list[Tool] but is typed as list[HassServiceTool]
         )
 
 
@@ -298,7 +301,7 @@ async def _async_ensure_ai_task_subentry(
     hass.config_entries.async_add_subentry(
         entry,
         ConfigSubentry(
-            data={},  # parent entry owns all config; subentry is identity only
+            data=MappingProxyType({}),  # parent entry owns all config; subentry is identity only
             subentry_type="ai_task_data",
             title="Bedrock AI Task",
             unique_id=None,
@@ -342,10 +345,10 @@ async def _async_migrate_conversation_entity_id(
     # id, additional entries get `bedrock_ha_agent_2`, `bedrock_ha_agent_3` etc.
     candidate = target_entity_id
     n = 2
-    while (
-        ent_reg.async_get(candidate) is not None
-        and ent_reg.async_get(candidate).entity_id != existing_entity_id
-    ):
+    while True:
+        reg_entry = ent_reg.async_get(candidate)
+        if reg_entry is None or reg_entry.entity_id == existing_entity_id:
+            break
         candidate = f"conversation.bedrock_ha_agent_{n}"
         n += 1
         if n > 10:
@@ -497,7 +500,7 @@ async def _async_register_vision_service(hass: HomeAssistant) -> None:
         }
     )
 
-    async def _handle(call) -> dict:
+    async def _handle(call: ServiceCall) -> dict[str, Any]:
         message: str = call.data["message"]
         raw = call.data["camera_entity_id"]
         entity_ids: list[str] = [raw] if isinstance(raw, str) else list(raw)
@@ -559,7 +562,7 @@ async def _async_register_undo_service(hass: HomeAssistant) -> None:
         }
     )
 
-    async def _handle(call) -> dict:
+    async def _handle(call: ServiceCall) -> dict[str, Any]:
         # H2 fix: verify caller is admin when user context exists
         if call.context.user_id:
             user = await hass.auth.async_get_user(call.context.user_id)
@@ -714,7 +717,7 @@ async def _async_bootstrap_automations_yaml(
     path = hass.config.path("automations.yaml")
     config_yaml = hass.config.path("configuration.yaml")
 
-    def _fs_probe() -> tuple[bool, bool]:
+    def _fs_probe() -> tuple[bool, bool, bool]:
         existed = os.path.isfile(path)
         if not existed:
             # Atomic create as empty list. Subsequent writes from the transport

@@ -31,7 +31,7 @@ REQUIRED_HA_ATTRS: list[tuple[str, str, str]] = [
 ]
 
 
-def _resolve_dotted(path: str):
+def _resolve_dotted(path: str) -> tuple[object | None, str | None]:
     """Resolve 'a.b.c.D.method' to the attribute, return (obj, None) or (None, err)."""
     parts = path.split(".")
     # Find the longest importable module prefix.

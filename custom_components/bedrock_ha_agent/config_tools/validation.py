@@ -42,7 +42,7 @@ class ValidationResult:
         """Create a failed validation result."""
         return cls(ok=False, errors=errors)
 
-    def to_tool_result_dict(self) -> dict:
+    def to_tool_result_dict(self) -> dict[str, object]:
         """Serialize into the tool_result shape the model sees."""
         return {
             "status": "validation_failed",
@@ -62,7 +62,7 @@ class ValidationResult:
 # ---------------------------------------------------------------------------
 
 
-def validate_automation(payload: dict) -> ValidationResult:
+def validate_automation(payload: dict[str, object]) -> ValidationResult:
     """Schema-validate an automation payload using HA's own validator.
 
     Uses `homeassistant.components.automation.config.PLATFORM_SCHEMA`.
@@ -101,7 +101,7 @@ def validate_automation(payload: dict) -> ValidationResult:
     return ValidationResult.success()
 
 
-def validate_script(payload: dict) -> ValidationResult:
+def validate_script(payload: dict[str, object]) -> ValidationResult:
     """Schema-validate a script sequence payload."""
     try:
         from homeassistant.components.script.config import SCRIPT_ENTITY_SCHEMA
@@ -137,7 +137,7 @@ def validate_script(payload: dict) -> ValidationResult:
     return ValidationResult.success()
 
 
-def validate_scene(payload: dict) -> ValidationResult:
+def validate_scene(payload: dict[str, object]) -> ValidationResult:
     """Schema-validate a scene payload.
 
     Scenes accept `name` + `entities: {entity_id: state_or_attributes}`.
@@ -170,7 +170,7 @@ def validate_scene(payload: dict) -> ValidationResult:
     return ValidationResult.success()
 
 
-def validate_helper(helper_type: str, payload: dict) -> ValidationResult:
+def validate_helper(helper_type: str, payload: dict[str, object]) -> ValidationResult:
     """Light structural check for helper create/update payloads.
 
     Supported helper_types: input_boolean, input_number, input_select, input_text,
@@ -203,7 +203,7 @@ def validate_helper(helper_type: str, payload: dict) -> ValidationResult:
     if (
         "name" not in payload
         or not isinstance(payload.get("name"), str)
-        or not payload["name"].strip()
+        or not str(payload["name"]).strip()
     ):
         return ValidationResult.failure(
             [
@@ -240,7 +240,7 @@ def validate_helper(helper_type: str, payload: dict) -> ValidationResult:
     return ValidationResult.success()
 
 
-def validate_lovelace_card(card: dict) -> ValidationResult:
+def validate_lovelace_card(card: dict[str, object]) -> ValidationResult:
     """Minimal Lovelace card schema check — ensures `type` is present and is a string.
 
     Lovelace cards are strategy-validated at render time; there's no general card schema.
@@ -310,7 +310,7 @@ def validate_entities_exist(hass: HomeAssistant, entity_ids: list[str]) -> Valid
     return ValidationResult.success() if not errors else ValidationResult.failure(errors)
 
 
-def extract_entity_ids_from_automation(payload: dict) -> list[str]:
+def extract_entity_ids_from_automation(payload: dict[str, Any]) -> list[str]:
     """Walk an automation payload and return referenced entity_ids.
 
     Best-effort extraction from triggers, conditions, and actions. Does NOT resolve

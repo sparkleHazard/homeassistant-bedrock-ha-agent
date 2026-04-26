@@ -1,7 +1,6 @@
 """Phase 5 Step 5.5: AC12 voice/text-stream contract — no diff markers in text_delta."""
 from __future__ import annotations
 
-import pytest
 
 from custom_components.bedrock_ha_agent.conversation import (
     _split_proposal_for_stream,

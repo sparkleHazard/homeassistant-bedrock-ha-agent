@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import llm, config_validation as cv
 
-from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool
+from custom_components.bedrock_ha_agent.config_tools import ConfigEditingTool, RestoreFn
 from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
@@ -69,11 +69,11 @@ class ConfigAutomationCreate(ConfigEditingTool):
         vol.Optional("object_id"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         # Create has no pre-state.
         return None
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         config = self._extract_config(tool_input.tool_args, ("object_id",))
         # Assign a deterministic object_id if the caller didn't supply one
         provided_object_id = tool_input.tool_args.get("object_id")
@@ -103,7 +103,7 @@ class ConfigAutomationCreate(ConfigEditingTool):
         config["_object_id"] = object_id  # convenience for apply_change; stripped before write
         return config
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if proposed is None:
             return ValidationResult.failure([ValidationError(code="missing_payload", message="No proposed config")])
         # 1. Schema
@@ -119,7 +119,7 @@ class ConfigAutomationCreate(ConfigEditingTool):
                 return ent_result
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         alias = (proposed or {}).get("alias", "a new automation")
         object_id = (proposed or {}).get("_object_id", "unknown")
         # M2: Include object_id in summary so user sees collision
@@ -128,11 +128,11 @@ class ConfigAutomationCreate(ConfigEditingTool):
             f"automation {alias!r} (object_id: {object_id})",
         )
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         clean = {k: v for k, v in (proposed or {}).items() if k != "_object_id"}
         return render_unified_diff(None, clean)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         object_id = (proposed or {}).get("_object_id")
 
         async def _restore() -> None:
@@ -145,9 +145,10 @@ class ConfigAutomationCreate(ConfigEditingTool):
 
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         payload = {k: v for k, v in (proposed or {}).items() if k != "_object_id"}
         object_id = (proposed or {}).get("_object_id")
+        assert isinstance(object_id, str), "_object_id must be populated before apply_change"
         await ha_automation.create_or_update_automation(hass, object_id, payload)
         await ha_automation.reload_automations(hass)
         return {"status": "applied", "object_id": object_id, "alias": payload.get("alias")}
@@ -171,14 +172,14 @@ class ConfigAutomationEdit(ConfigEditingTool):
         vol.Required("config"): _AUTOMATION_CONFIG_SCHEMA,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         object_id = tool_input.tool_args["object_id"]
         current = await ha_automation.get_automation(hass, object_id)
         if current is None:
             return None  # validate() will catch this
         return dict(current)
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         config = self._extract_config(tool_input.tool_args, ("object_id",))
         # M2: Sanitize object_id for edit operations too
         object_id = tool_input.tool_args["object_id"]
@@ -191,7 +192,7 @@ class ConfigAutomationEdit(ConfigEditingTool):
         config["_object_id"] = object_id
         return config
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None:
             object_id = (proposed or {}).get("_object_id", "unknown")
             return ValidationResult.failure([
@@ -208,15 +209,15 @@ class ConfigAutomationEdit(ConfigEditingTool):
                 return ent_result
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         alias = (proposed or {}).get("alias") or (pre_state or {}).get("alias", "automation")
         return render_spoken_summary("Would update", f"automation {alias!r}")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         clean = {k: v for k, v in (proposed or {}).items() if k != "_object_id"}
         return render_unified_diff(pre_state, clean)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         object_id = (proposed or {}).get("_object_id")
 
         async def _restore() -> None:
@@ -225,12 +226,13 @@ class ConfigAutomationEdit(ConfigEditingTool):
                 await ha_automation.reload_automations(hass)
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         object_id = (proposed or {}).get("_object_id")
         if object_id is None:
             _LOGGER.warning("ConfigAutomationEdit.apply_change: missing object_id in proposed payload")
             # Fallback to pre_state
             object_id = (pre_state or {}).get("id")
+        assert isinstance(object_id, str), "object_id must resolve from proposed or pre_state"
         payload = {k: v for k, v in (proposed or {}).items() if k != "_object_id"}
         await ha_automation.create_or_update_automation(hass, object_id, payload)
         await ha_automation.reload_automations(hass)
@@ -249,7 +251,7 @@ class ConfigAutomationDelete(ConfigEditingTool):
         vol.Required("object_id"): cv.string,
     })
 
-    async def build_pre_state(self, hass, tool_input):
+    async def build_pre_state(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         object_id = tool_input.tool_args["object_id"]
         current = await ha_automation.get_automation(hass, object_id)
         # Return the object_id either way so validate() can build the
@@ -257,13 +259,13 @@ class ConfigAutomationDelete(ConfigEditingTool):
         # our transport file.
         if current is None:
             return {"object_id": object_id, "config": None}
-        return {"object_id": object_id, "config": dict(current)}
+        return {"object_id": object_id, "config": dict[str, Any](current)}
 
-    async def build_proposed_payload(self, hass, tool_input):
+    async def build_proposed_payload(self, hass: HomeAssistant, tool_input: llm.ToolInput) -> dict[str, Any] | None:
         # Delete has no post-state — the empty dict is the "after" so that the diff shows pure removal.
         return None
 
-    async def validate(self, hass, proposed, pre_state):
+    async def validate(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> ValidationResult:
         if pre_state is None or (pre_state or {}).get("config") is None:
             object_id = (pre_state or {}).get("object_id", "unknown")
             return ValidationResult.failure([
@@ -271,17 +273,18 @@ class ConfigAutomationDelete(ConfigEditingTool):
             ])
         return ValidationResult.success()
 
-    def build_proposed_summary(self, proposed, pre_state):
+    def build_proposed_summary(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         alias = (pre_state or {}).get("config", {}).get("alias", "an automation")
         return render_spoken_summary("Would delete", f"automation {alias!r}")
 
-    def build_proposed_diff(self, proposed, pre_state):
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         # Diff shows the full pre_state being removed.
         return render_unified_diff((pre_state or {}).get("config"), None)
 
-    async def build_restore_fn(self, hass, proposed, pre_state):
+    async def build_restore_fn(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> RestoreFn:
         if pre_state is None:
-            async def _noop(): return None
+            async def _noop() -> None:
+                return None
             return _noop
         object_id = pre_state.get("object_id")
         config = pre_state.get("config")
@@ -292,16 +295,17 @@ class ConfigAutomationDelete(ConfigEditingTool):
                 await ha_automation.reload_automations(hass)
         return _restore
 
-    async def apply_change(self, hass, proposed, pre_state):
+    async def apply_change(self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> dict[str, Any]:
         if pre_state is None:
             raise RuntimeError("apply_change called without pre_state (validation should have blocked)")
         object_id = pre_state.get("object_id")
+        assert isinstance(object_id, str), "pre_state must carry object_id"
         await ha_automation.delete_automation(hass, object_id)
         await ha_automation.reload_automations(hass)
         return {"status": "applied", "object_id": object_id, "deleted_alias": pre_state.get("config", {}).get("alias")}
 
 
-def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list:
+def get_tools(hass: "HomeAssistant", entry: "ConfigEntry") -> list[llm.Tool]:
     """Factory called by register_config_tools when the kill switch is on."""
     return [
         ConfigAutomationCreate(),

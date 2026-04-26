@@ -1,16 +1,12 @@
 """Phase 5 Step 5.1: End-to-end integration test for propose→approve→apply→undo flow."""
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import llm
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.bedrock_ha_agent.const import (
@@ -57,7 +53,6 @@ async def test_end_to_end_propose_approve_apply_undo(
     The actual async_process E2E is too complex to mock properly; Phase 3 already
     tests the interceptor wiring in test_phase3_wiring.py.
     """
-    from datetime import UTC, datetime, timedelta
 
     from custom_components.bedrock_ha_agent.config_tools.pending import (
         ApprovalOutcome,

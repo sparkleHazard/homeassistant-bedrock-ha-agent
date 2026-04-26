@@ -6,7 +6,7 @@ Scene payloads: {"name": str, "entities": {entity_id: state_or_attrs}, "icon"?: 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv, llm
@@ -56,23 +56,24 @@ class ConfigSceneCreate(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """No pre-state for create."""
         return None
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Return the scene config to create."""
         return self._extract_config(tool_input.tool_args, ("object_id",))
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate schema + entity existence."""
         if proposed is None:
+            from ..config_tools.validation import ValidationError
             return ValidationResult.failure(
-                [{"code": "no_payload", "message": "Scene create requires a config payload"}]
+                [ValidationError(code="no_payload", message="Scene create requires a config payload")]
             )
         # Schema validation
         result = validate_scene(proposed)
@@ -83,18 +84,18 @@ class ConfigSceneCreate(ConfigEditingTool):
         return validate_entities_exist(hass, entity_ids)
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build TTS-safe summary."""
         scene_name = proposed.get("name", "unnamed") if proposed else "unnamed"
         return render_spoken_summary("Would add", f"scene '{scene_name}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build unified diff."""
         return render_unified_diff(None, proposed, fromfile="(new)", tofile="scene")
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Undo = delete the created scene."""
         object_id = self._object_id
@@ -106,9 +107,11 @@ class ConfigSceneCreate(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Create the scene."""
+        if proposed is None:
+            raise ValueError("Cannot create scene without proposed config")
         object_id = self._object_id
         await scene.create_or_update_scene(hass, object_id, proposed)
         await scene.reload_scenes(hass)
@@ -119,7 +122,7 @@ class ConfigSceneCreate(ConfigEditingTool):
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
         llm_context: llm.LLMContext,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Store object_id for use in apply/restore."""
         self._object_id = tool_input.tool_args["object_id"]
         return await super().async_call(hass, tool_input, llm_context)
@@ -139,19 +142,19 @@ class ConfigSceneEdit(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Return current scene config."""
         object_id = tool_input.tool_args["object_id"]
         return await scene.get_scene(hass, object_id)
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Return the updated scene config."""
         return self._extract_config(tool_input.tool_args, ("object_id",))
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate schema + entity existence + scene exists."""
         if pre_state is None:
@@ -179,22 +182,22 @@ class ConfigSceneEdit(ConfigEditingTool):
         return validate_entities_exist(hass, entity_ids)
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build TTS-safe summary."""
         scene_name = proposed.get("name", "unnamed") if proposed else "unnamed"
         return render_spoken_summary("Would update", f"scene '{scene_name}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build unified diff."""
         return render_unified_diff(pre_state, proposed, fromfile="before", tofile="after")
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Undo = restore the previous scene config."""
         object_id = self._object_id
-        before = pre_state
+        before: dict[str, Any] = pre_state if pre_state is not None else {}
 
         async def restore() -> None:
             await scene.create_or_update_scene(hass, object_id, before)
@@ -203,9 +206,11 @@ class ConfigSceneEdit(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Update the scene."""
+        if proposed is None:
+            raise ValueError("Cannot update scene without proposed config")
         object_id = self._object_id
         await scene.create_or_update_scene(hass, object_id, proposed)
         await scene.reload_scenes(hass)
@@ -216,7 +221,7 @@ class ConfigSceneEdit(ConfigEditingTool):
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
         llm_context: llm.LLMContext,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Store object_id for use in apply/restore."""
         self._object_id = tool_input.tool_args["object_id"]
         return await super().async_call(hass, tool_input, llm_context)
@@ -235,19 +240,19 @@ class ConfigSceneDelete(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Return current scene config for undo."""
         object_id = tool_input.tool_args["object_id"]
         return await scene.get_scene(hass, object_id)
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Delete has no proposed payload."""
         return None
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate that the scene exists."""
         if pre_state is None:
@@ -261,22 +266,22 @@ class ConfigSceneDelete(ConfigEditingTool):
         return ValidationResult.success()
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build TTS-safe summary."""
         scene_name = pre_state.get("name", "unnamed") if pre_state else "unnamed"
         return render_spoken_summary("Would delete", f"scene '{scene_name}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build unified diff."""
         return render_unified_diff(pre_state, None, fromfile="scene", tofile="(deleted)")
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Undo = recreate the deleted scene."""
         object_id = self._object_id
-        before = pre_state
+        before: dict[str, Any] = pre_state if pre_state is not None else {}
 
         async def restore() -> None:
             await scene.create_or_update_scene(hass, object_id, before)
@@ -285,8 +290,8 @@ class ConfigSceneDelete(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Delete the scene."""
         object_id = self._object_id
         await scene.delete_scene(hass, object_id)
@@ -298,7 +303,7 @@ class ConfigSceneDelete(ConfigEditingTool):
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
         llm_context: llm.LLMContext,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Store object_id for use in apply/restore."""
         self._object_id = tool_input.tool_args["object_id"]
         return await super().async_call(hass, tool_input, llm_context)

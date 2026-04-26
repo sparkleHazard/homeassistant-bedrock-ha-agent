@@ -49,7 +49,7 @@ async def system_info(
 
     if domain:
         return {
-            "ha_version": hass.config.version,
+            "ha_version": hass.config.version,  # type: ignore[attr-defined]  # version exists at runtime
             "domain": domain,
             "info": info.get(domain, {"error": "not_reported"}),
         }
@@ -60,15 +60,15 @@ async def system_info(
         if not info_dict:
             continue
         inner = info_dict.get("info", info_dict) if isinstance(info_dict, dict) else {}
-        err = inner.get("error") if isinstance(inner, dict) else None
-        if err:
-            msg = str(err)
+        error_val = inner.get("error") if isinstance(inner, dict) else None
+        if error_val:
+            msg = str(error_val)
             errors[d] = msg[:140] + ("…" if len(msg) > 140 else "")
         else:
             ok_count += 1
 
     return {
-        "ha_version": hass.config.version,
+        "ha_version": hass.config.version,  # type: ignore[attr-defined]  # version exists at runtime
         "integration_count": len(info),
         "ok_count": ok_count,
         "errors": errors,

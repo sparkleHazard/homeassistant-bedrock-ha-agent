@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.5.2 — CI/CD hardening + strict typing
+
+### Added
+- **Multi-job GitHub Actions pipeline** replacing the single `pytest` job. `.github/workflows/test.yml` now runs, in parallel on every push and PR: ruff lint, strict mypy, HACS validation (`hacs/action`), Home Assistant `hassfest`, the pytest suite pinned to the HA 2025.6.0 floor (with Codecov upload), and a non-blocking `test-latest` job against the HA nightly release so drift surfaces before users report it. Pip cache via `actions/setup-python@v5`'s `cache: pip` cuts CI wall time roughly in half.
+- **Release workflow** (`.github/workflows/release.yml`) triggered by `workflow_dispatch` or a `v*` tag push. Reads the version from `custom_components/bedrock_ha_agent/manifest.json`, validates that a pushed tag matches the manifest, creates the tag (on manual dispatch), extracts the matching CHANGELOG section as release notes, and publishes via `softprops/action-gh-release@v2`. Uses the built-in `GITHUB_TOKEN`, no `gh` auth fiddling. The local `make release` target still works as a fallback.
+- **Dependabot config** (`.github/dependabot.yml`): weekly pip + github-actions updates, grouped by domain (Home Assistant, pytest, tooling, AWS) so we get one rollup PR per group per week instead of N noise PRs.
+- **Strict mypy across the integration.** `[tool.mypy]` in `pyproject.toml` with `strict = true`, `ignore_missing_imports = true` for HA / boto3 / amazon-transcribe (no PEP 561 stubs). New `[tool.ruff]` config with `target-version = "py313"` and `per-file-ignores` for tests-only patterns (E402, F841). `mypy` and `ruff` added to `requirements-test.txt`.
+
+### Changed
+- **443 → 0 mypy errors** across 37 files. Almost all fixes were real type annotations (function return types, dict/list generics, narrow `isinstance` assertions before dict lookups). A handful of genuine defects were uncovered and fixed along the way — notably `RestoreFn = Callable[[], Awaitable[None]]` was widened to `Callable[[], Awaitable[None | dict[str, Any]]]` to match what `diagnostics/lifecycle.py`'s reload-undo functions actually return, and `_async_bootstrap_automations_yaml` had its return tuple annotation bumped from `tuple[bool, bool]` to `tuple[bool, bool, bool]` to match the 3-value unpack at the caller. Config flow return types now declare `ConfigFlowResult` instead of the parent-incompatible `FlowResult`.
+- **Ruff auto-fix** removed 27 unused imports across the test suite and fixed a few other minor pyflakes issues. No runtime code affected.
+
+### Tests
+- 294 passing (3 skipped, 1 xpassed). Ruff + mypy both clean.
+
 ## 1.5.1 — Bundled brand icons
 
 ### Added

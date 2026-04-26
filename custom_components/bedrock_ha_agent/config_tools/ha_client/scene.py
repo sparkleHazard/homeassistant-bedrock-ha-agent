@@ -13,7 +13,7 @@ Mirrors automation.py. See that module's docstring for the motivation.
 from __future__ import annotations
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -32,16 +32,16 @@ def _file_for(hass: "HomeAssistant", object_id: str) -> str:
     return os.path.join(_scenes_dir(hass), f"{object_id}{_FILE_SUFFIX}")
 
 
-async def list_scenes(hass: "HomeAssistant") -> list[dict]:
+async def list_scenes(hass: "HomeAssistant") -> list[dict[str, Any]]:
     """Return every scene config present in the scenes directory."""
     from homeassistant.util.yaml import load_yaml
 
     directory = _scenes_dir(hass)
 
-    def _walk() -> list[dict]:
+    def _walk() -> list[dict[str, Any]]:
         if not os.path.isdir(directory):
             return []
-        results: list[dict] = []
+        results: list[dict[str, Any]] = []
         for name in sorted(os.listdir(directory)):
             if not name.endswith(_FILE_SUFFIX):
                 continue
@@ -62,13 +62,13 @@ async def list_scenes(hass: "HomeAssistant") -> list[dict]:
     return await hass.async_add_executor_job(_walk)
 
 
-async def get_scene(hass: "HomeAssistant", object_id: str) -> dict | None:
+async def get_scene(hass: "HomeAssistant", object_id: str) -> dict[str, Any] | None:
     """Return the stored config for a given scene object_id, or None if absent."""
     from homeassistant.util.yaml import load_yaml
 
     path = _file_for(hass, object_id)
 
-    def _read() -> dict | None:
+    def _read() -> dict[str, Any] | None:
         if not os.path.isfile(path):
             return None
         try:
@@ -84,7 +84,7 @@ async def get_scene(hass: "HomeAssistant", object_id: str) -> dict | None:
 
 
 async def create_or_update_scene(
-    hass: "HomeAssistant", object_id: str, config: dict
+    hass: "HomeAssistant", object_id: str, config: dict[str, Any]
 ) -> None:
     """Write ``<scenes_dir>/<object_id>.yaml`` atomically."""
     from homeassistant.util.file import write_utf8_file_atomic

@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-RestoreFn = Callable[[], Awaitable[None]]
+RestoreFn = Callable[[], Awaitable[None | dict[str, Any]]]
 
 
 @dataclass
@@ -47,7 +47,7 @@ class PendingApprovalResult:
     proposed_diff: str
     expires_at_iso: str  # UTC ISO8601
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, str]:
         return {
             "status": self.status,
             "proposal_id": self.proposal_id,
@@ -78,7 +78,7 @@ class ConfigEditingTool(llm.Tool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Return the current state of the resource about to be changed (for undo).
 
         Return None for pure-create operations.
@@ -87,35 +87,35 @@ class ConfigEditingTool(llm.Tool):
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Return the post-change state we intend to write. None for pure-delete."""
         raise NotImplementedError
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> "ValidationResult":
         """Return a ValidationResult (ok or failure with errors)."""
         raise NotImplementedError
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build the TTS-safe spoken summary. Use config_tools.diff.render_spoken_summary."""
         raise NotImplementedError
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build the unified-diff text. Use config_tools.diff.render_unified_diff."""
         raise NotImplementedError
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Return an async callable that restores pre_state (the undo operation)."""
         raise NotImplementedError
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Perform the actual HA API call to apply the change. Returns a dict summary
         (e.g. {'object_id': '...', 'entity_id': '...'}). Raises on failure — caller
         handles post-apply rollback.
@@ -125,7 +125,7 @@ class ConfigEditingTool(llm.Tool):
         """
         raise NotImplementedError
 
-    def tool_warnings(self, proposed: dict | None, pre_state: dict | None) -> list[str]:
+    def tool_warnings(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> list[str]:
         """Optional list of user-visible caveats attached to the PendingChange and UndoEntry.
 
         Example: label-delete emits "undoing will re-create the label with a new id".
@@ -135,8 +135,8 @@ class ConfigEditingTool(llm.Tool):
 
     @staticmethod
     def _extract_config(
-        tool_args: dict, metadata_keys: tuple[str, ...] = ()
-    ) -> dict:
+        tool_args: dict[str, Any], metadata_keys: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
         """Pull an automation/script/scene/helper config dict out of tool_args.
 
         Claude on Bedrock inconsistently nests tool arguments: sometimes the
@@ -165,7 +165,7 @@ class ConfigEditingTool(llm.Tool):
         hass: HomeAssistant,
         tool_input: llm.ToolInput,
         llm_context: llm.LLMContext,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Preview-only. NEVER writes to HA. Returns either pending_approval or validation_failed."""
         # 1. Resolve the owning config entry for this call.
         entry = self._resolve_entry(hass, llm_context)

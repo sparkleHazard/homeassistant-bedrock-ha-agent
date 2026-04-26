@@ -24,9 +24,9 @@ async def significant_states(
 ) -> dict[str, Any]:
     """Return {'states': [...], 'count': N}."""
     from homeassistant.components.recorder import history
-    from homeassistant.components.recorder.util import session_scope
+    from homeassistant.components.recorder.util import session_scope  # type: ignore[attr-defined]  # not in __all__ but exists
 
-    def _get_states():
+    def _get_states() -> list[dict[str, Any]]:
         with session_scope(hass=hass, read_only=True) as session:
             result = history.get_significant_states_with_session(
                 hass,
@@ -44,11 +44,11 @@ async def significant_states(
             states_list = result.get(entity_id, [])
             return [
                 {
-                    "entity_id": s.entity_id,
-                    "state": s.state,
-                    "attributes": s.attributes,
-                    "last_changed": s.last_changed.isoformat(),
-                    "last_updated": s.last_updated.isoformat(),
+                    "entity_id": s.entity_id if hasattr(s, "entity_id") else str(s.get("entity_id", "")),
+                    "state": s.state if hasattr(s, "state") else str(s.get("state", "")),
+                    "attributes": s.attributes if hasattr(s, "attributes") else s.get("attributes", {}),
+                    "last_changed": s.last_changed.isoformat() if hasattr(s, "last_changed") else str(s.get("last_changed", "")),
+                    "last_updated": s.last_updated.isoformat() if hasattr(s, "last_updated") else str(s.get("last_updated", "")),
                 }
                 for s in states_list
             ]

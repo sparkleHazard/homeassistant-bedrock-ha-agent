@@ -30,3 +30,46 @@ Homepage = "https://github.com/sparkleHazard/homeassistant-bedrock-ha-agent"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["custom_components*"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+extend-exclude = [".venv", ".venv.bak", "htmlcov", "homeassistant_bedrock_conversation.egg-info", "homeassistant_bedrock_ha_agent.egg-info"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest_plugins = [...] must come before certain imports in the HA test harness,
+# which trips E402. F841 flags intentional return-value captures used for breakpoints/debugging.
+"tests/**/*.py" = ["E402", "F841"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+# HA ships no PEP 561 stubs; boto3 / amazon-transcribe / pytest-homeassistant-custom-component
+# likewise. Allow missing imports globally and keep strictness on our own code.
+ignore_missing_imports = true
+warn_unused_ignores = true
+# custom_components/ has no __init__.py (HA convention — each integration is its own
+# sub-package). namespace_packages + explicit_package_bases let mypy see it as a package
+# without requiring a stub __init__.py.
+namespace_packages = true
+explicit_package_bases = true
+exclude = [
+    "tests/",
+    ".venv/",
+    ".venv.bak/",
+    "homeassistant_bedrock_conversation\\.egg-info/",
+    "homeassistant_bedrock_ha_agent\\.egg-info/",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "boto3",
+    "boto3.*",
+    "botocore",
+    "botocore.*",
+    "amazon_transcribe",
+    "amazon_transcribe.*",
+    "webcolors",
+    "voluptuous",
+]
+ignore_missing_imports = true

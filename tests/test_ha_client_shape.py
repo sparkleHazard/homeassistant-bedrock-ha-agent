@@ -1,6 +1,5 @@
 """Module-surface tests for ha_client subpackage (no HA instance required)."""
 import inspect
-import pytest
 
 from custom_components.bedrock_ha_agent.config_tools.ha_client import (
     automation,

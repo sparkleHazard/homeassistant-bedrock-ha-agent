@@ -121,7 +121,7 @@ class UsageTracker:
             self.today = UsageCounters()
             self.last_reset_day = today
 
-    def record(self, model_id: str | None, usage: dict | None) -> None:
+    def record(self, model_id: str | None, usage: dict[str, object] | None) -> None:
         """Fold one Bedrock ``usage`` dict into the counters.
 
         ``usage`` comes straight off the Bedrock response body; missing keys
@@ -133,10 +133,10 @@ class UsageTracker:
 
         self._maybe_roll_day()
 
-        input_t = int(usage.get("input_tokens") or 0)
-        output_t = int(usage.get("output_tokens") or 0)
-        cache_read_t = int(usage.get("cache_read_input_tokens") or 0)
-        cache_write_t = int(usage.get("cache_creation_input_tokens") or 0)
+        input_t = int(usage.get("input_tokens", 0) or 0)  # type: ignore[call-overload]  # boto3 usage dict can contain object values
+        output_t = int(usage.get("output_tokens", 0) or 0)  # type: ignore[call-overload]
+        cache_read_t = int(usage.get("cache_read_input_tokens", 0) or 0)  # type: ignore[call-overload]
+        cache_write_t = int(usage.get("cache_creation_input_tokens", 0) or 0)  # type: ignore[call-overload]
 
         pricing = _lookup_pricing(model_id)
         delta_cost = 0.0

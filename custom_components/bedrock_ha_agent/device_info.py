@@ -6,13 +6,18 @@ produce the device list that Jinja renders into ``<devices>``.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import area_registry as ar, entity_registry as er
 
 from .utils import closest_color
+
+if TYPE_CHECKING:
+    _FormatFn = Callable[[object], str | None]
 
 
 @dataclass
@@ -32,14 +37,18 @@ class DeviceInfo:
 def _brightness(raw: object) -> str | None:
     if raw is None:
         return None
-    return f"{int(float(raw) * 100 / 255)}%"
+    # raw is typically an int (0-255), but cast defensively
+    return f"{int(float(raw) * 100 / 255)}%"  # type: ignore[arg-type]
 
 
 def _rgb(raw: object) -> str | None:
     if not raw:
         return None
     try:
-        return closest_color(tuple(raw))
+        # raw should be a sequence like [255, 0, 0]; cast to tuple for closest_color
+        if not isinstance(raw, (list, tuple)) or len(raw) < 3:
+            return None
+        return closest_color((int(raw[0]), int(raw[1]), int(raw[2])))
     except Exception:  # noqa: BLE001 — bad data → skip, not fatal
         return None
 
@@ -48,7 +57,7 @@ def _temperature(raw: object) -> str | None:
     return None if raw is None else f"{raw}°"
 
 
-def _temperature_with_prefix(prefix: str):
+def _temperature_with_prefix(prefix: str) -> _FormatFn:
     def fmt(raw: object) -> str | None:
         return None if raw is None else f"{prefix}:{raw}°"
 
@@ -59,7 +68,7 @@ def _humidity(raw: object) -> str | None:
     return None if raw is None else f"{raw}%RH"
 
 
-def _labelled(label: str):
+def _labelled(label: str) -> _FormatFn:
     def fmt(raw: object) -> str | None:
         return None if not raw else f"{label}:{raw}"
 
@@ -67,13 +76,13 @@ def _labelled(label: str):
 
 
 def _volume(raw: object) -> str | None:
-    return None if raw is None else f"vol:{int(float(raw) * 100)}%"
+    return None if raw is None else f"vol:{int(float(raw) * 100)}%"  # type: ignore[arg-type]
 
 
 # (state attribute key, domain filter, formatter).
 # Using a table keeps the dispatch declarative and makes it trivial to add
 # new attributes later.
-_ATTRIBUTE_FORMATTERS: tuple[tuple[str, str | None, "_FormatFn"], ...] = (
+_ATTRIBUTE_FORMATTERS: tuple[tuple[str, str | None, _FormatFn], ...] = (
     ("brightness", "light", _brightness),
     ("rgb_color", "light", _rgb),
     ("temperature", None, _temperature),
@@ -88,11 +97,6 @@ _ATTRIBUTE_FORMATTERS: tuple[tuple[str, str | None, "_FormatFn"], ...] = (
     ("media_artist", None, _labelled("artist")),
     ("volume_level", None, _volume),
 )
-
-# Formatter signature alias. Declared after the table to avoid a forward
-# reference since this module stays simple (no ``from __future__`` needed beyond
-# the one already at the top).
-_FormatFn = callable  # type: ignore[assignment]
 
 
 def render_devices_section(

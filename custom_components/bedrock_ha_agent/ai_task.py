@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json as json_mod
 import logging
+from collections.abc import AsyncIterator
 from json import JSONDecodeError
 from types import SimpleNamespace
+from typing import Any
 from typing import TYPE_CHECKING
 
 from homeassistant.components import ai_task, conversation
@@ -108,7 +110,7 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
             try:
                 _LOGGER.info("AI Task iteration %d: streaming Bedrock response...", tool_iterations)
 
-                turn_state = await self._stream_one_bedrock_turn(
+                turn_state: Any = await self._stream_one_bedrock_turn(
                     client=client,
                     chat_log=chat_log,
                     message_history=message_history,
@@ -186,13 +188,13 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
     async def _stream_one_bedrock_turn(
         self,
         *,
-        client,
+        client: object,  # BedrockClient, but avoid circular import
         chat_log: conversation.ChatLog,
-        message_history,
-        llm_api,
-        options,
+        message_history: object,  # boto3 message list shape
+        llm_api: object,  # llm.APIInstance
+        options: dict[str, object],
         agent_id: str,
-    ):
+    ) -> object:  # SimpleNamespace with stop_reason, full_text, tool_calls, etc.
         """Stream one Bedrock turn into ``chat_log`` and return final state.
 
         Returns a SimpleNamespace with:
@@ -203,16 +205,16 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
             tool_results: list[conversation.ToolResultContent]
         """
         # Per-index buffers for incremental tool_use blocks from the stream.
-        pending_tool_use: dict[int, dict] = {}
+        pending_tool_use: dict[int, dict[str, object]] = {}
         pending_tool_use_json: dict[int, list[str]] = {}
         full_text: list[str] = []
         stop_reason: str | None = None
 
-        bedrock_events = client.async_generate_stream(
+        bedrock_events = client.async_generate_stream(  # type: ignore[attr-defined]  # BedrockClient has async_generate_stream at runtime
             message_history, llm_api, options
         )
 
-        async def delta_stream():
+        async def delta_stream() -> AsyncIterator[dict[str, object]]:
             """Translate Bedrock stream events into chat_log deltas."""
             nonlocal stop_reason
             # Yield the role starter so chat_log opens a new assistant entry.
@@ -254,7 +256,7 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
                                 )
                                 args = {}
                             tool_input = llm.ToolInput(
-                                tool_name=meta.get("name"),
+                                tool_name=str(meta.get("name") or "unknown"),  # Bedrock always provides name, but handle gracefully
                                 tool_args=args,
                             )
                             tool_inputs.append(tool_input)
@@ -271,14 +273,14 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
         assistant_content: conversation.AssistantContent | None = None
         tool_results: list[conversation.ToolResultContent] = []
         async for finalized in chat_log.async_add_delta_content_stream(
-            agent_id, delta_stream()
+            agent_id, delta_stream()  # type: ignore[arg-type]  # HA's delta stream type is broader than annotated
         ):
             if isinstance(finalized, conversation.AssistantContent):
                 assistant_content = finalized
             elif isinstance(finalized, conversation.ToolResultContent):
                 tool_results.append(finalized)
 
-        tool_calls: list = []
+        tool_calls: list[Any] = []
         if assistant_content and assistant_content.tool_calls:
             tool_calls = list(assistant_content.tool_calls)
 

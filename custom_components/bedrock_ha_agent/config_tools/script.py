@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.helpers import llm
@@ -62,14 +62,14 @@ class ConfigScriptCreate(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Check if script already exists (for create, should be None)."""
         object_id = tool_input.tool_args["object_id"]
         return await ha_script.get_script(hass, object_id)
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build the script config from tool args."""
         args = tool_input.tool_args
         payload = {
@@ -86,7 +86,7 @@ class ConfigScriptCreate(ConfigEditingTool):
         return payload
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate the proposed script config."""
         if pre_state is not None:
@@ -103,6 +103,10 @@ class ConfigScriptCreate(ConfigEditingTool):
                 ]
             )
 
+        if proposed is None:
+            from custom_components.bedrock_ha_agent.config_tools.validation import ValidationError
+            return ValidationResult.failure([ValidationError(code="no_payload", message="No proposed payload")])
+
         # Remove object_id before schema validation (it's metadata, not part of script config)
         script_config = {k: v for k, v in proposed.items() if k != "object_id"}
 
@@ -116,7 +120,7 @@ class ConfigScriptCreate(ConfigEditingTool):
         return validate_entities_exist(hass, entity_ids)
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build TTS-safe spoken summary."""
         if proposed is None:
@@ -124,14 +128,14 @@ class ConfigScriptCreate(ConfigEditingTool):
         alias = proposed.get("alias", "unknown")
         return render_spoken_summary("Would add", f"script '{alias}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build unified diff."""
         return render_unified_diff(
             pre_state, proposed, fromfile="before", tofile="after"
         )
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Build undo function (delete the created script)."""
         object_id = proposed.get("object_id") if proposed else None
@@ -144,8 +148,8 @@ class ConfigScriptCreate(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Apply the script creation."""
         if proposed is None:
             raise ValueError("Cannot apply script creation with no payload")
@@ -181,14 +185,14 @@ class ConfigScriptEdit(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Get the current script config."""
         object_id = tool_input.tool_args["object_id"]
         return await ha_script.get_script(hass, object_id)
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Build the updated script config."""
         args = tool_input.tool_args
         pre_state = await self.build_pre_state(hass, tool_input)
@@ -212,7 +216,7 @@ class ConfigScriptEdit(ConfigEditingTool):
         return payload
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate the proposed edit."""
         if pre_state is None:
@@ -220,6 +224,10 @@ class ConfigScriptEdit(ConfigEditingTool):
             return ValidationResult.failure(
                 [unknown_entry_error(hass, "script", object_id)]
             )
+
+        if proposed is None:
+            from custom_components.bedrock_ha_agent.config_tools.validation import ValidationError
+            return ValidationResult.failure([ValidationError(code="no_payload", message="No proposed payload")])
 
         # Remove object_id before schema validation (it's metadata, not part of script config)
         script_config = {k: v for k, v in proposed.items() if k != "object_id"}
@@ -234,7 +242,7 @@ class ConfigScriptEdit(ConfigEditingTool):
         return validate_entities_exist(hass, entity_ids)
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build TTS-safe spoken summary."""
         if proposed is None:
@@ -242,14 +250,14 @@ class ConfigScriptEdit(ConfigEditingTool):
         alias = proposed.get("alias", "unknown")
         return render_spoken_summary("Would update", f"script '{alias}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build unified diff showing both sides."""
         return render_unified_diff(
             pre_state, proposed, fromfile="before", tofile="after"
         )
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Build undo function (restore previous config)."""
         object_id = proposed.get("object_id") if proposed else None
@@ -263,8 +271,8 @@ class ConfigScriptEdit(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Apply the script update."""
         if proposed is None:
             raise ValueError("Cannot apply script edit with no payload")
@@ -295,20 +303,20 @@ class ConfigScriptDelete(ConfigEditingTool):
 
     async def build_pre_state(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Get the current script config for undo."""
         object_id = tool_input.tool_args["object_id"]
         return await ha_script.get_script(hass, object_id)
 
     async def build_proposed_payload(
         self, hass: HomeAssistant, tool_input: llm.ToolInput
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Store metadata needed for delete (object_id), but mark as delete operation."""
         # For deletes, we store metadata in proposed_payload for apply_change to use
         return {"object_id": tool_input.tool_args["object_id"], "_delete": True}
 
     async def validate(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> ValidationResult:
         """Validate the delete operation."""
         if pre_state is None:
@@ -319,7 +327,7 @@ class ConfigScriptDelete(ConfigEditingTool):
         return ValidationResult.success()
 
     def build_proposed_summary(
-        self, proposed: dict | None, pre_state: dict | None
+        self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> str:
         """Build TTS-safe spoken summary."""
         if pre_state is None:
@@ -327,14 +335,14 @@ class ConfigScriptDelete(ConfigEditingTool):
         alias = pre_state.get("alias", "unknown")
         return render_spoken_summary("Would delete", f"script '{alias}'")
 
-    def build_proposed_diff(self, proposed: dict | None, pre_state: dict | None) -> str:
+    def build_proposed_diff(self, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None) -> str:
         """Build unified diff showing deletion."""
         return render_unified_diff(
             pre_state, None, fromfile="before", tofile="after"
         )
 
     async def build_restore_fn(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
     ) -> RestoreFn:
         """Build undo function (recreate the script)."""
         object_id = proposed.get("object_id") if proposed else None
@@ -350,8 +358,8 @@ class ConfigScriptDelete(ConfigEditingTool):
         return restore
 
     async def apply_change(
-        self, hass: HomeAssistant, proposed: dict | None, pre_state: dict | None
-    ) -> dict:
+        self, hass: HomeAssistant, proposed: dict[str, Any] | None, pre_state: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Apply the script deletion."""
         if proposed is None or pre_state is None:
             raise ValueError("Cannot delete script - not found")

@@ -69,9 +69,6 @@ async def test_config_edit_apply_increments_token_sensors(
     from custom_components.bedrock_ha_agent.config_tools.automation import (
         ConfigAutomationCreate,
     )
-    from custom_components.bedrock_ha_agent.config_tools.pending import (
-        PendingChangeManager,
-    )
 
     # Register entities
     hass.states.async_set("light.bedroom", "off")

@@ -1,5 +1,4 @@
 """Test the Bedrock Home Assistant Agent initialization."""
-import pytest
 from unittest.mock import MagicMock
 
 from custom_components.bedrock_ha_agent import HassServiceTool
