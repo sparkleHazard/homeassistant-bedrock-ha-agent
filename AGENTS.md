@@ -55,6 +55,30 @@ A Home Assistant **custom integration** that turns AWS Bedrock foundation models
 - `make format` runs `black .` and `isort .` over the entire repo, including tests.
 - Linting is Ruff-driven (`make lint` → `ruff check .`). Configure Ruff via `pyproject.toml`.
 
+### Debugging live Home Assistant errors
+When a user reports an "Unexpected error during intent recognition" or similar wrapper error, **always prefer the real traceback from HA over guesswork**. If `hass-cli` is on the PATH and the user's shell has exported `HASS_SERVER` + `HASS_TOKEN` (check with `env | grep HASS_`), the integration's errors can be read directly via the HA WebSocket API without touching their config files or filesystem:
+
+```python
+import asyncio, aiohttp, os
+
+async def fetch_errors():
+    token = os.environ["HASS_TOKEN"]
+    url = os.environ["HASS_SERVER"].rstrip("/").replace("http", "ws", 1) + "/api/websocket"
+    async with aiohttp.ClientSession() as s, s.ws_connect(url) as ws:
+        await ws.receive_json()  # auth_required
+        await ws.send_json({"type": "auth", "access_token": token})
+        await ws.receive_json()  # auth_ok
+        await ws.send_json({"id": 1, "type": "system_log/list"})
+        resp = await ws.receive_json()
+        for r in resp.get("result", []):
+            if r.get("level") == "ERROR" and "bedrock_ha_agent" in (r.get("exception") or ""):
+                print(r.get("exception"))
+
+asyncio.run(fetch_errors())
+```
+
+Run via `.venv/bin/python <<'PY' ... PY` so `aiohttp` is available. `hass-cli raw ws system_log/list` is not reliable on Python 3.13+; the direct WebSocket call is more portable. Never hardcode a token or server URL in committed files; always read them from the user's environment.
+
 ## Dependencies
 
 ### External
