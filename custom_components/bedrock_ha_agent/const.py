@@ -92,14 +92,15 @@ DEFAULT_DEVICE_PROMPT_MODE: Final = DEVICE_PROMPT_MODE_FULL
 DEFAULT_MAX_PROMPT_TOKENS: Final = 0
 DEFAULT_EXPOSE_AREAS_ONLY: Final[list[str]] = []
 
-# Vision-capable Anthropic model substrings. Add to this list when new
-# Claude models on Bedrock get image support.
-VISION_CAPABLE_MODELS: Final = (
-    "claude-sonnet-4-5",
-    "claude-3-5-sonnet",
-    "claude-3-opus",
-    "claude-3-sonnet",
-    "claude-3-haiku",  # Claude 3 Haiku supports images; 4.x Haiku does not.
+# Anthropic model substrings that are known to NOT support image input.
+# Modern Claude is vision-first, so we fail open: assume image support
+# unless the model id matches one of these known text-only families.
+VISION_INCAPABLE_MODELS: Final = (
+    "claude-3-5-haiku",
+    "claude-haiku-4",
+    "claude-instant",
+    "claude-2",
+    "claude-v2",
 )
 
 
@@ -107,7 +108,9 @@ def model_supports_vision(model_id: str | None) -> bool:
     """Return True if the given Bedrock model id advertises image input."""
     if not model_id:
         return False
-    return any(substr in model_id for substr in VISION_CAPABLE_MODELS)
+    if "claude" not in model_id:
+        return False
+    return not any(substr in model_id for substr in VISION_INCAPABLE_MODELS)
 
 
 # Image generation (Nova Canvas / Stability / Titan) ---------------------------

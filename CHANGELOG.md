@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.5.4 — Vision gate fails open
+
+### Fixed
+- **Auto-attach camera snapshots now work with Claude 4.x Opus and Sonnet.** The vision capability check in `const.py` was a stale allowlist (`claude-sonnet-4-5`, `claude-3-5-sonnet`, `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`) that excluded every model released after it was written — including `claude-opus-4-7`, `claude-sonnet-4-6`, and `claude-opus-4-1`. Users with `auto_attach_cameras` enabled saw `auto_attach_cameras is on but model … is not vision-capable; dropping snapshots for this turn` warnings and no image input, even though the selected model fully supported vision on Bedrock.
+
+### Changed
+- **`VISION_CAPABLE_MODELS` allowlist replaced with `VISION_INCAPABLE_MODELS` denylist.** Modern Claude is vision-first, so the gate now fails open: any `claude-*` model id is assumed to support image input unless its id contains one of the known text-only substrings (`claude-3-5-haiku`, `claude-haiku-4`, `claude-instant`, `claude-2`, `claude-v2`). New Claude releases on Bedrock will work without a code change.
+
 ## 1.5.3 — Shared AWS discovery cache
 
 ### Changed
