@@ -24,7 +24,7 @@ def test_automation_module_shape():
     actual = {
         name
         for name, obj in inspect.getmembers(automation)
-        if inspect.iscoroutinefunction(obj)
+        if inspect.iscoroutinefunction(obj) and not name.startswith("_")
     }
     assert actual == expected, f"Missing/extra functions: {expected ^ actual}"
 

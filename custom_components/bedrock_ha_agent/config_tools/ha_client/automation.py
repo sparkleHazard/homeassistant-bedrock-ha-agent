@@ -184,5 +184,64 @@ async def delete_automation(hass: "HomeAssistant", object_id: str) -> None:
 
 
 async def reload_automations(hass: "HomeAssistant") -> None:
-    """Fire the automation.reload service."""
+    """Fire the automation.reload service and clean orphaned registry stubs.
+
+    Earlier versions of this integration (v1.1.0-v1.1.7) wrote automations
+    through different storage paths (.storage/automations, then per-file
+    directories). Each retry/collision could leave an orphaned entity in
+    the entity registry tagged ``restored: true`` and state ``unavailable``
+    — its backing config no longer exists anywhere. The UI keeps showing
+    that stub and blocks the entity_id slot for the real, reloaded
+    automation.
+
+    After reload we scan the registry for automation entries whose
+    ``unique_id`` (HA's automation platform uses the config ``id`` field
+    as the unique_id) no longer exists in automations.yaml, and whose
+    state is ``unavailable`` (the "restored stub" fingerprint). Those get
+    removed. We never touch a live entity — the state check is the
+    safety rail.
+    """
     await hass.services.async_call("automation", "reload", blocking=True)
+    await _cleanup_orphan_registry_entries(hass)
+
+
+async def _cleanup_orphan_registry_entries(hass: "HomeAssistant") -> None:
+    """Remove automation.* entity_registry stubs whose config is gone.
+
+    Only removes entries that are BOTH unknown to automations.yaml AND
+    currently unavailable — these are restored registry stubs from prior
+    writes, not live automations the user or another integration loaded
+    from .storage or a package.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    def _known_ids() -> set[str]:
+        return {str(item.get("id")) for item in _load_list(hass) if item.get("id")}
+
+    known = await hass.async_add_executor_job(_known_ids)
+    registry = er.async_get(hass)
+    removed: list[str] = []
+    for entry in list(registry.entities.values()):
+        if entry.platform != "automation":
+            continue
+        if not entry.entity_id.startswith("automation."):
+            continue
+        unique_id = entry.unique_id
+        if unique_id in known:
+            continue  # live entry with a config backing it
+        # Unknown unique_id. Only remove if the state says it's a restored stub —
+        # an automation loaded from a package or .storage would be state != unavailable.
+        state = hass.states.get(entry.entity_id)
+        if state is None:
+            continue
+        if state.state != "unavailable":
+            continue
+        if not state.attributes.get("restored"):
+            continue
+        registry.async_remove(entry.entity_id)
+        removed.append(entry.entity_id)
+    if removed:
+        _LOGGER.info(
+            "cleanup_orphan_registry_entries: removed %d stale stub(s): %s",
+            len(removed), ", ".join(removed),
+        )

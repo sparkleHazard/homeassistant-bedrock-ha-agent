@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.13 — Clean orphan automation registry stubs on reload
+
+### Fixed
+- Agent-created automations were written correctly to `automations.yaml`
+  and loaded by HA, but the UI kept showing an older stale entity
+  (state `unavailable`, `restored: true`) left over from earlier
+  versions' different storage paths (v1.1.0-v1.1.7 tried `.storage`,
+  per-file directories, and collision-suffixed object_ids). The stub
+  occupied the `entity_id` slot and masked the real, loaded automation.
+- `reload_automations()` now runs a cleanup pass after `automation.reload`:
+  scans the entity registry for `automation.*` entries whose `unique_id`
+  isn't present in `automations.yaml`, and removes only those that are
+  currently `unavailable` with `restored: true` — the exact fingerprint
+  of a registry stub whose config is gone. Live automations (from
+  `.storage`, packages, or the YAML file itself) are never touched.
+
+### Tests
+- `test_ha_client_shape.py` shape tests now ignore private (leading
+  underscore) coroutines; the new `_cleanup_orphan_registry_entries`
+  helper is private and not part of the public transport API.
+
 ## 1.1.12 — Stop awaiting sync persistent_notification functions
 
 ### Fixed
