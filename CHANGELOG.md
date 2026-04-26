@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.9 — Normalize HA YAML node subclasses before diffing
+
+### Fixed
+- Deleting an existing automation (and, by symmetry, editing one) raised
+  `Unexpected error during intent recognition` with a
+  `yaml.representer.RepresenterError: cannot represent an object`. Cause:
+  HA's `util.yaml.load_yaml` returns `NodeDictClass`/`NodeStrClass`/
+  `NodeListClass` — subclasses of `dict`/`str`/`list` that tag values with
+  their source filename+line. The default `SafeDumper` has no representer
+  for those subclasses, so `build_proposed_diff` blew up the moment
+  `pre_state` (loaded from YAML for edit/delete) was fed to `safe_dump`.
+- `config_tools/diff.py::_dump_yaml` now normalizes through a `_to_plain`
+  pass first, converting NodeDictClass→dict, NodeListClass→list,
+  NodeStrClass→str, and bools/ints/floats to their plain types recursively.
+  Create proposals were unaffected (pre_state is None), which is why
+  the bug only surfaced on the first delete attempt.
+
 ## 1.1.8 — Wrap automation/scene writes in a list for merge_list compatibility
 
 ### Fixed

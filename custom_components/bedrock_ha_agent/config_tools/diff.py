@@ -20,11 +20,34 @@ import yaml
 _DIFF_MARKER_PREFIXES = ("--- ", "+++ ", "@@")
 
 
+def _to_plain(obj: Any) -> Any:
+    """Strip HA YAML node subclasses (NodeStrClass/NodeDictClass/NodeListClass) to
+    plain dict/list/str so ``yaml.safe_dump`` has a representer. HA's loader tags
+    loaded values with filename+line metadata by subclassing str/dict/list, and
+    the default SafeDumper doesn't know about those subclasses.
+    """
+    if isinstance(obj, dict):
+        return {_to_plain(k): _to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_plain(x) for x in obj]
+    if isinstance(obj, bool):
+        return bool(obj)
+    if isinstance(obj, int):
+        return int(obj)
+    if isinstance(obj, float):
+        return float(obj)
+    if isinstance(obj, str):
+        return str(obj)
+    if obj is None:
+        return None
+    return str(obj)
+
+
 def _dump_yaml(obj: Any) -> str:
     """Deterministic YAML for diffing. `None` → empty string."""
     if obj is None:
         return ""
-    return yaml.safe_dump(obj, sort_keys=True, default_flow_style=False).rstrip() + "\n"
+    return yaml.safe_dump(_to_plain(obj), sort_keys=True, default_flow_style=False).rstrip() + "\n"
 
 
 def render_unified_diff(
