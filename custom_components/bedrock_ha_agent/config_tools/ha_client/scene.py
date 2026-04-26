@@ -96,8 +96,13 @@ async def create_or_update_scene(
     # Scenes may optionally carry an `id` for the UI; if caller provided
     # one, keep it, otherwise set it from object_id so the entity gets a
     # stable id across reloads.
-    payload = dict(config)
-    payload.setdefault("id", object_id)
+    # IMPORTANT: `!include_dir_merge_list scenes/` only merges files that
+    # contain a YAML LIST at the top level. A bare dict is silently
+    # skipped. Wrap in a 1-element list to match the loader's
+    # expectation. See annotatedyaml/loader.py::_include_dir_merge_list_yaml.
+    one_scene = dict(config)
+    one_scene.setdefault("id", object_id)
+    payload = [one_scene]
 
     def _write() -> None:
         os.makedirs(directory, exist_ok=True)

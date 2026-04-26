@@ -95,10 +95,14 @@ async def create_or_update_script(
     directory = _scripts_dir(hass)
     path = _file_for(hass, object_id)
 
-    # Scripts don't carry an `id` field — the object_id is the filename.
-    # HA's script.reload identifies scripts by their dict key (mapping
-    # layout) or by filename (merge-list layout). We use the latter.
-    payload = dict(config)
+    # Scripts use `!include_dir_merge_named scripts/` (or the plain
+    # `!include_dir_named`) in the typical directory-based layout — the
+    # script integration's CONFIG_SCHEMA is a dict-of-scripts keyed by
+    # object_id. Each file contributes {object_id: {alias, sequence,
+    # ...}} and HA merges all of them into one big script: config dict.
+    # Automations and scenes use `!include_dir_merge_list` instead
+    # because their schemas are list-valued.
+    payload = {object_id: dict(config)}
 
     def _write() -> None:
         os.makedirs(directory, exist_ok=True)

@@ -135,7 +135,12 @@ async def create_or_update_automation(
     path = _file_for(hass, object_id)
 
     # id is canonical: overwrite whatever caller passed in config.
-    payload = {CONF_ID: object_id, **{k: v for k, v in config.items() if k != CONF_ID}}
+    # IMPORTANT: `!include_dir_merge_list` only merges files containing a
+    # YAML list. A bare dict is silently skipped with no warning, which is
+    # how v1.1.7 shipped broken. Wrap the single automation in a 1-element
+    # list so it matches the merge_list expectation.
+    # See annotatedyaml/loader.py::_include_dir_merge_list_yaml.
+    payload = [{CONF_ID: object_id, **{k: v for k, v in config.items() if k != CONF_ID}}]
 
     def _write() -> None:
         os.makedirs(directory, exist_ok=True)

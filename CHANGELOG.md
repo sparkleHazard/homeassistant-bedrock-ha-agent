@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.8 — Wrap automation/scene writes in a list for merge_list compatibility
+
+### Fixed
+- v1.1.7 wrote one YAML file per object into `automations/` but each file
+  contained a bare dict. HA's `!include_dir_merge_list` loader
+  (`annotatedyaml/loader.py::_include_dir_merge_list_yaml`) explicitly
+  tests `isinstance(loaded_yaml, list)` and **silently skips files that
+  aren't lists** — no warning, no error, just omitted from the merged
+  config. Confirmed by reading the loader source after observing
+  apply-succeeds-but-no-entity for the Nth time.
+- Transport now wraps each automation and scene payload in a single-item
+  list `[{...}]` so the merge_list loader picks them up. Scripts keep
+  the dict-at-top-level form since the script integration's schema is
+  dict-valued (and uses `!include_dir_merge_named` / `!include_dir_named`
+  instead). `list_*` / `get_*` continue to handle both shapes on the
+  read side so old-format files are still parseable.
+
 ## 1.1.7 — Per-file-per-object transport for automations, scripts, scenes
 
 ### Fixed
