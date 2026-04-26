@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.2.1 — Fix Bedrock tool-schema conversion
+
+### Fixed
+- **Bedrock received empty `input_schema` for every tool except `HassCallService`.** `messages.format_tools_for_bedrock` was only hand-rolling a JSON schema for `HassCallService`; every other tool (all 15 diagnostics tools, plus the full config-editing suite) advertised zero parameters to Claude. When Claude tried to call a tool that required arguments like `entity_id`, the request was malformed — surfaced to users as "Unexpected error during intent recognition." This was a latent bug in the config-editing port (1.1.0) that became sharply visible in 1.2.0 because diagnostics tools are the natural first choice for "check the logs"-style prompts.
+- Added a generic voluptuous → JSON Schema converter (`_vol_schema_to_json_schema`) that handles `vol.Required`/`vol.Optional` keys, `cv.entity_id`/`cv.string`/`cv.slug` validators, `vol.All(int, vol.Range(...))`, `vol.Length`, `vol.In`, `vol.Any`, `vol.Schema({}, extra=vol.ALLOW_EXTRA)`, and nested `vol.Schema` recursion. Unknown validators fall back to a permissive empty schema with a warning log rather than crashing.
+- Preserved the existing hand-written `HassCallService` schema (its voluptuous keys don't introspect cleanly).
+
+### Tests
+- New `tests/test_bedrock_tool_schema.py` — 9 passing tests covering the converter + an integration-style regression test that locks in non-empty properties for every diagnostics tool that declares required fields.
+
 ## 1.2.0 — Diagnostics & Control Tool Suite (opt-in)
 
 ### Added

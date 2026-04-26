@@ -12,6 +12,7 @@ import json
 import logging
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components import conversation
 from homeassistant.helpers import llm
 
@@ -20,12 +21,122 @@ from .const import SERVICE_TOOL_NAME
 _LOGGER = logging.getLogger(__name__)
 
 
+def _vol_type_to_json(validator: Any) -> dict[str, Any]:
+    """Convert a voluptuous leaf validator to a JSON Schema type fragment."""
+    # Direct types
+    if validator is str:
+        return {"type": "string"}
+    if validator is int:
+        return {"type": "integer"}
+    if validator is float:
+        return {"type": "number"}
+    if validator is bool:
+        return {"type": "boolean"}
+    if validator is dict:
+        return {"type": "object"}
+    if validator is list:
+        return {"type": "array"}
+
+    # cv.string, cv.entity_id, cv.slug, etc. — all string validators
+    if callable(validator):
+        name = getattr(validator, "__name__", "")
+        if name in ("string", "slug", "entity_id", "entity_ids", "domain", "service", "isbool"):
+            # known HA validators that accept strings
+            if name == "isbool":
+                return {"type": "boolean"}
+            return {"type": "string"}
+
+    # vol.All(int, vol.Range(min=..., max=...))
+    if isinstance(validator, vol.All):
+        result: dict[str, Any] = {}
+        for v in validator.validators:
+            result.update(_vol_type_to_json(v))
+        return result
+
+    # vol.Range
+    if isinstance(validator, vol.Range):
+        r = {}
+        if validator.min is not None:
+            r["minimum"] = validator.min
+        if validator.max is not None:
+            r["maximum"] = validator.max
+        return r
+
+    # vol.Length
+    if isinstance(validator, vol.Length):
+        r = {}
+        if validator.min is not None:
+            r["minLength"] = validator.min
+        if validator.max is not None:
+            r["maxLength"] = validator.max
+        return r
+
+    # vol.In([...])
+    if isinstance(validator, vol.In):
+        vals = list(validator.container)
+        return {"enum": vals}
+
+    # vol.Any(None, dict) or vol.Any(str, list)
+    if isinstance(validator, vol.Any):
+        # Permissive: return empty schema (accept anything)
+        return {}
+
+    # Nested vol.Schema
+    if isinstance(validator, vol.Schema):
+        return _vol_schema_to_json_schema(validator)
+
+    # Unknown — permissive
+    return {}
+
+
+def _vol_schema_to_json_schema(schema: vol.Schema) -> dict[str, Any]:
+    """Convert a vol.Schema to a top-level JSON Schema object."""
+    if not isinstance(schema, vol.Schema) or not isinstance(schema.schema, dict):
+        return {"type": "object", "properties": {}, "required": []}
+
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+
+    for key, validator in schema.schema.items():
+        if isinstance(key, vol.Required):
+            key_name = str(key.schema)
+            required.append(key_name)
+        elif isinstance(key, vol.Optional):
+            key_name = str(key.schema)
+        else:
+            key_name = str(key)
+
+        prop_schema = _vol_type_to_json(validator)
+
+        # Attach default for Optional keys when serializable
+        if isinstance(key, vol.Optional) and key.default is not vol.UNDEFINED:
+            try:
+                default_val = key.default() if callable(key.default) else key.default
+                if isinstance(default_val, (str, int, float, bool, type(None))):
+                    prop_schema.setdefault("type", "string")  # best-effort
+                    prop_schema["default"] = default_val
+            except Exception:  # noqa: BLE001
+                pass
+
+        properties[key_name] = prop_schema or {"type": "string"}
+
+    # extra=ALLOW_EXTRA → additionalProperties: true
+    extra_flag = {"additionalProperties": True} if schema.extra == vol.ALLOW_EXTRA else {}
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        **extra_flag,
+    }
+
+
 def format_tools_for_bedrock(llm_api: llm.APIInstance | None) -> list[dict[str, Any]]:
     """Convert HA ``llm.Tool`` instances to Bedrock Anthropic Messages tool specs.
 
-    Only the built-in ``HassCallService`` tool currently ships — its schema is
-    hand-written because the voluptuous schema doesn't translate cleanly. Other
-    tools fall back to an empty input schema until they're wired up explicitly.
+    The built-in ``HassCallService`` tool uses a hand-written schema because its
+    voluptuous schema doesn't introspect cleanly. All other tools use automatic
+    voluptuous → JSON Schema conversion.
     """
     if not llm_api or not llm_api.tools:
         return []
@@ -38,7 +149,9 @@ def format_tools_for_bedrock(llm_api: llm.APIInstance | None) -> list[dict[str, 
             "input_schema": {"type": "object", "properties": {}, "required": []},
         }
 
-        if getattr(tool, "parameters", None) and tool.name == SERVICE_TOOL_NAME:
+        params = getattr(tool, "parameters", None)
+        if params and tool.name == SERVICE_TOOL_NAME:
+            # Keep the existing hand-written HassCallService schema
             tool_def["input_schema"] = {
                 "type": "object",
                 "properties": {
@@ -68,6 +181,15 @@ def format_tools_for_bedrock(llm_api: llm.APIInstance | None) -> list[dict[str, 
                 },
                 "required": ["service", "target_device"],
             }
+        elif params:
+            try:
+                tool_def["input_schema"] = _vol_schema_to_json_schema(params)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "Failed to convert schema for tool %s: %s; using empty schema",
+                    tool.name,
+                    err,
+                )
 
         bedrock_tools.append(tool_def)
 
