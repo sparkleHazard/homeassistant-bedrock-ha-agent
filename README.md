@@ -322,6 +322,25 @@ You likely have `CONF_ENABLE_CONFIG_EDITING` on and Claude is confabulating succ
 
 v1.3.0 slims the diagnostics response shape and tells the model to ask before running an unfiltered log dump ("which integration? which severity?"). Upgrade to v1.3.0 or later. You can also tighten `CONF_DIAGNOSTICS_LOG_MAX_LINES` and `CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN` in the options flow.
 
+### Self-diagnosing with `hass-cli` and an LLM agent
+
+If you're running this integration you probably have an LLM coding agent nearby (Claude Code, Cursor, Copilot Chat, Aider, etc.). When HA shows a generic wrapper error ("Unexpected error during intent recognition", "That request didn't pass the AI service's validation"), the real Python traceback lives in `home-assistant.log` — and your agent can pull it directly via the HA WebSocket API without you copy-pasting anything.
+
+Install [`hass-cli`](https://github.com/home-assistant-ecosystem/home-assistant-cli) (`pip install homeassistant-cli`) and export two env vars in your shell:
+
+```bash
+export HASS_SERVER="http://<your-ha-host>:8123"
+export HASS_TOKEN="<long-lived-access-token>"   # Settings → Your Profile → Security → Long-lived access tokens
+```
+
+Then paste this prompt to your agent when something breaks:
+
+> HA is showing "<whatever error>" after I tried X. Use my `HASS_SERVER` and `HASS_TOKEN` env vars to pull recent `system_log/list` entries via the HA WebSocket API and find the real traceback for integration `bedrock_ha_agent`. Don't hardcode the token.
+
+The agent can run an inline Python script using `aiohttp` to connect to the WebSocket, authenticate, send `{"type": "system_log/list"}`, filter for `bedrock_ha_agent` entries, and show the traceback. The repo's `AGENTS.md` includes a ready-to-use snippet for this. No log files to scroll through, no manual copy-paste — the agent gets the stack trace and can usually pinpoint the fix in one pass.
+
+This workflow caught four real user-visible bugs during this integration's development (v1.2.0 schema issues, v1.2.4 attribute mismatch, v1.3.0 response bloat, v1.3.1 entity_id drift). Recommended for anyone willing to run a local agent.
+
 ## Documentation for Contributors
 
 - [`DEVELOPMENT.md`](DEVELOPMENT.md) — local development, Makefile targets, release workflow
