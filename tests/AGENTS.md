@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
+<!-- Generated: 2026-04-25 | Updated: 2026-04-26 (v1.5.2: AI Task + image tests) -->
 <!-- MANUAL: -->
 
 # tests
@@ -54,6 +54,11 @@ Automated pytest suite for the `bedrock_ha_agent` integration. Uses `pytest-home
 | `test_system_prompt.py` *(legacy naming)* | Template substitution, Jinja rendering of the device list. |
 | `test_device_context.py` *(legacy naming)* | `get_exposed_devices` against a mocked entity registry. |
 | `test_tool_calling.py` *(legacy naming)* | End-to-end tool-calling loop, Bedrock response parsing, iteration limits. |
+| | **AI Task entity (v1.4.0+)** |
+| `test_ai_task.py` | `BedrockAITaskEntity` feature flags (all three — GENERATE_DATA, SUPPORT_ATTACHMENTS, GENERATE_IMAGE as of v1.5.0), unique_id scoping to (entry_id, subentry_id), idempotent subentry auto-create, platform filtering on `subentry_type == "ai_task_data"`, config-flow `async_get_supported_subentry_types`. |
+| `test_ai_task_image.py` | `image_model_family` routing (Nova Canvas / Titan / Stability AI); per-family request body shape (`taskType: TEXT_IMAGE` vs `mode: text-to-image`); PNG round-trip via base64 decode; `CONTENT_FILTERED` + Nova `error` field surfaces as `HomeAssistantError`; missing `CONF_IMAGE_MODEL_ID` + unknown-model-family guards; entity-level delegation to the client. |
+| `test_conversation_entity_migration.py` | v1.3.1 one-time rename: `conversation.bedrock_ha_agent_<ulid>` → `conversation.bedrock_ha_agent`, idempotent, handles collisions with numeric suffix. |
+| `test_bedrock_tool_schema.py` | Bedrock tool-use `toolSpec` shape regression guard. |
 
 ## For AI Agents
 

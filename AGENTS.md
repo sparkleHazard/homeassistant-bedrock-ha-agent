@@ -1,6 +1,6 @@
-<!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
+<!-- Generated: 2026-04-25 | Updated: 2026-04-26 (v1.5.2 release) -->
 
-# homeassistant-bedrock-ha-agent
+# homeassistant-bedrock-ha-agent — v1.5.2
 
 ## Purpose
 A Home Assistant **custom integration** that turns AWS Bedrock foundation models (Anthropic Claude, Meta Llama, Mistral) into a full conversation agent for HA. It supports device control, streaming responses, token-usage sensors, Amazon Polly TTS, Amazon Transcribe STT, camera-snapshot vision input, and — when explicitly enabled — two opt-in tool suites: approval-gated natural-language editing of automations/scripts/scenes/helpers/Lovelace/registries (`CONF_ENABLE_CONFIG_EDITING`, v1.1.0+), and a diagnostics & control suite for log diving, state/history reads, broader service calls with per-service classification, and lifecycle operations like integration reload and entity enable/disable (`CONF_ENABLE_DIAGNOSTICS`, v1.2.0+). Distributed via HACS and installed into a Home Assistant instance's `config/custom_components/` directory.
@@ -39,10 +39,13 @@ A Home Assistant **custom integration** that turns AWS Bedrock foundation models
 ### Working In This Directory
 - **Never bypass the Makefile** when installing deps or running tests — `make test` creates `.venv/`, installs pinned requirements, and runs pytest with coverage. Running `pytest` directly from a global interpreter will miss `pytest-homeassistant-custom-component` and the HA 2025.6+ pin.
 - **Version bumps happen in `custom_components/bedrock_ha_agent/manifest.json` only.** `make version` and `make release` read from that file; there is no other version string. CHANGELOG.md gets a matching entry.
+- **manifest.json key order is hassfest-enforced.** hassfest requires `domain`, `name`, then remaining keys alphabetically. Also alphabetize `dependencies` and `requirements` lists. CI (`HA hassfest` job) will reject an out-of-order manifest on PR.
+- **Two release paths**: (a) local `make release` — runs `make test-simple`, tags, pushes, creates a GitHub Release via `gh`; (b) `.github/workflows/release.yml` triggered by `workflow_dispatch` or a pushed `v*` tag — uses the built-in `GITHUB_TOKEN` so it works even when the maintainer's `gh` auth is stale. Both paths read the version from `manifest.json` and extract the matching CHANGELOG section as release notes.
 - `make release` refuses to run with a dirty working tree or a pre-existing tag. Resolve those before invoking it; do not `--force` tags.
 - **AGENTS.md files are the canonical architecture reference.** Keep implementation detail out of `README.md` (end-user-facing) and in here instead.
 - `test_bedrock.py` at the root hits real AWS — do not invoke it in CI or without credentials intentionally provided.
 - The integration domain is `bedrock_ha_agent`. The LLM API id is `bedrock_ha_agent_services`. Do not rename either without coordinating a breaking-change release.
+- **Strict mypy is blocking** in CI (`.github/workflows/test.yml`'s `typecheck` job). Config in `pyproject.toml` uses `strict = true` + `ignore_missing_imports = true`. Run `make typecheck` before pushing; new `dict`/`list` parameter types need generics, new function signatures need return annotations.
 
 ### Testing Requirements
 - `make test` runs the full suite with coverage (`htmlcov/index.html`, term-missing report). This is the gate for `make release`.

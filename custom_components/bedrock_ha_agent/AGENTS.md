@@ -1,5 +1,5 @@
 <!-- Parent: ../AGENTS.md -->
-<!-- Generated: 2026-04-25 | Updated: 2026-04-26 -->
+<!-- Generated: 2026-04-25 | Updated: 2026-04-26 (v1.5.2: image gen, brand assets, hassfest compliance) -->
 
 # bedrock_ha_agent
 
@@ -10,7 +10,9 @@ The AWS Bedrock conversation integration for Home Assistant. Registers a `Conver
 
 | File | Description |
 |------|-------------|
-| `manifest.json` | Integration metadata. **Single source of truth for the release version.** Declares `boto3`, `webcolors`, `amazon-transcribe` as Python requirements. Depends on `conversation` + `ai_task`. |
+| `manifest.json` | Integration metadata. **Single source of truth for the release version.** Declares `boto3`, `webcolors`, `amazon-transcribe` as Python requirements. Depends on `conversation` + `ai_task`; `after_dependencies` covers `assist_pipeline`, `intent`, `logbook`, `logger`, `lovelace`, `recorder` (all imported somewhere in the code at load time — hassfest enforces this). Key order is `domain`, `name`, then alphabetical (hassfest requirement). |
+| `services.yaml` | Documents `bedrock_ha_agent.ask_with_image` (vision one-shot with camera snapshot) and `bedrock_ha_agent.undo_last_config_change` (admin-gated undo). Required by hassfest whenever an integration registers services. |
+| `ai_task.py` | `BedrockAITaskEntity` — implements HA's [AI Task building block](https://www.home-assistant.io/integrations/ai_task/). Advertises all three features (`GENERATE_DATA`, `SUPPORT_ATTACHMENTS`, `GENERATE_IMAGE`). `_async_generate_data` drives the same streaming Bedrock tool-calling loop as the conversation entity; `_async_generate_image` delegates to `BedrockClient.async_generate_image` for Nova Canvas / Titan / Stability AI. Each entity gets a per-subentry `DeviceInfo` so entity_ids are slugified from the subentry title (defaults to `ai_task.bedrock_ai_task`). |
 | `__init__.py` | `async_setup_entry` wiring: runs `_ha_api_smoke`, constructs `BedrockClient` + `UsageTracker` into `BedrockRuntimeData`, registers the `BedrockServicesAPI` LLM API, forwards setup to conversation/tts/stt/sensor platforms, wires the `bedrock_ha_agent.undo_last` service (admin-gated), and installs the update listener for the Haiku advisory. Defines `HassServiceTool`. |
 | `runtime_data.py` | `BedrockRuntimeData` dataclass stored on `entry.runtime_data`. Fields: `pending` (per-conversation_id PendingChange), `undo` (per-conversation_id UndoStack), `last_config_editing_flag`, `last_model_warned_for`, `lovelace_mode`, `bedrock_client`, `usage`. |
 | `const.py` | All config keys (`CONF_*`), defaults, allowlists, `AVAILABLE_MODELS` / `RECOMMENDED_MODELS`, Jinja prompt fragments, approval/undo token vocabularies (`APPROVAL_TOKENS`, `UNDO_TOKENS`, `BARE_APPROVAL_UTTERANCES`, `BARE_UNDO_UTTERANCES`), and `CONF_ENABLE_CONFIG_EDITING` (kill switch, default False). |
@@ -34,6 +36,7 @@ The AWS Bedrock conversation integration for Home Assistant. Registers a `Conver
 
 | Directory | Purpose |
 |-----------|---------|
+| `brand/` | `icon.png` (256×256) + `logo.png` (512×512). HA 2026.3+ serves these via the Brands Proxy API with no manifest wiring. Older HA versions still need an entry in `home-assistant/brands` (not shipped). |
 | `config_tools/` | Approval-gated config-editing tools, base class, validation, pending/undo state, diff rendering (see `config_tools/AGENTS.md`). Only mounted when `CONF_ENABLE_CONFIG_EDITING` is True. |
 | `diagnostics/` | Opt-in diagnostics & control tool suite for troubleshooting and administering Home Assistant. Read-only log/state/history queries, approval-gated lifecycle operations (reload integrations, enable/disable entities, logger level changes), and an extended service-call allowlist with per-service safety classification. Only mounted when `CONF_ENABLE_DIAGNOSTICS` is True (default: False). |
 | `translations/` | Localized strings for the config/options flow UI (see `translations/AGENTS.md`). |
@@ -61,6 +64,7 @@ The AWS Bedrock conversation integration for Home Assistant. Registers a `Conver
 - If you add a new config-editing tool, add tests for: (a) `pending_approval` payload shape, (b) validation-failure path, (c) apply path, (d) restore_fn correctness (inverse operation).
 
 ### Common Patterns
+- **`strings.json` follows HA's schema** — only `config`, `options`, `services`, `entity`, `device_automation`, `selector` top-level blocks are allowed. Custom top-level blocks (`notifications`, `conversation_responses`, etc.) are rejected by hassfest and never reach the runtime. Internal status messages belong in Python, not strings.json. Every key added here must also be mirrored in `translations/en.json`.
 - **All constants belong in `const.py`.** No `"foo"` string literals for config keys anywhere else.
 - **Dataclasses for structured HA data**: `DeviceInfo`, `BedrockRuntimeData`, `BedrockResponse`, `PendingChange`, `UndoEntry`, `ModelPricing`.
 - **Raise `HomeAssistantError`** for user-visible failures; catch and convert boto3 exceptions at the client boundary.
