@@ -19,6 +19,7 @@ from custom_components.bedrock_ha_agent.config_tools.ha_client import script as 
 from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationResult,
     extract_entity_ids_from_automation,
+    unknown_entry_error,
     validate_entities_exist,
     validate_script,
 )
@@ -215,17 +216,9 @@ class ConfigScriptEdit(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate the proposed edit."""
         if pre_state is None:
-            from custom_components.bedrock_ha_agent.config_tools.validation import (
-                ValidationError,
-            )
-
+            object_id = (proposed or {}).get("object_id", "unknown")
             return ValidationResult.failure(
-                [
-                    ValidationError(
-                        code="unknown_script",
-                        message="Script does not exist",
-                    )
-                ]
+                [unknown_entry_error(hass, "script", object_id)]
             )
 
         # Remove object_id before schema validation (it's metadata, not part of script config)
@@ -319,17 +312,9 @@ class ConfigScriptDelete(ConfigEditingTool):
     ) -> ValidationResult:
         """Validate the delete operation."""
         if pre_state is None:
-            from custom_components.bedrock_ha_agent.config_tools.validation import (
-                ValidationError,
-            )
-
+            object_id = (proposed or {}).get("object_id", "unknown")
             return ValidationResult.failure(
-                [
-                    ValidationError(
-                        code="unknown_script",
-                        message="Script does not exist",
-                    )
-                ]
+                [unknown_entry_error(hass, "script", object_id)]
             )
         return ValidationResult.success()
 

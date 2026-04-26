@@ -155,6 +155,10 @@ async def test_script_delete_unknown_object_id(mock_hass, llm_context):
     """Test that deleting unknown script returns validation_failed with unknown_script code."""
     tool = ConfigScriptDelete()
 
+    # v1.1.15: unknown_entry_error consults hass.states.get — simulate a real
+    # HA in which the entity also doesn't exist in the state registry, so the
+    # error stays `unknown_script` (not the "exists-but-not-in-our-file" code).
+    mock_hass.states.get = MagicMock(return_value=None)
     with patch(
         "custom_components.bedrock_ha_agent.config_tools.script.ha_script.get_script",
         new_callable=AsyncMock,

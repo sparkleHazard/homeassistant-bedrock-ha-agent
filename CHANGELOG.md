@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.15 — Distinguish "not found" from "sourced elsewhere" on edit/delete
+
+### Changed
+- When Claude tries to edit or delete an automation/script/scene that
+  isn't in the file this integration manages (`automations.yaml`,
+  `scripts/<id>.yaml`, `scenes/<id>.yaml`), the tool used to return a
+  generic `unknown_<domain>` validation failure — even when the entity
+  was plainly visible in HA's UI (because it was sourced from a
+  package, `.storage`, or a different include).
+- New shared helper `unknown_entry_error(hass, domain, object_id)`
+  checks `hass.states` for the entity. If present in HA but not in our
+  file, returns `{domain}_not_editable_by_agent` with a message that
+  names the likely sources (package / .storage / other includes) so
+  Claude can tell the user. If truly unknown, returns the old
+  `unknown_{domain}` error unchanged.
+- Wired into `ConfigAutomationEdit/Delete`, `ConfigScriptEdit/Delete`,
+  and `ConfigSceneEdit/Delete`. Create paths unaffected.
+
+### Tests
+- Added positive + negative tests for the helper
+  (`test_unknown_entry_error_truly_missing`,
+  `test_unknown_entry_error_exists_elsewhere`).
+- Existing `test_script_delete_unknown_object_id` now explicitly sets
+  `hass.states.get` to return None to simulate the "really missing"
+  case (the MagicMock default returned truthy, tripping the new
+  exists-elsewhere branch).
+
 ## 1.1.14 — Revert orphan cleanup; correct the named-suffix misadvice
 
 ### Fixed

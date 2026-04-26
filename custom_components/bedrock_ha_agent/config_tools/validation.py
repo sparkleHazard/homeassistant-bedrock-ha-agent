@@ -341,3 +341,37 @@ def extract_entity_ids_from_automation(payload: dict) -> list[str]:
     _walk(payload)
     # Filter out obviously-non-entity strings (device_id uuids, etc.)
     return sorted(e for e in found if "." in e and not e.startswith("device."))
+
+
+def unknown_entry_error(
+    hass: "HomeAssistant",
+    domain: str,
+    object_id: str,
+) -> ValidationError:
+    """Build a not-found-but-maybe-exists ValidationError for edit/delete paths.
+
+    Called when the tool's own transport (automations.yaml / scripts/... /
+    scenes/...) has no entry for ``object_id``. If HA's state registry DOES
+    show the entity, the config is almost certainly sourced from somewhere
+    this integration can't touch (a package, .storage, a different include).
+    The returned error makes that distinction clear to the model so it can
+    tell the user instead of treating the operation as "didn't exist at all."
+    """
+    entity_id = f"{domain}.{object_id}"
+    if hass.states.get(entity_id) is not None:
+        return ValidationError(
+            code=f"{domain}_not_editable_by_agent",
+            message=(
+                f"{domain.capitalize()} '{object_id}' exists in Home Assistant "
+                f"but is not in the file this integration manages "
+                f"(/config/{domain}s.yaml for automations/scripts/scenes; "
+                "other YAML includes, packages, and .storage entries are not "
+                "editable through the agent)."
+            ),
+            path="object_id",
+        )
+    return ValidationError(
+        code=f"unknown_{domain}",
+        message=f"No {domain} found with object_id '{object_id}'.",
+        path="object_id",
+    )

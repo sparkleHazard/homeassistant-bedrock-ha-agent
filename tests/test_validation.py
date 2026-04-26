@@ -11,6 +11,7 @@ from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
     extract_entity_ids_from_automation,
+    unknown_entry_error,
     validate_automation,
     validate_entities_exist,
     validate_entity_exists,
@@ -462,3 +463,23 @@ async def test_validate_entities_exist_all_valid(hass: HomeAssistant):
 
     assert result.ok
     assert not result.errors
+
+
+@pytest.mark.asyncio
+async def test_unknown_entry_error_truly_missing(hass: HomeAssistant):
+    """v1.1.15: entity doesn't exist anywhere → plain unknown_{domain} error."""
+    err = unknown_entry_error(hass, "automation", "totally_missing")
+    assert err.code == "unknown_automation"
+    assert err.path == "object_id"
+    assert "totally_missing" in err.message
+
+
+@pytest.mark.asyncio
+async def test_unknown_entry_error_exists_elsewhere(hass: HomeAssistant):
+    """v1.1.15: entity IS in HA but not in our transport → not_editable_by_agent."""
+    hass.states.async_set("automation.from_package", "on", {"id": "from_package"})
+    err = unknown_entry_error(hass, "automation", "from_package")
+    assert err.code == "automation_not_editable_by_agent"
+    assert "not in the file this integration manages" in err.message
+    # Message hints at the likely sources so Claude can explain to the user.
+    assert any(token in err.message for token in ("package", "storage", "include"))

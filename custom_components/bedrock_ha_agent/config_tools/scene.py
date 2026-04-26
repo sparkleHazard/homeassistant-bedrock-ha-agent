@@ -156,16 +156,11 @@ class ConfigSceneEdit(ConfigEditingTool):
         """Validate schema + entity existence + scene exists."""
         if pre_state is None:
             from custom_components.bedrock_ha_agent.config_tools.validation import (
-                ValidationError,
+                unknown_entry_error,
             )
 
             return ValidationResult.failure(
-                [
-                    ValidationError(
-                        code="unknown_scene",
-                        message=f"Scene '{self._object_id}' does not exist",
-                    )
-                ]
+                [unknown_entry_error(hass, "scene", self._object_id)]
             )
         if proposed is None:
             from custom_components.bedrock_ha_agent.config_tools.validation import (
@@ -257,16 +252,11 @@ class ConfigSceneDelete(ConfigEditingTool):
         """Validate that the scene exists."""
         if pre_state is None:
             from custom_components.bedrock_ha_agent.config_tools.validation import (
-                ValidationError,
+                unknown_entry_error,
             )
 
             return ValidationResult.failure(
-                [
-                    ValidationError(
-                        code="unknown_scene",
-                        message=f"Scene '{self._object_id}' does not exist",
-                    )
-                ]
+                [unknown_entry_error(hass, "scene", self._object_id)]
             )
         return ValidationResult.success()
 

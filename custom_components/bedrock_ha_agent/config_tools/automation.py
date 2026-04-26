@@ -22,6 +22,7 @@ from custom_components.bedrock_ha_agent.config_tools.validation import (
     ValidationError,
     ValidationResult,
     extract_entity_ids_from_automation,
+    unknown_entry_error,
     validate_automation,
     validate_entities_exist,
 )
@@ -192,11 +193,10 @@ class ConfigAutomationEdit(ConfigEditingTool):
 
     async def validate(self, hass, proposed, pre_state):
         if pre_state is None:
-            return ValidationResult.failure([ValidationError(
-                code="unknown_automation",
-                message="No automation found with that object_id",
-                path="object_id",
-            )])
+            object_id = (proposed or {}).get("_object_id", "unknown")
+            return ValidationResult.failure([
+                unknown_entry_error(hass, "automation", object_id)
+            ])
         payload_without_marker = {k: v for k, v in (proposed or {}).items() if k != "_object_id"}
         schema_result = validate_automation(payload_without_marker)
         if not schema_result.ok:
@@ -252,8 +252,11 @@ class ConfigAutomationDelete(ConfigEditingTool):
     async def build_pre_state(self, hass, tool_input):
         object_id = tool_input.tool_args["object_id"]
         current = await ha_automation.get_automation(hass, object_id)
+        # Return the object_id either way so validate() can build the
+        # "exists elsewhere" error when the entity is in HA but not in
+        # our transport file.
         if current is None:
-            return None
+            return {"object_id": object_id, "config": None}
         return {"object_id": object_id, "config": dict(current)}
 
     async def build_proposed_payload(self, hass, tool_input):
@@ -261,12 +264,11 @@ class ConfigAutomationDelete(ConfigEditingTool):
         return None
 
     async def validate(self, hass, proposed, pre_state):
-        if pre_state is None:
-            return ValidationResult.failure([ValidationError(
-                code="unknown_automation",
-                message="No automation found with that object_id",
-                path="object_id",
-            )])
+        if pre_state is None or (pre_state or {}).get("config") is None:
+            object_id = (pre_state or {}).get("object_id", "unknown")
+            return ValidationResult.failure([
+                unknown_entry_error(hass, "automation", object_id)
+            ])
         return ValidationResult.success()
 
     def build_proposed_summary(self, proposed, pre_state):
