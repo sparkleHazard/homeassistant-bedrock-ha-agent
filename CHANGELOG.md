@@ -4,6 +4,48 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.10 — Write automations to UI-editable `automations.yaml`
+
+### Fixed
+- Agent-created automations landed in `automations/<object_id>.yaml`
+  under the directory-merge layout — they loaded correctly but the HA
+  UI editor refused to open them with the warning "This automation
+  cannot be edited from the UI, because it is not stored in the
+  automations.yaml file, or doesn't have an ID." HA's config.automation
+  integration hardcodes the filename `automations.yaml` for the UI
+  editor's round-trip path (`CONFIG_PATH` in
+  `homeassistant/components/config/automation.py`).
+- `config_tools/ha_client/automation.py` rewritten to upsert into a
+  flat `automations.yaml` (list of `{id, alias, ...}` dicts, the exact
+  shape the UI editor produces). List entries are matched/replaced by
+  `id` in place; new entries append. Old per-file writes under
+  `automations/` are no longer produced — stale files there can be
+  deleted manually.
+- `_to_plain` normalization carried over so HA's `NodeDictClass` /
+  `NodeStrClass` / `NodeListClass` YAML subclasses don't blow up
+  `safe_dump` on round-trip (same defense as v1.1.9 for the diff path).
+
+### Added
+- Setup-time bootstrap in `__init__.py::_async_bootstrap_automations_yaml`.
+  When `CONF_ENABLE_CONFIG_EDITING` is True (either at setup or when
+  the option is toggled on), the integration:
+    1. Creates `automations.yaml` as `[]` if it's missing.
+    2. Scans `configuration.yaml` for
+       `automation: !include automations.yaml` or
+       `!include_dir_merge_list automations`. If neither is present,
+       fires a one-time `persistent_notification` with the exact line
+       the user needs to add and a note that HA must be restarted.
+  The notification is idempotent via `notification_id` and is
+  dismissed automatically if a later setup detects the include.
+
+### Notes
+- Scripts and scenes continue to use the v1.1.8 per-file-per-object
+  layout. The HA UI has dedicated editors for both, and neither has
+  reported the same UI-editability regression yet. If they do, mirror
+  the automations.yaml approach then.
+- Users who still have files under `automations/` from v1.1.7-v1.1.9
+  can delete them manually; v1.1.10 won't touch that directory.
+
 ## 1.1.9 — Normalize HA YAML node subclasses before diffing
 
 ### Fixed

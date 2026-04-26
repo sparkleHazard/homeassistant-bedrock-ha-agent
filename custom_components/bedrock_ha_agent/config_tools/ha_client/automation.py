@@ -1,174 +1,186 @@
 """Automation config transport.
 
-Writes one YAML file per automation into the user's automation-directory
-(default ``/config/automations/``). Matches the common HA convention
+Writes to the flat, UI-editable ``<config>/automations.yaml`` file —
+the same file HA's built-in automation editor reads and writes via
+``/api/config/automation/config/<id>``. Using this file is what makes
+agent-created automations round-trippable in the UI (the editor shows
+"This automation cannot be edited from the UI, because it is not
+stored in the automations.yaml file, or doesn't have an ID" for any
+automation not in this file).
 
-    automation: !include_dir_merge_list automations/
+``automations.yaml`` is a YAML list of automation dicts, each carrying
+an ``id`` field:
 
-which is used by installations that have outgrown the single-file
-``automations.yaml`` layout. Each automation goes to
-``automations/<object_id>.yaml`` and HA's ``automation.reload`` service
-picks the directory back up.
+    - id: porch_light_sunset
+      alias: Porch light at sunset
+      trigger: [...]
+      action: [...]
 
-Why not just append to ``automations.yaml``? Modern HA setups frequently
-don't include that file at all (the directory-merge-list form is more
-popular); writes there land in a file HA never loads. The per-file
-layout is also cleaner for concurrent editors: creates, updates, and
-deletes don't race on the same file.
+The file is missing on a fresh HA install and is created lazily on
+first write as ``[]``. Callers must ensure ``configuration.yaml``
+contains ``automation: !include automations.yaml`` for HA to actually
+load from it — this is surfaced via a one-time persistent_notification
+at integration setup when ``CONF_ENABLE_CONFIG_EDITING`` is True.
 
-The configured directory is ``<config_dir>/automations`` by default.
-Advanced layouts that point ``!include_dir_merge_list`` at a different
-path are not yet auto-detected — a follow-up could scan
-configuration.yaml and adapt.
+Why not per-file-per-object (the previous v1.1.8 layout)? Files under
+``automations/`` load fine via ``!include_dir_merge_list automations/``
+but the HA UI editor is hardcoded to edit ``automations.yaml`` and
+will refuse to open anything it didn't put there itself. Keeping our
+writes in the UI-editable file means the user can hand-edit or tweak
+our output without leaving the UI.
 """
 from __future__ import annotations
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
-# Each automation gets its own file under this subdirectory of config_dir.
-# Matches `automation: !include_dir_merge_list automations/`.
-_AUTOMATIONS_DIR = "automations"
-# Filename is always `<object_id>.yaml`; no namespacing prefix so files
-# drop into the same naming convention as hand-authored ones.
-_FILE_SUFFIX = ".yaml"
+# HA's config.automation integration hardcodes this filename.
+# See homeassistant/components/config/automation.py::CONFIG_PATH.
+_AUTOMATIONS_FILE = "automations.yaml"
 
 
-def _automations_dir(hass: "HomeAssistant") -> str:
-    return hass.config.path(_AUTOMATIONS_DIR)
+def _automations_path(hass: "HomeAssistant") -> str:
+    return hass.config.path(_AUTOMATIONS_FILE)
 
 
-def _file_for(hass: "HomeAssistant", object_id: str) -> str:
-    return os.path.join(_automations_dir(hass), f"{object_id}{_FILE_SUFFIX}")
+def _load_list(hass: "HomeAssistant") -> list[dict]:
+    """Load automations.yaml as a list-of-dicts. Missing/empty → []."""
+    from homeassistant.util.yaml import load_yaml
+
+    path = _automations_path(hass)
+    if not os.path.isfile(path):
+        return []
+    try:
+        data = load_yaml(path)
+    except Exception as err:
+        _LOGGER.warning(
+            "automations.yaml parse failed (%s); treating as empty list", err
+        )
+        return []
+    if data is None:
+        return []
+    if isinstance(data, list):
+        return [d for d in data if isinstance(d, dict)]
+    # Legacy or hand-edited single-dict file. Promote it to a 1-item list so
+    # subsequent writes don't lose it.
+    if isinstance(data, dict):
+        return [data]
+    _LOGGER.warning(
+        "automations.yaml top-level is %s, expected list; treating as empty",
+        type(data).__name__,
+    )
+    return []
+
+
+def _save_list(hass: "HomeAssistant", items: list[dict]) -> None:
+    """Atomically write items to automations.yaml as a YAML list."""
+    from homeassistant.util.file import write_utf8_file_atomic
+    from homeassistant.util.yaml import dump
+
+    path = _automations_path(hass)
+    # Normalize: strip HA YAML node subclasses so dump doesn't hit
+    # RepresenterError on round-trip. Mirrors diff.py::_to_plain.
+    plain = _to_plain(items)
+    contents = dump(plain) if plain else "[]\n"
+    write_utf8_file_atomic(path, contents)
+    _LOGGER.info(
+        "automations.yaml: wrote %d entries (%d bytes) to %s",
+        len(items), len(contents), path,
+    )
+
+
+def _to_plain(obj: Any) -> Any:
+    """Strip NodeDictClass/NodeStrClass/NodeListClass subclasses before dump."""
+    if isinstance(obj, dict):
+        return {_to_plain(k): _to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_plain(x) for x in obj]
+    if isinstance(obj, bool):
+        return bool(obj)
+    if isinstance(obj, int):
+        return int(obj)
+    if isinstance(obj, float):
+        return float(obj)
+    if isinstance(obj, str):
+        return str(obj)
+    if obj is None:
+        return None
+    return str(obj)
 
 
 async def list_automations(hass: "HomeAssistant") -> list[dict]:
-    """Return every automation config present in the automations directory.
-
-    Each ``<object_id>.yaml`` in the directory contributes one dict. If a
-    file contains a YAML list (legacy single-file layout), its entries are
-    flattened. Files that fail to parse are logged and skipped.
-    """
-    from homeassistant.util.yaml import load_yaml
-
-    directory = _automations_dir(hass)
-
-    def _walk() -> list[dict]:
-        if not os.path.isdir(directory):
-            return []
-        results: list[dict] = []
-        for name in sorted(os.listdir(directory)):
-            if not name.endswith(_FILE_SUFFIX):
-                continue
-            path = os.path.join(directory, name)
-            try:
-                data = load_yaml(path)
-            except Exception as err:
-                _LOGGER.warning(
-                    "list_automations: failed to parse %s: %s", path, err
-                )
-                continue
-            if data is None:
-                continue
-            if isinstance(data, list):
-                results.extend(d for d in data if isinstance(d, dict))
-            elif isinstance(data, dict):
-                results.append(data)
-        return results
-
-    return await hass.async_add_executor_job(_walk)
+    """Return every automation config in automations.yaml."""
+    return await hass.async_add_executor_job(_load_list, hass)
 
 
 async def get_automation(hass: "HomeAssistant", object_id: str) -> dict | None:
-    """Return the stored config for a given automation object_id, or None.
+    """Return the stored config for a given automation id, or None if absent.
 
-    Looks up ``<automations_dir>/<object_id>.yaml`` directly. Does NOT
-    scan the whole directory — object_id uniquely identifies the file.
+    ``object_id`` is matched against the ``id`` field of each entry (HA's UI
+    editor uses ``id``, not a filename slug). This is the canonical identifier.
     """
-    from homeassistant.util.yaml import load_yaml
+    from homeassistant.const import CONF_ID
 
-    path = _file_for(hass, object_id)
-
-    def _read() -> dict | None:
-        if not os.path.isfile(path):
-            return None
-        try:
-            data = load_yaml(path)
-        except Exception as err:
-            _LOGGER.warning("get_automation: failed to parse %s: %s", path, err)
-            return None
-        if isinstance(data, dict):
-            return data
-        if isinstance(data, list) and data:
-            # Legacy single-file layouts may shove multiple entries in; pick
-            # the one whose id matches (if any).
-            from homeassistant.const import CONF_ID
-
-            for item in data:
-                if isinstance(item, dict) and item.get(CONF_ID) == object_id:
-                    return item
+    def _find() -> dict | None:
+        items = _load_list(hass)
+        for item in items:
+            if item.get(CONF_ID) == object_id:
+                return dict(item)
         return None
 
-    return await hass.async_add_executor_job(_read)
+    return await hass.async_add_executor_job(_find)
 
 
 async def create_or_update_automation(
     hass: "HomeAssistant", object_id: str, config: dict
 ) -> None:
-    """Write ``<automations_dir>/<object_id>.yaml`` atomically.
+    """Upsert the automation into automations.yaml keyed by ``id``.
 
-    Creates the directory if missing (matches what HA's
-    !include_dir_merge_list tolerates on empty dirs). The file contains a
-    single YAML dict — the id is set from the argument, not inferred from
-    config.
+    If an entry with the same ``id`` exists, it is replaced in place
+    (preserving order). Otherwise the entry is appended to the end.
+    The ``id`` field is canonical: overwrites whatever is in ``config``.
     """
     from homeassistant.const import CONF_ID
-    from homeassistant.util.file import write_utf8_file_atomic
-    from homeassistant.util.yaml import dump
 
-    directory = _automations_dir(hass)
-    path = _file_for(hass, object_id)
-
-    # id is canonical: overwrite whatever caller passed in config.
-    # IMPORTANT: `!include_dir_merge_list` only merges files containing a
-    # YAML list. A bare dict is silently skipped with no warning, which is
-    # how v1.1.7 shipped broken. Wrap the single automation in a 1-element
-    # list so it matches the merge_list expectation.
-    # See annotatedyaml/loader.py::_include_dir_merge_list_yaml.
-    payload = [{CONF_ID: object_id, **{k: v for k, v in config.items() if k != CONF_ID}}]
+    entry = {CONF_ID: object_id, **{k: v for k, v in config.items() if k != CONF_ID}}
 
     def _write() -> None:
-        os.makedirs(directory, exist_ok=True)
-        contents = dump(payload)
-        write_utf8_file_atomic(path, contents)
-        _LOGGER.info(
-            "create_or_update_automation: wrote %d bytes to %s",
-            len(contents), path,
-        )
+        items = _load_list(hass)
+        for i, existing in enumerate(items):
+            if existing.get(CONF_ID) == object_id:
+                items[i] = entry
+                break
+        else:
+            items.append(entry)
+        _save_list(hass, items)
 
     _LOGGER.info(
-        "create_or_update_automation: target path=%s object_id=%s",
-        path, object_id,
+        "create_or_update_automation: target=%s object_id=%s",
+        _automations_path(hass), object_id,
     )
     await hass.async_add_executor_job(_write)
 
 
 async def delete_automation(hass: "HomeAssistant", object_id: str) -> None:
-    """Remove the per-object_id file. Raises KeyError if absent."""
-    path = _file_for(hass, object_id)
+    """Remove the automation from automations.yaml. Raises KeyError if absent."""
+    from homeassistant.const import CONF_ID
 
-    def _unlink() -> None:
-        if not os.path.isfile(path):
-            raise KeyError(f"Automation {object_id} not found at {path}")
-        os.unlink(path)
-        _LOGGER.info("delete_automation: removed %s", path)
+    def _write() -> None:
+        items = _load_list(hass)
+        filtered = [item for item in items if item.get(CONF_ID) != object_id]
+        if len(filtered) == len(items):
+            raise KeyError(
+                f"Automation {object_id!r} not found in {_automations_path(hass)}"
+            )
+        _save_list(hass, filtered)
+        _LOGGER.info("delete_automation: removed %s from automations.yaml", object_id)
 
-    await hass.async_add_executor_job(_unlink)
+    await hass.async_add_executor_job(_write)
 
 
 async def reload_automations(hass: "HomeAssistant") -> None:

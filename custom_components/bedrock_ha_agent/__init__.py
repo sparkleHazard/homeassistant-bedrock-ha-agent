@@ -227,6 +227,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Config-editing automations.yaml bootstrap: if the kill switch is on, make
+    # sure automations.yaml exists (creating it as an empty list if not) and
+    # remind the user to wire it into configuration.yaml. HA's UI editor only
+    # round-trips automations that live in this file; per-directory layouts
+    # load but show "This automation cannot be edited from the UI..." warnings.
+    if entry.options.get(CONF_ENABLE_CONFIG_EDITING, False):
+        await _async_bootstrap_automations_yaml(hass, entry)
+
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     # Register services once per HA (not per entry)
@@ -451,11 +459,85 @@ async def _async_register_undo_service(hass: HomeAssistant) -> None:
     _LOGGER.info("Bedrock setup: registered undo_last_config_change service")
 
 
+async def _async_bootstrap_automations_yaml(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Create automations.yaml as [] if missing and notify about include wiring.
+
+    Runs at integration setup (and when the config-editing flag flips on) so
+    agent-created automations land in HA's UI-editable file. If the user's
+    configuration.yaml does NOT already include automations.yaml, the new
+    file won't be loaded until they add ``automation: !include automations.yaml``
+    — surface that as a one-time persistent_notification. The notification is
+    idempotent via ``notification_id``; dismissing it is sticky.
+    """
+    import os
+
+    path = hass.config.path("automations.yaml")
+    config_yaml = hass.config.path("configuration.yaml")
+
+    def _fs_probe() -> tuple[bool, bool]:
+        existed = os.path.isfile(path)
+        if not existed:
+            # Atomic create as empty list. Subsequent writes from the transport
+            # will append/upsert entries.
+            from homeassistant.util.file import write_utf8_file_atomic
+            write_utf8_file_atomic(path, "[]\n")
+            _LOGGER.info("bedrock_ha_agent: created empty %s", path)
+        # Best-effort scan for an include directive. We don't parse YAML here
+        # because !include tags are custom constructors; a literal-text scan
+        # is enough to avoid false warnings on correct setups.
+        include_wired = False
+        if os.path.isfile(config_yaml):
+            try:
+                with open(config_yaml, "r", encoding="utf-8") as fh:
+                    text = fh.read()
+                include_wired = (
+                    "!include automations.yaml" in text
+                    or "!include_dir_merge_list automations" in text  # dir layout also works
+                )
+            except OSError as err:
+                _LOGGER.debug("could not read configuration.yaml: %s", err)
+                # Fall through: can't verify, notify anyway — better to warn.
+                include_wired = False
+        return existed, include_wired
+
+    _existed, include_wired = await hass.async_add_executor_job(_fs_probe)
+
+    import homeassistant.components.persistent_notification as pn
+    notification_id = f"bedrock_config_editing_automations_yaml_{entry.entry_id}"
+
+    if not include_wired:
+        await pn.async_create(
+            hass,
+            message=(
+                "Config editing is enabled, and the agent writes automations to "
+                "`automations.yaml` (the same file the UI editor uses). Your "
+                "`configuration.yaml` does not appear to include that file, so "
+                "agent-created automations will not load until you add:\n\n"
+                "```yaml\nautomation: !include automations.yaml\n```\n\n"
+                "Restart Home Assistant after editing `configuration.yaml`. "
+                "This notice will not reappear once the include is detected."
+            ),
+            title="Bedrock Home Assistant Agent: wire automations.yaml",
+            notification_id=notification_id,
+        )
+        _LOGGER.warning(
+            "config editing enabled but configuration.yaml does not include "
+            "automations.yaml; notified user"
+        )
+    else:
+        # Clear any stale notification from an earlier misconfiguration.
+        await pn.async_dismiss(hass, notification_id)
+
+
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
-    # Check for Haiku model warning
+    # If the config-editing flag just flipped on, bootstrap automations.yaml.
     runtime_data = _get_runtime_data(hass, entry.entry_id)
     flag_on = entry.options.get(CONF_ENABLE_CONFIG_EDITING, False)
+    if flag_on and not runtime_data.last_config_editing_flag:
+        await _async_bootstrap_automations_yaml(hass, entry)
     current_model = entry.options.get(CONF_MODEL_ID, "")
     is_haiku = any(substr in current_model for substr in HAIKU_MODEL_SUBSTRINGS)
 
