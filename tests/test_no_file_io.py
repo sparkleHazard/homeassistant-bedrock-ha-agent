@@ -36,6 +36,12 @@ ALLOWLISTED_FILES: dict[str, str] = {
         "UI-managed storage file, not arbitrary paths. Tracked for migration "
         "once HA 2026+ exposes a storage-collection API."
     ),
+    "__init__.py": (
+        "Bootstrap reads configuration.yaml literal text (read-only) to "
+        "detect whether `!include automations.yaml` is wired; this is a "
+        "probe, not a mutation. Runs inside hass.async_add_executor_job and "
+        "falls back silently on OSError. No HA API exposes this question."
+    ),
 }
 
 

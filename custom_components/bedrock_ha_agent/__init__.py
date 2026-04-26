@@ -534,7 +534,9 @@ async def _async_bootstrap_automations_yaml(
                 "Restart Home Assistant after editing `configuration.yaml`. "
                 "This notice will not reappear once the include is detected."
             )
-        await pn.async_create(
+        # pn.async_create/async_dismiss are @callback (sync) functions that
+        # return None — awaiting them raises TypeError.
+        pn.async_create(
             hass,
             message=message,
             title="Bedrock Home Assistant Agent: wire automations.yaml",
@@ -547,7 +549,7 @@ async def _async_bootstrap_automations_yaml(
         )
     else:
         # Clear any stale notification from an earlier misconfiguration.
-        await pn.async_dismiss(hass, notification_id)
+        pn.async_dismiss(hass, notification_id)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -573,7 +575,8 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     if should_warn:
         import homeassistant.components.persistent_notification as pn
 
-        await pn.async_create(
+        # pn.async_create is @callback (sync) in current HA; do not await.
+        pn.async_create(
             hass,
             message=(
                 "Config editing works best on Claude Sonnet 4.5 or Opus; "

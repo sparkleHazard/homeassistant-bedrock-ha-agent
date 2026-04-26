@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.1.12 — Stop awaiting sync persistent_notification functions
+
+### Fixed
+- Setup crashed with `TypeError: 'NoneType' object can't be awaited`
+  in `_async_bootstrap_automations_yaml` on installs that hadn't yet
+  wired `!include automations.yaml`. Cause: `pn.async_create` and
+  `pn.async_dismiss` are `@callback`-decorated **synchronous**
+  functions in current HA — they return `None`, so awaiting them
+  raises. v1.1.10/v1.1.11 also broke the pre-existing Haiku advisory
+  in `_async_update_listener` for the same reason, but that code path
+  only fires on options changes so it wasn't visible until the
+  bootstrap ran at setup time. Both call sites now use the callbacks
+  without `await`.
+
 ## 1.1.11 — Detect automations.yaml include specifically; coexist with the dir form
 
 ### Fixed

@@ -412,8 +412,11 @@ async def test_update_listener_haiku_flag_on_fires_notification(
 
     with patch(
         "homeassistant.components.persistent_notification.async_create",
+        new_callable=MagicMock,  # pn.async_create is @callback (sync), not a coroutine
+    ) as mock_notify, patch(
+        "custom_components.bedrock_ha_agent._async_bootstrap_automations_yaml",
         new_callable=AsyncMock,
-    ) as mock_notify, patch.object(
+    ), patch.object(
         hass.config_entries, "async_reload", return_value=None
     ):
         await _async_update_listener(hass, mock_entry)
@@ -447,8 +450,11 @@ async def test_haiku_warning_not_duplicated_on_same_options_save(
 
     with patch(
         "homeassistant.components.persistent_notification.async_create",
+        new_callable=MagicMock,  # pn.async_create is @callback (sync)
+    ) as mock_notify, patch(
+        "custom_components.bedrock_ha_agent._async_bootstrap_automations_yaml",
         new_callable=AsyncMock,
-    ) as mock_notify, patch.object(
+    ), patch.object(
         hass.config_entries, "async_reload", return_value=None
     ):
         # First call: fires once
@@ -480,8 +486,11 @@ async def test_update_listener_sonnet_no_notification(
 
     with patch(
         "homeassistant.components.persistent_notification.async_create",
+        new_callable=MagicMock,  # pn.async_create is @callback (sync)
+    ) as mock_notify, patch(
+        "custom_components.bedrock_ha_agent._async_bootstrap_automations_yaml",
         new_callable=AsyncMock,
-    ) as mock_notify, patch.object(
+    ), patch.object(
         hass.config_entries, "async_reload", return_value=None
     ):
         await _async_update_listener(hass, mock_entry)
