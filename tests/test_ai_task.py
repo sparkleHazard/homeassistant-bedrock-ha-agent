@@ -29,7 +29,7 @@ def test_ai_task_entity_feature_flags():
     # Instantiate an entity to access the feature flags
     entry = MagicMock()
     entry.entry_id = "test_id"
-    subentry = SimpleNamespace(subentry_id="sub_id")
+    subentry = SimpleNamespace(subentry_id="sub_id", title="Bedrock AI Task")
 
     entity = BedrockAITaskEntity(entry, subentry)
     supported = entity.supported_features
@@ -79,7 +79,7 @@ def test_ai_task_unique_id_scoped_to_entry_plus_subentry():
         entry_id="test_entry_abc123",
     )
 
-    subentry = SimpleNamespace(subentry_id="sub_xyz789")
+    subentry = SimpleNamespace(subentry_id="sub_xyz789", title="Bedrock AI Task")
 
     entity = BedrockAITaskEntity(entry, subentry)
 

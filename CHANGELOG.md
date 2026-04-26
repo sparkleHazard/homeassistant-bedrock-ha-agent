@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.4.1 — Fix AI Task entity naming
+
+### Fixed
+- **AI Task entity was registered as `ai_task.ai_task`** (too generic, no hint it's the Bedrock one) and its device showed up as **"Unnamed device"** in the UI. Root cause: v1.4.0 shipped the entity with `_attr_name = "AI Task"` and a minimal `device_info` that had only `identifiers` — no `name`, `manufacturer`, or `model`. With `_attr_has_entity_name = True`, HA derived `entity_id` from `_attr_name` alone, and the device had no display name. Fix:
+  - `_attr_name = None` so entity_id defers to the device name (matches how `openai_conversation` and `google_generative_ai_conversation` ship).
+  - Per-subentry `dr.DeviceInfo(identifiers=(DOMAIN, subentry.subentry_id), name=subentry.title, manufacturer="AWS", model="Bedrock", entry_type=SERVICE)` so each AI Task entity gets a distinguishable device. The subentry title drives the slug; fresh installs get `ai_task.bedrock_ai_task`.
+  - New migration `_async_migrate_ai_task_entity_id` removes any v1.4.0 orphan entity (detected by `entity_id == "ai_task.ai_task"` or missing/invalid `config_subentry_id`) and its unnamed device; the platform then re-registers cleanly on the same startup. Fires a one-time `persistent_notification` so users know to update any automations referencing the old id.
+
+### Migration notes for existing v1.4.0 installs
+- On first startup after update, the old `ai_task.ai_task` entity and its "Unnamed device" will be removed, and a new `ai_task.bedrock_ai_task` entity will appear with a proper "Bedrock AI Task" device.
+- A `persistent_notification` explains the rename. Automations referencing `ai_task.ai_task` need to be updated to the new id.
+
+### Tests
+- 275 passed, 3 skipped, 1 xpassed. Test fixtures updated to include the required `subentry.title` attribute (new device_info needs it).
+
 ## 1.4.0 — AI Task entity (`ai_task.generate_data`)
 
 ### Added

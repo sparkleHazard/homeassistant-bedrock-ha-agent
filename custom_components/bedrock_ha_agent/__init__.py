@@ -257,6 +257,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Ensure the AI Task subentry exists (idempotent).
     await _async_ensure_ai_task_subentry(hass, entry)
 
+    # v1.4.1 migration: v1.4.0 shipped the AI Task entity with no device_info
+    # and _attr_name = "AI Task", which made HA derive entity_id `ai_task.ai_task`
+    # — too generic. v1.4.1 attaches a per-subentry device named after the
+    # subentry title ("Bedrock AI Task") so fresh installs get
+    # `ai_task.bedrock_ai_task`. Rename pre-existing `ai_task.ai_task` entities
+    # to converge.
+    await _async_migrate_ai_task_entity_id(hass, entry)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Config-editing automations.yaml bootstrap: if the kill switch is on, make
@@ -366,6 +374,114 @@ async def _async_migrate_conversation_entity_id(
         ),
         title="Bedrock HA Agent: entity renamed",
         notification_id=f"bedrock_ha_agent_entity_rename_{entry.entry_id}",
+    )
+
+
+async def _async_migrate_ai_task_entity_id(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Clean up orphan v1.4.0 AI Task entities + their unnamed devices.
+
+    v1.4.0 shipped the AI Task entity with ``_attr_name = "AI Task"`` and a
+    device_info that used ``(DOMAIN, entry.entry_id)`` as the device identifier
+    with no name/manufacturer/model. Result: entity registered as
+    ``ai_task.ai_task``, device showed up as "Unnamed device" in the UI, and
+    if the subentry happened to be missing, the entity couldn't be migrated
+    in place.
+
+    v1.4.1 switches to per-subentry devices named after the subentry title
+    so the entity_id becomes ``ai_task.bedrock_ai_task`` (slugified) and the
+    device has a real name. This migration catches v1.4.0 orphans by their
+    unique_id pattern OR their non-subentry device_info, removes the stale
+    entity + device, and lets the platform re-register cleanly under the new
+    device on the same startup.
+
+    Idempotent — safe to run on every setup.
+    """
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+
+    # Find every AI Task entity belonging to THIS config entry.
+    ai_task_entities = [
+        e
+        for e in ent_reg.entities.values()
+        if e.platform == DOMAIN
+        and e.domain == "ai_task"
+        and e.config_entry_id == entry.entry_id
+    ]
+    if not ai_task_entities:
+        return
+
+    # Every ai_task_data subentry's subentry_id is valid for the v1.4.1+ layout.
+    # Anything else (including entities whose config_subentry_id is None, the
+    # v1.4.0 default) is a stale orphan we should clean up.
+    valid_subentry_ids = {
+        s.subentry_id
+        for s in entry.subentries.values()
+        if s.subentry_type == "ai_task_data"
+    }
+
+    removed: list[str] = []
+    import homeassistant.components.persistent_notification as pn
+
+    for ent in ai_task_entities:
+        # If the entity is already scoped to a valid subentry AND its entity_id
+        # isn't the legacy "ai_task.ai_task" form, leave it alone.
+        if (
+            ent.config_subentry_id in valid_subentry_ids
+            and ent.entity_id != "ai_task.ai_task"
+        ):
+            continue
+
+        _LOGGER.info(
+            "Removing stale v1.4.0 AI Task entity %s (unique_id=%s); platform will "
+            "re-register under the new device on the same startup",
+            ent.entity_id,
+            ent.unique_id,
+        )
+        device_id = ent.device_id
+        ent_reg.async_remove(ent.entity_id)
+        removed.append(ent.entity_id)
+
+        # The v1.4.0 device had identifiers (DOMAIN, entry.entry_id) and no name.
+        # Only remove it if nothing else is attached AND its identifiers look
+        # like the v1.4.0 orphan shape (no name, no manufacturer).
+        if device_id is None:
+            continue
+        device = dev_reg.async_get(device_id)
+        if device is None:
+            continue
+        other_entities_on_device = [
+            e
+            for e in ent_reg.entities.values()
+            if e.device_id == device_id and e.entity_id not in removed
+        ]
+        if other_entities_on_device:
+            continue
+        if device.name or device.manufacturer:
+            # Not a v1.4.0 orphan — leave it for whatever owns it.
+            continue
+        _LOGGER.info("Removing orphan v1.4.0 AI Task device %s", device_id)
+        dev_reg.async_remove_device(device_id)
+
+    if not removed:
+        return
+
+    pn.async_create(
+        hass,
+        message=(
+            "The Bedrock HA Agent AI Task entity was re-registered with a "
+            "cleaner name and a proper device. The old entity "
+            f"({', '.join(removed)}) has been removed; the new one will appear "
+            "as `ai_task.bedrock_ai_task` (or similar, based on the subentry "
+            "title). Update any automations, scripts, or dashboards that "
+            "referenced the old id."
+        ),
+        title="Bedrock HA Agent: AI Task entity renamed",
+        notification_id=f"bedrock_ha_agent_ai_task_rename_{entry.entry_id}",
     )
 
 

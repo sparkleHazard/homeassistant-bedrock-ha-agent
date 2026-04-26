@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components import ai_task, conversation
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util.json import json_loads
@@ -41,7 +42,11 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
     """AWS Bedrock Claude AI Task entity."""
 
     _attr_has_entity_name = True
-    _attr_name = "AI Task"
+    # Entity name defers to the device name so the entity_id matches the
+    # subentry title (e.g. ai_task.bedrock_ha_agent). OpenAI and Google's
+    # integrations do the same — they slugify the subentry title via the
+    # per-subentry device.
+    _attr_name = None
     _attr_supported_features = (
         ai_task.AITaskEntityFeature.GENERATE_DATA
         | ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
@@ -55,11 +60,16 @@ class BedrockAITaskEntity(ai_task.AITaskEntity, RestoreEntity):
         self._subentry = subentry
         # unique_id scoped to parent entry + subentry for multi-task support
         self._attr_unique_id = f"{config_entry.entry_id}_{subentry.subentry_id}_ai_task"
-        # suggested_object_id keeps the entity_id clean on fresh installs
-        self._attr_suggested_object_id = "bedrock_ha_agent_ai_task"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, config_entry.entry_id)},
-        }
+        # Per-subentry device so each AI Task entity gets a distinguishable
+        # name/identifier in HA. The device name is what HA slugifies into
+        # the entity_id since _attr_name is None.
+        self._attr_device_info = dr.DeviceInfo(
+            identifiers={(DOMAIN, subentry.subentry_id)},
+            name=subentry.title,
+            manufacturer="AWS",
+            model="Bedrock",
+            entry_type=dr.DeviceEntryType.SERVICE,
+        )
 
     async def _async_generate_data(
         self,
