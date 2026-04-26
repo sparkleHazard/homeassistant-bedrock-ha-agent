@@ -15,6 +15,7 @@ from ..const import (
     APPROVAL_TOKENS,
     BARE_APPROVAL_UTTERANCES,
     BARE_UNDO_UTTERANCES,
+    DIAGNOSTICS_LIFECYCLE_PAST_TENSE_TOKENS,
     UNDO_TOKENS,
 )
 from ..runtime_data import _get_runtime_data
@@ -36,7 +37,7 @@ _PAST_TENSE_TOKENS = {
     "installed",
     "enabled",
     "disabled",
-}
+} | DIAGNOSTICS_LIFECYCLE_PAST_TENSE_TOKENS
 
 # Negation/hedging words that block approval/rejection when present
 # NOTE: "cancel" is NOT in this list because it's a valid rejection token by itself

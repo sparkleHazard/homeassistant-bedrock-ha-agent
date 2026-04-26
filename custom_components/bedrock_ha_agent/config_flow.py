@@ -25,7 +25,11 @@ from .const import (
     CONF_CONFIG_APPROVAL_TTL_SECONDS,
     CONF_CONFIG_UNDO_DEPTH,
     CONF_CONFIG_UNDO_TTL_SECONDS,
+    CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN,
+    CONF_DIAGNOSTICS_HISTORY_MAX_HOURS,
+    CONF_DIAGNOSTICS_LOG_MAX_LINES,
     CONF_ENABLE_CONFIG_EDITING,
+    CONF_ENABLE_DIAGNOSTICS,
     CONFIG_APPROVAL_TTL_MAX,
     CONFIG_APPROVAL_TTL_MIN,
     CONFIG_UNDO_DEPTH_MAX,
@@ -35,7 +39,11 @@ from .const import (
     DEFAULT_CONFIG_APPROVAL_TTL_SECONDS,
     DEFAULT_CONFIG_UNDO_DEPTH,
     DEFAULT_CONFIG_UNDO_TTL_SECONDS,
+    DEFAULT_DIAGNOSTICS_CALL_BUDGET_PER_TURN,
+    DEFAULT_DIAGNOSTICS_HISTORY_MAX_HOURS,
+    DEFAULT_DIAGNOSTICS_LOG_MAX_LINES,
     DEFAULT_ENABLE_CONFIG_EDITING,
+    DEFAULT_ENABLE_DIAGNOSTICS,
     CONF_EXTRA_ATTRIBUTES_TO_EXPOSE,
     CONF_LLM_HASS_API,
     CONF_MAX_TOKENS,
@@ -589,6 +597,52 @@ class BedrockConversationOptionsFlow(config_entries.OptionsFlow):
                 selector.NumberSelectorConfig(
                     min=CONFIG_APPROVAL_TTL_MIN,
                     max=CONFIG_APPROVAL_TTL_MAX,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            # Diagnostics options
+            vol.Optional(
+                CONF_ENABLE_DIAGNOSTICS,
+                default=self.config_entry.options.get(
+                    CONF_ENABLE_DIAGNOSTICS, DEFAULT_ENABLE_DIAGNOSTICS
+                ),
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_DIAGNOSTICS_LOG_MAX_LINES,
+                default=self.config_entry.options.get(
+                    CONF_DIAGNOSTICS_LOG_MAX_LINES, DEFAULT_DIAGNOSTICS_LOG_MAX_LINES
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=10,
+                    max=500,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_DIAGNOSTICS_HISTORY_MAX_HOURS,
+                default=self.config_entry.options.get(
+                    CONF_DIAGNOSTICS_HISTORY_MAX_HOURS, DEFAULT_DIAGNOSTICS_HISTORY_MAX_HOURS
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=168,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(
+                CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN,
+                default=self.config_entry.options.get(
+                    CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN, DEFAULT_DIAGNOSTICS_CALL_BUDGET_PER_TURN
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=10,
                     step=1,
                     mode=selector.NumberSelectorMode.BOX,
                 )

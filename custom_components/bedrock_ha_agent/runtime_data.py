@@ -24,6 +24,11 @@ class BedrockRuntimeData:
     lovelace_mode: str | None = None
     bedrock_client: "BedrockClient | None" = None
     usage: "UsageTracker | None" = None
+    # per-turn diagnostic tool-call budget tracker, keyed by (conversation_id, bedrock_turn_id)
+    # value is the count of diagnostic tool calls consumed so far in that turn
+    diagnostics_turn_counts: dict[tuple[str, str], int] = field(default_factory=dict)
+    # transition bookkeeping for CONF_ENABLE_DIAGNOSTICS (matches last_config_editing_flag pattern)
+    last_diagnostics_flag: bool = False
 
 
 def _get_runtime_data(hass: "HomeAssistant", entry_id: str) -> BedrockRuntimeData:

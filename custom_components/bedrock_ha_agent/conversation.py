@@ -20,11 +20,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .bedrock_client import BedrockClient
 from .const import (
     CONF_AUTO_ATTACH_CAMERAS,
-    CONF_CONFIG_APPROVAL_TTL_SECONDS,
     CONF_CONFIG_UNDO_DEPTH,
     CONF_CONFIG_UNDO_TTL_SECONDS,
     CONF_ENABLE_CONFIG_EDITING,
-    DEFAULT_CONFIG_APPROVAL_TTL_SECONDS,
+    CONF_ENABLE_DIAGNOSTICS,
     DEFAULT_CONFIG_UNDO_DEPTH,
     DEFAULT_CONFIG_UNDO_TTL_SECONDS,
     CONF_LLM_HASS_API,
@@ -39,19 +38,26 @@ from .const import (
     DEFAULT_REFRESH_SYSTEM_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
+    DIAGNOSTICS_LIFECYCLE_PAST_TENSE_TOKENS,
     DOMAIN,
 )
 from .config_tools.pending import ApprovalOutcome, PendingChangeManager
 from .config_tools.undo import UndoEntry, get_or_create_stack
+from .diagnostics.base import reset_turn_budget
 from .runtime_data import _get_runtime_data
 from .vision import exposed_camera_entity_ids
 from .conversation_helpers import error_result, speech_result
 
 _LOGGER = logging.getLogger(__name__)
 
-# Past-tense regex for AC17 warning
+# Past-tense regex for AC17 warning - widened per M7/D49
+_PAST_TENSE_TOKENS_BASE = {
+    "added", "created", "renamed", "deleted", "saved", "applied",
+    "done", "configured", "updated", "removed",
+}
+_PAST_TENSE_TOKENS_ALL = _PAST_TENSE_TOKENS_BASE | DIAGNOSTICS_LIFECYCLE_PAST_TENSE_TOKENS
 _PAST_TENSE_REGEX = re.compile(
-    r"\b(added|created|renamed|deleted|saved|applied|done|configured|updated|removed)\b",
+    r"\b(" + "|".join(_PAST_TENSE_TOKENS_ALL) + r")\b",
     re.IGNORECASE,
 )
 
@@ -162,8 +168,12 @@ class BedrockConversationEntity(
         # L1: downgrade PII-sensitive user text to DEBUG
         _LOGGER.debug("Processing user input: '%s'", user_input.text)
         _LOGGER.info("Processing user input (%d chars)", len(user_input.text))
-        
+
         options = {**self.entry.data, **self.entry.options}
+
+        # Reset diagnostics turn budget at the start of each new turn
+        if options.get(CONF_ENABLE_DIAGNOSTICS, False):
+            reset_turn_budget(self.hass, self.entry, user_input.conversation_id)
         
         with (
             chat_session.async_get_chat_session(
@@ -210,7 +220,7 @@ class BedrockConversationEntity(
             chat_log.llm_api = llm_api
 
             # Approval-turn interceptor (Phase 3 Step 3.2)
-            if options.get(CONF_ENABLE_CONFIG_EDITING, False):
+            if options.get(CONF_ENABLE_CONFIG_EDITING, False) or options.get(CONF_ENABLE_DIAGNOSTICS, False):
                 manager = PendingChangeManager.for_entry_conv(
                     self.hass, self.entry.entry_id, user_input.conversation_id
                 )
@@ -302,7 +312,7 @@ class BedrockConversationEntity(
                                 if popped is not None:
                                     try:
                                         await popped.restore_fn()
-                                    except Exception as restore_err:
+                                    except Exception:
                                         _LOGGER.exception(
                                             "config_editing: restore_fn also failed after apply error"
                                         )
@@ -464,7 +474,7 @@ class BedrockConversationEntity(
                         final_text = turn_state.full_text.strip()
 
                         # Check for past-tense claims vs pending (AC17 + M3)
-                        if options.get(CONF_ENABLE_CONFIG_EDITING, False):
+                        if options.get(CONF_ENABLE_CONFIG_EDITING, False) or options.get(CONF_ENABLE_DIAGNOSTICS, False):
                             correction = _check_past_tense_vs_pending(
                                 self.hass,
                                 self.entry.entry_id,

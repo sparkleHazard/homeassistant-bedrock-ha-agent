@@ -53,13 +53,21 @@
           "enable_config_editing": "Enable config editing (experimental)",
           "config_undo_depth": "Undo history depth",
           "config_undo_ttl_seconds": "Undo entry TTL (seconds)",
-          "config_approval_ttl_seconds": "Approval TTL (seconds)"
+          "config_approval_ttl_seconds": "Approval TTL (seconds)",
+          "enable_diagnostics": "Enable diagnostics & control (experimental)",
+          "diagnostics_log_max_lines": "Max log entries per request",
+          "diagnostics_history_max_hours": "Max history lookback (hours)",
+          "diagnostics_call_budget_per_turn": "Diagnostic tool-call budget per turn"
         },
         "data_description": {
           "enable_config_editing": "Allow Claude to propose changes to automations, scripts, scenes, helpers, Lovelace dashboards, areas, and labels. Changes require your confirmation before they apply.",
           "config_undo_depth": "How many recent config changes to keep in the in-memory undo stack per conversation.",
           "config_undo_ttl_seconds": "Seconds an undo entry stays available before expiry.",
-          "config_approval_ttl_seconds": "Seconds a pending change waits for your approval before it expires."
+          "config_approval_ttl_seconds": "Seconds a pending change waits for your approval before it expires.",
+          "enable_diagnostics": "Allow Claude to read logs, query state/history, call a broader service allowlist, and perform lifecycle operations (reload integrations, enable/disable entities, check config, set logger levels). Destructive operations still require your explicit approval. Off by default.",
+          "diagnostics_log_max_lines": "Hard cap on the number of log entries returned to the model per call (default 50, max 500).",
+          "diagnostics_history_max_hours": "Hard cap on the history lookback window per call (default 24, max 168 = one week).",
+          "diagnostics_call_budget_per_turn": "Maximum number of diagnostic tool calls Claude can make in a single conversation turn (default 3, max 10). Prevents runaway log-dump or state-scan loops."
         }
       }
     }

@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.2.0 — Diagnostics & Control Tool Suite (opt-in)
+
+### Added
+- Opt-in diagnostics & control tool suite for Claude to help troubleshoot and administer Home Assistant. Disabled by default. Enable via Settings → Devices & Services → Bedrock HA Agent → Configure → "Enable diagnostics & control."
+- **Log diving:** `DiagnosticsSystemLogList`, `DiagnosticsLogbookRead`, `DiagnosticsRepairsList`, `DiagnosticsHealthCheck` — read-only.
+- **State & history:** `DiagnosticsStateRead`, `DiagnosticsStateHistory`, `DiagnosticsStatistics`, `DiagnosticsIntegrationList` — read-only.
+- **Broader service calls:** `ExtendedServiceCall` with per-service classification — read-safe services (`persistent_notification.*`, `system_log.clear`, `zone.reload`, `homeassistant.update_entity`) execute immediately; state-mutating services (`automation.trigger`, `script.turn_on`, timer/counter/input_* helpers) go through the same pending-approval gate as the config-editing tools.
+- **Lifecycle control:** `DiagnosticsReloadIntegration`, `DiagnosticsReloadConfigEntry`, `DiagnosticsEntityEnable`, `DiagnosticsEntityDisable`, `DiagnosticsLoggerSetLevel`, `DiagnosticsCheckConfig` — all approval-gated. Reload tools have a no-op undo (reload is one-way); entity enable/disable and logger level changes have real inverses snapshotted on apply.
+
+### Safety
+- Hard 64 KiB cap per tool response with lossy list-field truncation and a `truncated: true` marker.
+- Per-turn budget (default 3, configurable 1-10) caps diagnostic tool-call loops in a single Bedrock turn.
+- Secrets in payloads (`access_token`, `password`, `api_key`, `auth_token`) are redacted in both the echoed request and the service response.
+- HA restart, recorder purge, and supervisor ops are on an explicit deny list.
+- Self-reload of the bedrock_ha_agent integration is refused (would kill in-flight tool calls).
+- Entities disabled by INTEGRATION / CONFIG_ENTRY / DEVICE origins cannot be toggled via diagnostics (HA restricts WS updates to USER origin).
+- Flipping `Enable diagnostics & control` off immediately sweeps any pending diagnostic proposals for that entry.
+
+### Added options
+- `Enable diagnostics & control` (bool, default OFF)
+- `Max log entries per request` (int, 10-500, default 50)
+- `Max history lookback (hours)` (int, 1-168, default 24)
+- `Diagnostic tool-call budget per turn` (int, 1-10, default 3)
+
+### Known limitations
+- HA restart is NOT offered as a tool. Use HA's own UI or `homeassistant.restart` service directly.
+- `ExtendedServiceCall` is an explicit allowlist — services not listed there are refused by design.
+- Reload operations have no real undo (push a no-op UndoEntry to preserve the undo-stack invariant).
+- Long-term statistics are read-only; `recorder.purge` is denied.
+- Logbook reads are limited to a single entity per call in v1.
+
 ## 1.1.15 — Distinguish "not found" from "sourced elsewhere" on edit/delete
 
 ### Changed

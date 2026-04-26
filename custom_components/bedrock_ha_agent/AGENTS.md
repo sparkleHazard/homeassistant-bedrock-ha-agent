@@ -35,6 +35,7 @@ The AWS Bedrock conversation integration for Home Assistant. Registers a `Conver
 | Directory | Purpose |
 |-----------|---------|
 | `config_tools/` | Approval-gated config-editing tools, base class, validation, pending/undo state, diff rendering (see `config_tools/AGENTS.md`). Only mounted when `CONF_ENABLE_CONFIG_EDITING` is True. |
+| `diagnostics/` | Opt-in diagnostics & control tool suite for troubleshooting and administering Home Assistant. Read-only log/state/history queries, approval-gated lifecycle operations (reload integrations, enable/disable entities, logger level changes), and an extended service-call allowlist with per-service safety classification. Only mounted when `CONF_ENABLE_DIAGNOSTICS` is True (default: False). |
 | `translations/` | Localized strings for the config/options flow UI (see `translations/AGENTS.md`). |
 
 ## For AI Agents

@@ -277,6 +277,125 @@ ALLOWED_SERVICE_CALL_ARGUMENTS: Final = [
     "datetime",
 ]
 
+# ============================================================
+# Diagnostics & Control Tool Suite (v1.2)
+# ============================================================
+
+CONF_ENABLE_DIAGNOSTICS = "enable_diagnostics"
+DEFAULT_ENABLE_DIAGNOSTICS = False
+
+CONF_DIAGNOSTICS_LOG_MAX_LINES = "diagnostics_log_max_lines"
+DEFAULT_DIAGNOSTICS_LOG_MAX_LINES = 50  # 10..500
+
+CONF_DIAGNOSTICS_HISTORY_MAX_HOURS = "diagnostics_history_max_hours"
+DEFAULT_DIAGNOSTICS_HISTORY_MAX_HOURS = 24  # 1..168
+
+CONF_DIAGNOSTICS_CALL_BUDGET_PER_TURN = "diagnostics_call_budget_per_turn"
+DEFAULT_DIAGNOSTICS_CALL_BUDGET_PER_TURN = 3  # 1..10
+
+# Hard caps (not user-configurable in v1)
+DIAGNOSTICS_RESPONSE_BYTE_CAP = 64 * 1024  # 64 KiB per tool response
+
+# Redaction list for both called_with payloads and service_response outputs (widened per S2)
+DIAGNOSTICS_REDACT_KEYS = frozenset({
+    "access_token",
+    "password",
+    "api_key",
+    "auth_token",
+    # widened S2
+    "bearer_token",
+    "bearer",
+    "authorization",
+    "client_secret",
+    "refresh_token",
+    "aws_secret_access_key",
+    "aws_access_key_id",
+    "secret_key",
+    "secret",
+    "credentials",
+    "private_key",
+    "authentication_token",
+    "cookie",
+    "session_id",
+    "csrf_token",
+    "pin",
+    "ssid",
+})
+
+# Past-tense lifecycle tokens (used by AC17 confabulation guard, widened per M7/D49)
+DIAGNOSTICS_LIFECYCLE_PAST_TENSE_TOKENS = frozenset({
+    "reloaded", "restarted", "disabled", "enabled",
+})
+
+# Tool-name set used for (a) system-prompt shape detection, (b) flag-off pending sweep.
+# Must stay in lockstep with the classes registered by diagnostics/__init__.py.
+DIAGNOSTICS_TOOL_NAMES: frozenset[str] = frozenset({
+    "DiagnosticsSystemLogList",
+    "DiagnosticsLogbookRead",
+    "DiagnosticsRepairsList",
+    "DiagnosticsHealthCheck",
+    "DiagnosticsStateRead",
+    "DiagnosticsStateHistory",
+    "DiagnosticsStatistics",
+    "DiagnosticsIntegrationList",
+    "ExtendedServiceCall",
+    "DiagnosticsReloadIntegration",
+    "DiagnosticsReloadConfigEntry",
+    "DiagnosticsEntityEnable",
+    "DiagnosticsEntityDisable",
+    "DiagnosticsLoggerSetLevel",
+    "DiagnosticsCheckConfig",
+})
+
+# ExtendedServiceCall classification.
+# class: "read_safe" -> immediate execute (no PendingChange).
+# class: "mutating"  -> routed through the existing PendingChange -> approve -> apply -> UndoStack.
+# Services NOT listed here are denied by default (allowlist, not denylist).
+# Keep this list disjoint from SERVICE_TOOL_ALLOWED_SERVICES and from the dedicated
+# DiagnosticsLoggerSetLevel tool (no logger.* entries here).
+DIAGNOSTICS_ALLOWED_SERVICES: dict[str, dict[str, str]] = {
+    # --- read_safe / ambient ---
+    "system_log.clear":                {"class": "read_safe", "reason": "In-memory log ring only; no persistent state"},
+    "persistent_notification.create":  {"class": "read_safe", "reason": "UI-only; user visible; no entity mutation"},
+    "persistent_notification.dismiss": {"class": "read_safe", "reason": "UI-only"},
+    "persistent_notification.dismiss_all": {"class": "read_safe", "reason": "UI-only"},
+    "zone.reload":                     {"class": "read_safe", "reason": "Reloads zone YAML from storage; no external side-effect"},
+    "homeassistant.update_entity":     {"class": "read_safe", "reason": "Forces poll of a single entity; no state write initiated by us"},
+
+    # --- mutating / approval-gated ---
+    "automation.trigger":              {"class": "mutating", "reason": "Runs automation actions; real-world side-effects"},
+    "automation.turn_on":              {"class": "mutating", "reason": "Enables automation"},
+    "automation.turn_off":             {"class": "mutating", "reason": "Disables automation"},
+    "automation.toggle":               {"class": "mutating", "reason": "Toggles automation"},
+    "script.turn_on":                  {"class": "mutating", "reason": "Runs script sequence"},
+    "script.turn_off":                 {"class": "mutating", "reason": "Stops running script"},
+    "scene.apply":                     {"class": "mutating", "reason": "Applies scene to entities"},
+    "scene.turn_on":                   {"class": "mutating", "reason": "Activates scene"},
+    "input_boolean.toggle":            {"class": "mutating", "reason": "Flips helper state"},
+    "input_boolean.turn_on":           {"class": "mutating", "reason": "Writes helper state"},
+    "input_boolean.turn_off":          {"class": "mutating", "reason": "Writes helper state"},
+    "input_button.press":              {"class": "mutating", "reason": "Fires helper event"},
+    "timer.start":                     {"class": "mutating", "reason": "Starts timer"},
+    "timer.pause":                     {"class": "mutating", "reason": "Pauses timer"},
+    "timer.cancel":                    {"class": "mutating", "reason": "Cancels timer"},
+    "timer.finish":                    {"class": "mutating", "reason": "Completes timer"},
+    "counter.increment":               {"class": "mutating", "reason": "Mutates counter"},
+    "counter.decrement":               {"class": "mutating", "reason": "Mutates counter"},
+    "counter.reset":                   {"class": "mutating", "reason": "Mutates counter"},
+}
+
+# Explicit deny list — backstop even if the allowlist dict is ever expanded by mistake.
+DIAGNOSTICS_DENIED_SERVICES: frozenset[str] = frozenset({
+    "homeassistant.restart",
+    "homeassistant.stop",
+    "recorder.purge",
+    "recorder.purge_entities",
+    "hassio.host_shutdown",
+    "hassio.host_reboot",
+    "hassio.supervisor_restart",
+    "hassio.supervisor_update",
+})
+
 AVAILABLE_MODELS: Final = [
     "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
     "us.anthropic.claude-haiku-4-5-20251001-v1:0",
