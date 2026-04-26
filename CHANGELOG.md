@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) conventions. Detailed per-release notes live on GitHub Releases; this file captures the higher-level history.
 
+## 1.2.3 — Fix Bedrock tool-schema validation errors
+
+### Fixed
+- **Bedrock rejected the entire tool list with `ValidationException`** (user-visible as "That request didn't pass the AI service's validation"). Three distinct schema defects in the v1.2.1 voluptuous converter slipped past the v1.2.1 test suite because the tests didn't exercise every tool's parameters shape. Fixed:
+  - **Function-as-key leaked into `properties`.** `DiagnosticsLoggerSetLevel` uses `vol.Schema({cv.string: ...}, extra=vol.ALLOW_EXTRA)` for free-form `{logger_name: level}` payloads. The converter stringified the `cv.string` function as the property key, producing a literal `"<function string at 0x10b74c180>"` — invalid JSON Schema. Fix: skip non-Required/Optional non-string keys from `properties` and rely on `additionalProperties: true` to describe them.
+  - **`default` fields in input_schema.** Bedrock's JSON Schema subset rejects `default`; the converter was emitting it for every `vol.Optional(..., default=X)` key. Fix: drop `default` entirely.
+  - **`vol.Any(None, dict)` became `type: string` with `default: null`.** `ExtendedServiceCall.target` and `data` are `vol.Any(None, dict)`. The converter returned `{}`, then the default-handling path slapped `type: string` and `default: null` on it. Fix: `vol.Any` now picks the first concrete non-None branch (so `vol.Any(None, dict)` becomes `type: object`).
+- **Regression guards** added in `tests/test_bedrock_tool_schema.py`: assert no `default` in any converter output, assert function-typed keys are never property names, assert `vol.Any(None, dict)` produces `type: object`, and assert `DiagnosticsLoggerSetLevel` uses `additionalProperties: true` rather than empty properties.
+
+### Tests
+- 262 passed, 0 skipped, 1 xpassed (was 259 passed — +3 new regression tests).
+
 ## 1.2.2 — Integrate pytest-homeassistant async hass fixture (tests only)
 
 ### Tests

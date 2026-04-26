@@ -76,10 +76,16 @@ def _vol_type_to_json(validator: Any) -> dict[str, Any]:
         vals = list(validator.container)
         return {"enum": vals}
 
-    # vol.Any(None, dict) or vol.Any(str, list)
+    # vol.Any(None, dict) or vol.Any(str, list) — pick the first concrete
+    # non-None branch so Bedrock gets a usable `type` (it rejects empty schemas).
     if isinstance(validator, vol.Any):
-        # Permissive: return empty schema (accept anything)
-        return {}
+        for branch in validator.validators:
+            if branch is None or branch is type(None):
+                continue
+            branch_schema = _vol_type_to_json(branch)
+            if branch_schema and "type" in branch_schema:
+                return branch_schema
+        return {"type": "string"}
 
     # Nested vol.Schema
     if isinstance(validator, vol.Schema):
@@ -90,7 +96,15 @@ def _vol_type_to_json(validator: Any) -> dict[str, Any]:
 
 
 def _vol_schema_to_json_schema(schema: vol.Schema) -> dict[str, Any]:
-    """Convert a vol.Schema to a top-level JSON Schema object."""
+    """Convert a vol.Schema to a top-level JSON Schema object.
+
+    Output conforms to Bedrock's JSON Schema subset:
+    - No `default` fields (Bedrock rejects them).
+    - Every property has a concrete `type` (Bedrock requires it).
+    - Non-string non-Required/Optional keys (e.g. free-form ``cv.string``
+      dict keys used with ``extra=vol.ALLOW_EXTRA``) are dropped from
+      ``properties`` — they belong under ``additionalProperties`` instead.
+    """
     if not isinstance(schema, vol.Schema) or not isinstance(schema.schema, dict):
         return {"type": "object", "properties": {}, "required": []}
 
@@ -98,30 +112,40 @@ def _vol_schema_to_json_schema(schema: vol.Schema) -> dict[str, Any]:
     required: list[str] = []
 
     for key, validator in schema.schema.items():
+        # Only string-named keys become JSON Schema properties.
         if isinstance(key, vol.Required):
-            key_name = str(key.schema)
+            if not isinstance(key.schema, str):
+                continue
+            key_name = key.schema
             required.append(key_name)
         elif isinstance(key, vol.Optional):
-            key_name = str(key.schema)
+            if not isinstance(key.schema, str):
+                continue
+            key_name = key.schema
+        elif isinstance(key, str):
+            key_name = key
         else:
-            key_name = str(key)
+            # Function keys (e.g. cv.string used as a free-form key with
+            # extra=ALLOW_EXTRA) cannot be JSON Schema properties. Skip them;
+            # they'll be covered by additionalProperties below.
+            continue
 
         prop_schema = _vol_type_to_json(validator)
 
-        # Attach default for Optional keys when serializable
-        if isinstance(key, vol.Optional) and key.default is not vol.UNDEFINED:
-            try:
-                default_val = key.default() if callable(key.default) else key.default
-                if isinstance(default_val, (str, int, float, bool, type(None))):
-                    prop_schema.setdefault("type", "string")  # best-effort
-                    prop_schema["default"] = default_val
-            except Exception:  # noqa: BLE001
-                pass
+        # Bedrock requires every property to declare a concrete type.
+        # Permissive converters return {} — promote those to string.
+        if not prop_schema or "type" not in prop_schema:
+            # vol.Any(None, dict) and similar — fall back to a permissive
+            # string type so Bedrock accepts the schema. Specific callers
+            # that need object payloads should use vol.Schema({...}) nested.
+            prop_schema = {**prop_schema, "type": "string"}
 
-        properties[key_name] = prop_schema or {"type": "string"}
+        # Bedrock does NOT accept `default` in tool input_schema. Skip it.
+        properties[key_name] = prop_schema
 
-    # extra=ALLOW_EXTRA → additionalProperties: true
-    extra_flag = {"additionalProperties": True} if schema.extra == vol.ALLOW_EXTRA else {}
+    extra_flag: dict[str, Any] = (
+        {"additionalProperties": True} if schema.extra == vol.ALLOW_EXTRA else {}
+    )
 
     return {
         "type": "object",

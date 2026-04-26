@@ -33,8 +33,12 @@ def test_required_entity_id_roundtrip():
     assert result["properties"]["entity_id"] == {"type": "string"}
 
 
-def test_optional_with_default_carries_default():
-    """Optional field with default value should preserve the default in JSON Schema."""
+def test_optional_without_default_field():
+    """Optional fields must NOT emit a `default` key in input_schema.
+
+    Bedrock's JSON Schema validator rejects `default` on tool input_schema
+    (it's a subset of standard JSON Schema). Regression guard for v1.2.3.
+    """
     from custom_components.bedrock_ha_agent.messages import _vol_schema_to_json_schema
 
     schema = vol.Schema({vol.Optional("limit", default=50): vol.All(int, vol.Range(min=1, max=500))})
@@ -43,7 +47,59 @@ def test_optional_with_default_carries_default():
     assert result["properties"]["limit"]["type"] == "integer"
     assert result["properties"]["limit"]["minimum"] == 1
     assert result["properties"]["limit"]["maximum"] == 500
-    assert result["properties"]["limit"]["default"] == 50
+    assert "default" not in result["properties"]["limit"], (
+        "Bedrock rejects `default` on tool input_schema properties"
+    )
+
+
+def test_function_keys_are_not_emitted_as_properties():
+    """Non-string schema keys (e.g. cv.string used as a free-form dict key
+    with extra=ALLOW_EXTRA, as in DiagnosticsLoggerSetLevel) must be
+    dropped from `properties` — they'd serialize as `<function string ...>`
+    and crash Bedrock's validator.
+    """
+    import homeassistant.helpers.config_validation as cv
+    from custom_components.bedrock_ha_agent.messages import _vol_schema_to_json_schema
+
+    schema = vol.Schema({cv.string: vol.In(["DEBUG", "INFO"])}, extra=vol.ALLOW_EXTRA)
+    result = _vol_schema_to_json_schema(schema)
+    # Properties dict must not contain a function repr
+    assert all(isinstance(k, str) and "<function" not in k for k in result["properties"]), (
+        f"Function key leaked into properties: {list(result['properties'].keys())}"
+    )
+    assert result["additionalProperties"] is True
+
+
+def test_vol_any_none_dict_picks_object_type():
+    """vol.Any(None, dict) should become type:object so Bedrock accepts it."""
+    from custom_components.bedrock_ha_agent.messages import _vol_schema_to_json_schema
+
+    schema = vol.Schema({vol.Optional("target"): vol.Any(None, dict)})
+    result = _vol_schema_to_json_schema(schema)
+    assert result["properties"]["target"]["type"] == "object"
+
+
+def test_output_contains_no_default_anywhere():
+    """Sweep check: no `default` field anywhere in the converter output.
+
+    Bedrock rejects any tool whose input_schema contains `default` fields."""
+    import json
+    from unittest.mock import MagicMock
+    from custom_components.bedrock_ha_agent.diagnostics import get_tools
+    from custom_components.bedrock_ha_agent.messages import format_tools_for_bedrock
+
+    entry = MagicMock()
+    entry.options = {"enable_diagnostics": True}
+    tools = get_tools(MagicMock(), entry)
+    api = MagicMock()
+    api.tools = tools
+    specs = format_tools_for_bedrock(api)
+
+    for spec in specs:
+        encoded = json.dumps(spec)
+        assert '"default"' not in encoded, (
+            f"{spec['name']} contains `default` field: {encoded}"
+        )
 
 
 def test_allow_extra_becomes_additional_properties_true():
@@ -132,21 +188,28 @@ def test_format_tools_every_diagnostics_tool_has_schema():
     specs = format_tools_for_bedrock(api_instance)
     assert len(specs) == 15
 
-    tools_with_params = {
+    tools_with_named_params = {
         "DiagnosticsSystemLogList", "DiagnosticsLogbookRead",
         "DiagnosticsStateRead", "DiagnosticsStateHistory",
         "DiagnosticsStatistics", "ExtendedServiceCall",
         "DiagnosticsReloadIntegration", "DiagnosticsReloadConfigEntry",
         "DiagnosticsEntityEnable", "DiagnosticsEntityDisable",
-        "DiagnosticsLoggerSetLevel"
     }
     # Exempt: DiagnosticsRepairsList, DiagnosticsHealthCheck,
     #         DiagnosticsIntegrationList, DiagnosticsCheckConfig — no params
+    # Special case: DiagnosticsLoggerSetLevel uses extra=ALLOW_EXTRA with a
+    # free-form cv.string key (no named properties), so its schema is
+    # {properties: {}, additionalProperties: true} — valid for Bedrock.
 
     for spec in specs:
-        if spec["name"] in tools_with_params:
+        if spec["name"] in tools_with_named_params:
             assert spec["input_schema"]["properties"], (
-                f"{spec['name']} has empty schema — bug regression"
+                f"{spec['name']} has empty properties — bug regression"
+            )
+        if spec["name"] == "DiagnosticsLoggerSetLevel":
+            assert spec["input_schema"].get("additionalProperties") is True, (
+                "DiagnosticsLoggerSetLevel must have additionalProperties:true "
+                "to accept free-form {logger_name: level} payloads"
             )
 
 
