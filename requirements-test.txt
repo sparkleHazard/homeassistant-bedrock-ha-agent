@@ -21,8 +21,8 @@ homeassistant>=2025.6.0
 # conversation (manifest): hassil, home-assistant-intents
 # camera     (manifest): PyTurboJPEG (also needs libturbojpeg system lib — see CI workflow)
 # stream     (manifest): PyTurboJPEG, av (bundles ffmpeg inside its wheel)
-hassil>=2.0
-home-assistant-intents>=2025.1
+hassil>=3.5.0
+home-assistant-intents>=2026.3.24
 PyTurboJPEG>=1.8.0
 av>=16.0.0
 
